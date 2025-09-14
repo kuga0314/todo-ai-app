@@ -1,0 +1,70 @@
+:root{
+  --primary:#4f9aff;
+  --muted:#64748b;
+}
+
+/* 入力フォーム全体（余白は控えめ） */
+.ti{ display:flex; flex-direction:column; gap:.5rem; }
+
+/* 上段：タイトル入力 */
+.ti-input{
+  font:inherit; font-size:1rem;
+  padding:.55rem .8rem;
+  border:1.5px solid #cbd5e1; border-radius:10px; background:#fff;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.05);
+  transition:border .2s, box-shadow .2s;
+}
+.ti-input:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 2px rgba(79,154,255,.22); }
+
+/* 下段：基本1行、狭い時のみ折り返し */
+.ti-row{
+  display:flex; flex-wrap:wrap; gap:.45rem .65rem; align-items:center;
+}
+
+/* 高さ揃え */
+.ti-datetime,.ti-select,.ti-submit{ min-height:38px; line-height:1.2; }
+
+/* 日時/E 入力（横幅食い過ぎ防止） */
+.ti-datetime{
+  flex:0 0 160px; width:160px; max-width:210px;
+  padding:.42rem .6rem;
+  border:1px solid #d3d7de; border-radius:8px; background:#fff; font-size:.92rem;
+  transition:border .2s, box-shadow .2s;
+}
+.ti-datetime:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 2px rgba(79,154,255,.18); }
+
+/* ラベル（横並び・省スペース） */
+.ti-field{
+  display:inline-flex; align-items:center; gap:.35rem;
+  white-space:nowrap; font-size:.85rem; color:var(--muted);
+}
+
+/* セレクトを小ぶりに */
+.ti-select{
+  flex:0 0 auto; min-width:64px;
+  padding:.38rem .5rem;
+  border:1px solid #d3d7de; border-radius:8px; background:#fff; font-size:.92rem;
+  transition:border .2s, box-shadow .2s;
+}
+.ti-select:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 2px rgba(79,154,255,.18); }
+
+/* 追加ボタン（右端） */
+.ti-submit{
+  margin-left:auto; min-width:104px;
+  padding:.5rem .9rem;
+  border:none; border-radius:9px; background:var(--primary); color:#fff; font-weight:600; cursor:pointer;
+  transition:transform .12s, box-shadow .12s, opacity .2s;
+}
+.ti-submit:hover:not(:disabled){ box-shadow:0 3px 8px rgba(79,154,255,.28); transform:translateY(-1px); }
+.ti-submit:disabled{ opacity:.6; cursor:default; }
+
+/* レスポンシブ */
+@media (max-width:1024px){
+  .ti-row{ gap:.4rem .55rem; }
+  .ti-datetime{ flex:0 0 150px; width:150px; }
+  .ti-select{ min-width:56px; font-size:.9rem; }
+}
+@media (max-width:720px){
+  .ti-row{ flex-direction:column; align-items:stretch; }
+  .ti-datetime,.ti-select,.ti-submit{ width:100%; max-width:none; flex:1 1 auto; }
+}

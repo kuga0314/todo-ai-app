@@ -1,0 +1,320 @@
+/* ===== 高さフィット（左ペインいっぱい）＋はみ出し防止 ===== */
+.calendar-box .rbc-calendar {
+  height: 100%;
+  padding: 0;
+  box-sizing: border-box;
+}
+.calendar-box .rbc-month-view,
+.calendar-box .rbc-time-view,
+.calendar-box .rbc-agenda-view { height: 100%; }
+
+/* 最終週の1〜2px食い込みを避けるため “ほんの少しだけ”縮める */
+.calendar-box .rbc-month-view { height: calc(100% - 4px); }
+
+/* Flex 子要素の縮み制約を解除（高さ計算を安定化） */
+.calendar-box .rbc-month-row,
+.calendar-box .rbc-row-content { min-height: 0; }
+
+/* 角丸や影でのはみ出し防止 */
+.calendar-box .rbc-calendar,
+.calendar-box .rbc-month-view { overflow: hidden; border-radius: 10px; }
+
+/* ===== 見た目のベース（カード風） ===== */
+.calendar-box .rbc-calendar {
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ===== ツールバー（コンパクト） ===== */
+.calendar-box .rbc-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .5rem;
+  margin: 0 0 6px;
+}
+.calendar-box .rbc-toolbar-label {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.calendar-box .rbc-btn-group { display: inline-flex; align-items: center; gap: .25rem; }
+.calendar-box .rbc-btn-group button {
+  background: rgba(79,154,255,.15);
+  color: var(--text);
+  border: none;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .18s ease, transform .12s ease;
+}
+.calendar-box .rbc-btn-group button:hover     { background: rgba(79,154,255,.30); }
+.calendar-box .rbc-btn-group button.rbc-active{ background: var(--primary); color: #fff; }
+.calendar-box .rbc-btn-group button:active    { transform: translateY(1px); }
+
+/* ===== 曜日ヘッダー ===== */
+.calendar-box .rbc-header {
+  background: var(--bg);
+  padding: 6px 4px;
+  font-weight: 700;
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
+  color: var(--text);
+  font-size: .9rem;
+}
+.calendar-box .rbc-header + .rbc-header { border-left: 1px solid #e5e7eb; }
+.calendar-box .rbc-header:nth-child(1) { color: #d33; } /* 日 */
+.calendar-box .rbc-header:nth-child(7) { color: var(--secondary); } /* 土 */
+
+/* ===== グリッド線 ===== */
+.calendar-box .rbc-day-bg + .rbc-day-bg       { border-left: 1px solid #eef0f3; }
+.calendar-box .rbc-month-row + .rbc-month-row { border-top: 1px solid #eef0f3; }
+
+/* ===== 日付番号 & 当日ハイライト ===== */
+.calendar-box .rbc-date-cell {
+  text-align: right;
+  padding: 2px 4px 0;
+  font-weight: 700;
+  font-size: .8rem;
+  color: var(--text);
+}
+.calendar-box .rbc-off-range-bg             { background: var(--bg); }
+.calendar-box .rbc-off-range .rbc-date-cell { color: #a7abb4; font-weight: 600; }
+.calendar-box .rbc-today                    { background: rgba(79,154,255,.08); }
+
+/* ===== イベント（カレンダー内のToDo） ===== */
+.calendar-box .rbc-event {
+  padding: 1px 4px;
+  border-radius: 6px;
+  font-size: .75rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+.calendar-box .event-active    { background: var(--primary) !important;  color: #fff !important; }
+.calendar-box .event-completed { background: #9aa0aa !important;         color: #fff !important; opacity: .75; }
+
+/* ===== セル選択・リンク色 ===== */
+.calendar-box .rbc-selected-cell { background: rgba(79,154,255,.12); }
+.calendar-box .rbc-date-cell a { color: inherit; text-decoration: none; }
+
+/* ===== ダークモード ===== */
+@media (prefers-color-scheme: dark) {
+  .calendar-box .rbc-calendar { background: #1e1f22; box-shadow: 0 6px 14px rgba(0,0,0,.45); }
+  .calendar-box .rbc-header   { background: #2a2c31; border-color: #333; color: #e9e9ea; }
+  .calendar-box .rbc-day-bg + .rbc-day-bg,
+  .calendar-box .rbc-month-row + .rbc-month-row { border-color: #333; }
+  .calendar-box .rbc-date-cell { color: #e9e9ea; }
+  .calendar-box .rbc-off-range-bg { background: #2a2c31; }
+  .calendar-box .rbc-btn-group button { background: #30333a; color: #e9e9ea; }
+  .calendar-box .rbc-btn-group button:hover { background: #3a3d45; }
+  .calendar-box .rbc-btn-group button.rbc-active { background: var(--primary); color: #fff; }
+  .calendar-box .rbc-today { background: rgba(79,154,255,.18); }
+}
+
+/* =========================================================
+   ここから “左カラムにだけ出す” 日別パネル向けの見た目
+   （中央モーダルを使わない運用）
+   ========================================================= */
+.day-panel-left .tab { padding: 6px 10px; border-radius: 10px; }
+.day-panel-left .tab.active { background: rgba(79,154,255,.12); }
+
+.day-panel-left .modal-task-list { list-style: none; margin: .2rem 0 0; padding: 0; }
+.day-panel-left .modal-task-list.rich { margin-top: .4rem; }
+.day-panel-left .modal-task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .55rem 0;
+  border-bottom: 1px solid #eee;
+}
+.day-panel-left .modal-task-item:last-child { border-bottom: none; }
+.day-panel-left .modal-task-item.rich { align-items: flex-start; gap: .75rem; }
+
+.day-panel-left .left { flex: 1; min-width: 0; }
+.day-panel-left .right { display: flex; align-items: center; gap: .25rem; }
+
+.day-panel-left .checkbox-row { display: flex; align-items: center; gap: .5rem; }
+.day-panel-left .checkbox-row input { transform: translateY(1px); }
+.day-panel-left .is-done { text-decoration: line-through; color: #777; }
+
+/* 完了済み行は灰色で残す */
+.day-panel-left .row-done { opacity: .75; }
+.day-panel-left .row-done .checkbox-row span { color: #7a7a7a; }
+
+.day-panel-left .meta-row {
+  display: flex; flex-wrap: wrap; gap: .5rem .75rem;
+  margin: .35rem 0 0;
+  font-size: .88rem;
+  color: #5f6b7a;
+}
+.day-panel-left .meta { display: inline-flex; gap: .25rem; align-items: baseline; }
+.day-panel-left .meta-label {
+  font-weight: 700; font-size: .82rem; color: #3a424d; opacity: .9;
+  background: rgba(0,0,0,.05); border-radius: 6px; padding: 1px 6px;
+}
+.day-panel-left .meta-value { font-variant-numeric: tabular-nums; }
+
+/* チップ */
+.day-panel-left .chip-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
+.day-panel-left .chip {
+  font-size: .78rem; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px;
+  background: #eef3ff; color: #2b5fd6;
+  box-shadow: inset 0 0 0 1px rgba(43,95,214,.15);
+}
+.day-panel-left .chip-pri-高 { background: #ffe9e9; color: #d83d3d; box-shadow: inset 0 0 0 1px rgba(216,61,61,.18); }
+.day-panel-left .chip-pri-中 { background: #fff6db; color: #9b6b00; box-shadow: inset 0 0 0 1px rgba(155,107,0,.18); }
+.day-panel-left .chip-pri-低 { background: #edf8ee; color: #1f7a2e; box-shadow: inset 0 0 0 1px rgba(31,122,46,.18); }
+
+.day-panel-left .chip-sca-大 { background: #e9f1ff; color: #2252a9; box-shadow: inset 0 0 0 1px rgba(34,82,169,.18); }
+.day-panel-left .chip-sca-中 { background: #eef7ff; color: #1a6d8c; box-shadow: inset 0 0 0 1px rgba(26,109,140,.18); }
+.day-panel-left .chip-sca-小 { background: #f0f7f2; color: #2a6d3f; box-shadow: inset 0 0 0 1px rgba(42,109,63,.18); }
+
+/* 閉じるボタン */
+.day-panel-left .btn.btn-close {
+  margin-top: .25rem;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: .5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.day-panel-left .btn.btn-close:hover { filter: brightness(0.95); }
+
+/* 空表示 */
+.day-panel-left .empty { color: #6a7280; margin: .25rem 0 .5rem; }
+
+/* =========================================================
+   （参考）中央モーダル用スタイル（使わないなら残ってても害はなし）
+   ========================================================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.modal {
+  background: #fff;
+  padding: 18px 18px 14px;
+  border-radius: 12px;
+  max-width: 560px;
+  width: 92%;
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.modal-lg { max-width: 560px; }
+.modal h3 { margin: 0 0 8px; }
+
+/* ヘッダー内にタブコントロールを並列配置 */
+.modal-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* ===== タブ（モーダル/左パネル共通で流用可能） ===== */
+.tab-controls {
+  display: inline-flex;
+  background: #eef2f7;
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: .35rem .8rem;
+  font-weight: 700;
+  font-size: .9rem;
+  border-radius: 999px;
+  color: #334155;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.tab:hover { background: rgba(0,0,0,.06); }
+.tab.active {
+  background: #fff;
+  color: #0b1220;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+
+/* ===== リスト（モーダル版のクラス。互換のため残置） ===== */
+.modal-task-list { list-style: none; padding: 0; margin: .2rem 0 0; }
+.modal-task-list.rich { margin-top: .4rem; }
+.modal-task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .55rem 0;
+  border-bottom: 1px solid #eee;
+}
+.modal-task-item:last-child { border-bottom: none; }
+.modal-task-item.rich { align-items: flex-start; gap: .75rem; }
+
+.modal-task-item .left { flex: 1; min-width: 0; }
+.modal-task-item .right { display: flex; align-items: center; gap: .25rem; }
+
+.checkbox-row { display: flex; align-items: center; gap: .5rem; }
+.checkbox-row input { transform: translateY(1px); }
+.is-done { text-decoration: line-through; color: #777; }
+
+/* 完了済み行は灰色で残す */
+.row-done { opacity: .75; }
+.row-done .checkbox-row span { color: #7a7a7a; }
+
+.meta-row {
+  display: flex; flex-wrap: wrap; gap: .5rem .75rem;
+  margin: .35rem 0 0;
+  font-size: .88rem;
+  color: #5f6b7a;
+}
+.meta { display: inline-flex; gap: .25rem; align-items: baseline; }
+.meta-label {
+  font-weight: 700; font-size: .82rem; color: #3a424d; opacity: .9;
+  background: rgba(0,0,0,.05); border-radius: 6px; padding: 1px 6px;
+}
+.meta-value { font-variant-numeric: tabular-nums; }
+
+/* チップ（モーダル版のクラス。互換のため残置） */
+.chip-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
+.chip {
+  font-size: .78rem; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px;
+  background: #eef3ff; color: #2b5fd6;
+  box-shadow: inset 0 0 0 1px rgba(43,95,214,.15);
+}
+.chip-pri-高 { background: #ffe9e9; color: #d83d3d; box-shadow: inset 0 0 0 1px rgba(216,61,61,.18); }
+.chip-pri-中 { background: #fff6db; color: #9b6b00; box-shadow: inset 0 0 0 1px rgba(155,107,0,.18); }
+.chip-pri-低 { background: #edf8ee; color: #1f7a2e; box-shadow: inset 0 0 0 1px rgba(31,122,46,.18); }
+
+.chip-sca-大 { background: #e9f1ff; color: #2252a9; box-shadow: inset 0 0 0 1px rgba(34,82,169,.18); }
+.chip-sca-中 { background: #eef7ff; color: #1a6d8c; box-shadow: inset 0 0 0 1px rgba(26,109,140,.18); }
+.chip-sca-小 { background: #f0f7f2; color: #2a6d3f; box-shadow: inset 0 0 0 1px rgba(42,109,63,.18); }
+
+.modal-actions { display: flex; justify-content: flex-end; margin-top: .75rem; }
+
+.btn.btn-close {
+  margin-top: .25rem;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: .5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn.btn-close:hover { filter: brightness(0.95); }
+
+/* 空表示 */
+.empty { color: #6a7280; margin: .25rem 0 .5rem; }
