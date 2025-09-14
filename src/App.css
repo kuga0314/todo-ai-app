@@ -1,0 +1,185 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap");
+
+/* ===== 基本トークン ===== */
+:root {
+  --primary: #4f9aff;
+  --primary-dark: #2b6cb0;
+  --accent: #ff8a65;     /* 温かみのある補色 */
+  --secondary: #7b6cff;
+  --bg: #f5f8ff;
+  --card-bg: #fff;
+  --text: #2d3748;
+  --muted: #6a7280;
+
+  --r-lg: 14px;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.15);
+  --transition-fast: 0.18s ease;
+
+  --hdr-h: 64px;
+  --main-pad: 16px;
+  --vh-slack: 5px;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: "Inter","Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ===== Header ===== */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: saturate(180%) blur(12px);
+  background: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    var(--primary-dark) 100%
+  );
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+  animation: fadeDown 0.4s ease;
+}
+.hdr-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--hdr-h);
+}
+.brand {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: .5px;
+}
+.app-nav { display: flex; gap: 12px; }
+.navlink {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  opacity: 0.95;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+.navlink:hover {
+  background: rgba(255, 255, 255, 0.16);
+  opacity: 1;
+}
+
+/* ===== Main ===== */
+.app-main {
+  padding: var(--main-pad) 0 calc(var(--main-pad) + 4px);
+}
+
+/* ===== Card ===== */
+.card {
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  animation: fadeIn 0.5s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ===== 2カラム ===== */
+.main-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(520px, 1.3fr) 1fr;
+  align-items: stretch;
+  height: calc(100dvh - var(--hdr-h) - (var(--main-pad) * 2) - var(--vh-slack));
+  overflow: hidden;
+}
+.pane-left {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+}
+.pane-left > * {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+}
+.pane-right {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.right-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card-bg);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #eee;
+}
+.right-scroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, filter .2s ease;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn:active { transform: scale(0.97); }
+.btn-outline {
+  background: transparent;
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+}
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* ===== Notes ===== */
+.text-muted { color: var(--muted); font-size: 0.9rem; }
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 980px) {
+  .main-grid { grid-template-columns: 1fr; height: auto; overflow: visible; }
+  .pane-right { overflow: visible; }
+  .right-scroll { max-height: none; overflow: visible; }
+}
