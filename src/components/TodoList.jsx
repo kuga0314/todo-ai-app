@@ -136,9 +136,10 @@ function TodoList({ todos, userId }) {
       {/* リスト */}
       <ul className="list">
         {sorted.map((todo) => {
-          const deadlineAt = todo.deadline?.toDate?.();
-          const notifyAt = todo.startRecommend?.toDate?.();
-          const E = Number(todo?.estimatedMinutes) || null;
+          const deadlineAt     = todo.deadline?.toDate?.();
+          const notifyAt       = todo.startRecommend?.toDate?.();
+          const latestStartAt  = todo.latestStart?.toDate?.();   // ★ 後方計画L
+          const E  = Number(todo?.estimatedMinutes) || null;
           const TE = calcTE(todo);
           const TEh = TE ? (TE / 60).toFixed(1) : null;
 
@@ -160,7 +161,7 @@ function TodoList({ todos, userId }) {
 
                 {/* === 3行レイアウト === */}
                 <div className="meta-lines">
-                  {/* 1行目：締切と通知 */}
+                  {/* 1行目：締切・通知・L */}
                   <div className="meta-line">
                     <span className="meta-label">締切:</span>
                     <span className="meta-value">
@@ -170,6 +171,11 @@ function TodoList({ todos, userId }) {
                     <span className="meta-label">通知:</span>
                     <span className="meta-value note">
                       {notifyAt ? format(notifyAt, "M/d HH:mm") : "—"}
+                    </span>
+                    <span className="spacer" />
+                    <span className="meta-label">L:</span>
+                    <span className="meta-value">
+                      {latestStartAt ? format(latestStartAt, "M/d HH:mm") : "—"}
                     </span>
                   </div>
 
