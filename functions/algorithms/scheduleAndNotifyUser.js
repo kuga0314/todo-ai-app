@@ -1,5 +1,3 @@
-// functions/scheduleAndNotifyUser.js
-// Node 20 / Gen2 前提
 /* eslint-env node */
 /* eslint-disable no-undef */
 const admin = require("firebase-admin");
@@ -9,150 +7,217 @@ const { onCall } = require("firebase-functions/v2/https");
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-/** ------- 通知計算ユーティリティ ------- */
-function computeTEw({ O, M, P, w }) {
-  return (O + w * M + P) / (w + 2);
-}
-function sigmaPERT({ O, P }) {
-  return (P - O) / 6;
-}
-function weightByScale(scale) {
-  const map = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1.5 };
-  return map[Number(scale) || 3] || 3;
-}
-function kByRiskMode(riskMode) {
-  return riskMode === "safe" ? 1 : riskMode === "challenge" ? -1 : 0;
-}
-function priorityFactor(p) {
-  const map = { 3: 0.9, 2: 1.0, 1: 1.05 };
-  return map[Number(p) || 2] || 1.0;
-}
-function toMs(min) {
-  return Number(min || 0) * 60 * 1000;
-}
-function toIso(d) {
-  return d.toISOString();
-}
+const { scheduleShift } = require("./scheduleShift");
 
-/** Firestore Timestamp / Date / ISO文字列 どれでも読める */
-function fromAnyDeadline(payload) {
-  const v =
-    payload.deadlineIso || payload.deadlineISO || payload.deadline || null;
+/* ───────── ユーティリティ ───────── */
+function toDateMaybe(v) {
   if (!v) return null;
-
-  if (typeof v?.toDate === "function") return v.toDate(); // Firestore Timestamp
-  if (v instanceof Date) return v;
+  if (v?.toDate) return v.toDate();
+  if (v instanceof Date) return new Date(v);
   if (typeof v === "string" || typeof v === "number") {
     const d = new Date(v);
-    return isNaN(d) ? null : d;
+    return Number.isNaN(d.getTime()) ? null : d;
   }
   return null;
 }
+function deepEqual(a, b) {
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+}
+/** 入力の指紋（自己ループ抑止用） */
+function fingerprintInput(payload) {
+  const keys = [
+    "deadline","deadlineIso","deadlineISO",
+    "estimatedMinutes","E",
+    "scale","priority",
+    "buffer","bufferRate","bufferRate_input",
+    "riskMode","algoVariant",
+    "O","M","P","pertWeight",
+    "userId",
+  ];
+  const obj = {};
+  for (const k of keys) obj[k] = payload?.[k] ?? null;
+  // 締切は ISO で正規化
+  const D =
+    toDateMaybe(payload?.deadlineIso) ||
+    toDateMaybe(payload?.deadlineISO) ||
+    toDateMaybe(payload?.deadline);
+  obj.deadlineIso = D ? D.toISOString() : null;
+  return JSON.stringify(obj);
+}
 
-/** 通知時刻計算 */
-function computeSchedule(payload) {
-  const D = fromAnyDeadline(payload);
-  if (!D) return { ok: false, reason: "no-deadline" };
+/* ───────── 設定ロード（Settings.jsx 構成に一致） ───────── */
+async function loadUserSettings(uid) {
+  // 実験（アルゴリズムは UI 側で modifiedPERT 固定）
+  const expSnap = await db.doc(`users/${uid}/settings/experiment`).get();
+  const experiment = expSnap.exists ? (expSnap.data() || {}) : { algoVariant: "modifiedPERT", riskMode: "mean" };
 
-  const E = Number(payload.estimatedMinutes ?? payload.E ?? 0); // 分
-  const scale = payload.scale ?? 3;
-  const priority = payload.priority ?? 2;
-  const riskMode = payload.riskMode ?? "mean";
-  const bufferRate = Number(payload.bufferRate_input ?? payload.bufferRate ?? 0);
+  // 通知可能時間（weekday/weekend の start/end）
+  const nSnap = await db.doc(`users/${uid}/settings/notifyWindow`).get();
+  const notifyWindow = nSnap.exists ? (nSnap.data() || {}) : {
+    weekday: { start: "08:00", end: "23:00" },
+    weekend: { start: "09:00", end: "23:30" },
+  }; // Settings.jsx の構造に対応。:contentReference[oaicite:3]{index=3}
 
-  const O = Number(payload.O ?? Math.max(E * 0.8, 1));
-  const M = Number(payload.M ?? Math.max(E, 1));
-  const P = Number(payload.P ?? Math.max(E * 1.5, 1));
-  const w = weightByScale(scale);
-
-  const TEw = computeTEw({ O, M, P, w });
-  const sigma = sigmaPERT({ O, P });
-  const k = kByRiskMode(riskMode);
-
-  const TreqMin = (TEw + k * sigma) * (1 + bufferRate) * priorityFactor(priority);
-
-  const latestStart = new Date(D.getTime() - toMs(TreqMin));
-  const startRecommend = latestStart;
-
-  return {
-    ok: true,
-    startRecommendIso: toIso(startRecommend),
-    latestStartIso: toIso(latestStart),
-    T_req_min: TreqMin,
-    O,
-    M,
-    P,
-    w,
-    sigma,
-    k,
-    bufferRate,
-    priority,
-    riskMode,
+  // 作業時間帯（無ければデフォルト）。WorkHoursSection が別ドキュメントを使うならここで読む。
+  const wSnap = await db.doc(`users/${uid}/settings/workHours`).get();
+  const workHours = wSnap.exists ? (wSnap.data() || {}) : {
+    weekday: { start: "09:00", end: "23:00" },
+    weekend: { start: "09:00", end: "23:00" },
+    skipWeekends: false,
   };
+
+  // 日次キャパ（h）: capacity.weekday / capacity.weekend → DOW ごと分に換算
+  const cSnap = await db.doc(`users/${uid}/settings/capacity`).get();
+  let capacity = { weekday: 2, weekend: 4 };
+  if (cSnap.exists) {
+    const d = cSnap.data() || {};
+    capacity = { weekday: Number(d.weekday ?? 2), weekend: Number(d.weekend ?? 4) }; // :contentReference[oaicite:4]{index=4}
+  }
+  const dailyCapacityByDOW = {
+    // 0=Sun,1=Mon,...6=Sat
+    0: capacity.weekend * 60,
+    1: capacity.weekday * 60,
+    2: capacity.weekday * 60,
+    3: capacity.weekday * 60,
+    4: capacity.weekday * 60,
+    5: capacity.weekday * 60,
+    6: capacity.weekend * 60,
+  };
+
+  return { experiment, notifyWindow, workHours, dailyCapacityByDOW };
 }
 
-/** Firestore 更新処理（共通） */
-async function updateTask(ref, out) {
-  await ref.update({
-    // ISO文字列（解析用）
-    startRecommendIso: out.startRecommendIso,
-    latestStartIso: out.latestStartIso,
+/* ───────── 1ユーザーの全タスクを一括再配置 ───────── */
+async function recomputeForUser(uid) {
+  const { experiment, notifyWindow, workHours, dailyCapacityByDOW } = await loadUserSettings(uid);
 
-    // Timestamp（UI用）
-    startRecommend: admin.firestore.Timestamp.fromDate(
-      new Date(out.startRecommendIso)
-    ),
-    latestStart: admin.firestore.Timestamp.fromDate(
-      new Date(out.latestStartIso)
-    ),
+  const snap = await db.collection("todos").where("userId", "==", uid).get();
 
-    // 必要時間
-    T_req_min: out.T_req_min,
+  const tasks = [];
+  const docs = [];
+  snap.forEach((docSnap) => {
+    const t = docSnap.data() || {};
+    const D =
+      toDateMaybe(t.deadlineIso) ||
+      toDateMaybe(t.deadlineISO) ||
+      toDateMaybe(t.deadline);
+    if (!D) return; // 締切なしはスキップ
 
-    // 計算メタ
-    calcMeta: {
-      O: out.O,
-      M: out.M,
-      P: out.P,
-      w: out.w,
-      sigma: out.sigma,
-      k: out.k,
-      bufferRate: out.bufferRate,
-      priority: out.priority,
-      riskMode: out.riskMode,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
+    tasks.push({
+      id: docSnap.id,
+      text: t.text,
+      deadlineIso: D.toISOString(),
+      estimatedMinutes: Number(t.estimatedMinutes ?? t.E ?? 0),
+      scale: t.scale ?? t.uncertainty ?? 3,
+      priority: t.priority ?? 2,                  // 1=低,2=中,3=高
+      buffer: Number(t.bufferRate_input ?? t.bufferRate ?? t.buffer ?? 0),
+      createdAt: t.createdAt?.toDate?.()?.toISOString?.() || null, // 安定ソート用
+      explain: t.explain || null,
+    });
+    docs.push({ id: docSnap.id, ref: docSnap.ref, data: t });
   });
+
+  const updatedList = scheduleShift(
+    tasks,
+    { notifyWindow, workHours, dailyCapacityByDOW },
+    { algoVariant: experiment.algoVariant || "modifiedPERT", riskMode: experiment.riskMode || "mean" }
+  );
+
+  // 差分のみ更新
+  let updated = 0, skipped = 0;
+  const batch = db.batch();
+
+  for (const u of updatedList) {
+    const d = docs.find((x) => x.id === u.id);
+    if (!d) { skipped++; continue; }
+
+    const prev = d.data || {};
+    const prevComparable = {
+      startRecommendIso: prev.startRecommendIso ?? null,
+      latestStartIso: prev.latestStartIso ?? null,
+      T_req_min: prev.T_req_min ?? null,
+      explainCore: {
+        variant: prev.explain?.variant ?? null,
+        riskMode: prev.explain?.riskMode ?? null,
+        O: prev.explain?.O ?? null,
+        M: prev.explain?.M ?? null,
+        P: prev.explain?.P ?? null,
+        w: prev.explain?.w ?? null,
+        sigma: prev.explain?.sigma ?? null,
+        TEw: prev.explain?.TEw ?? null,
+        kSigma: prev.explain?.kSigma ?? null,
+        bufferRate: prev.explain?.bufferRate ?? null,
+        pf: prev.explain?.pf ?? null,
+      },
+    };
+    const nextComparable = {
+      startRecommendIso: u.startRecommendIso ?? null,
+      latestStartIso: u.latestStartIso ?? null,
+      T_req_min: u.T_req_min ?? null,
+      explainCore: {
+        variant: u.explain?.variant ?? null,
+        riskMode: u.explain?.riskMode ?? null,
+        O: u.explain?.O ?? null,
+        M: u.explain?.M ?? null,
+        P: u.explain?.P ?? null,
+        w: u.explain?.w ?? null,
+        sigma: u.explain?.sigma ?? null,
+        TEw: u.explain?.TEw ?? null,
+        kSigma: u.explain?.kSigma ?? null,
+        bufferRate: u.explain?.bufferRate ?? null,
+        pf: u.explain?.pf ?? null,
+      },
+    };
+    if (deepEqual(prevComparable, nextComparable)) { skipped++; continue; }
+
+    batch.update(d.ref, {
+      startRecommendIso: u.startRecommendIso ?? null,
+      startRecommend: u.startRecommendIso ? admin.firestore.Timestamp.fromDate(new Date(u.startRecommendIso)) : null,
+      latestStartIso: u.latestStartIso ?? null,
+      latestStart: u.latestStartIso ? admin.firestore.Timestamp.fromDate(new Date(u.latestStartIso)) : null,
+      T_req_min: u.T_req_min ?? null,
+      explain: u.explain || null,
+      calcMeta: {
+        ...(u.explain || {}),
+        inputFingerprint: fingerprintInput(d.data),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    });
+    updated++;
+  }
+
+  if (updated > 0) await batch.commit();
+  return { ok: true, userId: uid, updated, skipped };
 }
 
-/** 実DBパスに合わせる（例: "todos/{taskId}" または "users/{uid}/todos/{taskId}"） */
+/* ───────── Firestore onWrite：同ユーザー全体再計算 ───────── */
 const DOC_PATH = "todos/{taskId}";
-
-/** Firestore onWrite: タスクが作成/更新されたら再計算 */
 exports.recalcOnWrite = onDocumentWritten(DOC_PATH, async (event) => {
-  const after = event.data.after?.data();
+  const before = event.data.before?.data() || null;
+  const after  = event.data.after?.data()  || null;
   if (!after) return;
-  if (!after.deadlineIso && !after.deadline && !after.deadlineISO) return;
 
-  const out = computeSchedule(after);
-  if (!out.ok) return;
+  // 入力指紋が同じならスキップ（自己ループ抑止）
+  const fp = fingerprintInput(after);
+  const prevFp = before?.calcMeta?.inputFingerprint || null;
+  if (prevFp && prevFp === fp) return;
 
-  await updateTask(event.data.after.ref, out);
+  const uid = after.userId;
+  if (!uid) return;
+
+  await recomputeForUser(uid);
 });
 
-/** Callable: 明示的に再計算 */
-exports.recomputeSchedule = onCall(async (req) => {
-  const { taskId } = req.data || {};
-  if (!taskId) return { ok: false, reason: "no-taskId" };
-
-  const ref = db.collection("todos").doc(taskId);
-  const snap = await ref.get();
-  if (!snap.exists) return { ok: false, reason: "not-found" };
-
-  const after = snap.data();
-  const out = computeSchedule(after);
-  if (!out.ok) return out;
-
-  await updateTask(ref, out);
-  return { ok: true, ...out };
+/* ───────── Callable：手動で一括再計算 ───────── */
+exports.recomputeUser = onCall(async (req) => {
+  const { userId } = req.data || {};
+  if (!userId) return { ok: false, reason: "no-userId" };
+  return await recomputeForUser(userId);
 });
+
+/* 互換エクスポート */
+async function scheduleAndNotifyUser(uid) {
+  if (!uid) return { ok: false, reason: "no-userId" };
+  return await recomputeForUser(uid);
+}
+module.exports = { scheduleAndNotifyUser };
