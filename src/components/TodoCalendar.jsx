@@ -23,7 +23,7 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-export default function TodoCalendar({ todos }) {
+export default function TodoCalendar({ todos, onAdd }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
@@ -72,6 +72,7 @@ export default function TodoCalendar({ todos }) {
             selectedDate={selectedDate}
             todos={todos}
             onClose={() => setSelectedDate(null)}
+            onAdd={onAdd}  // ★ 親の addTodo をそのまま渡す
           />
         )}
       </div>

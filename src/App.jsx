@@ -8,16 +8,24 @@ import {
   Navigate,
   Outlet,
 } from "react-router-dom";
-import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  where,
+  addDoc,
+  Timestamp,
+} from "firebase/firestore";
 import { db } from "./firebase/firebaseConfig";
 
-import { useAuth }  from "./hooks/useAuth.jsx";
-import { useFcm }   from "./hooks/useFcm.jsx";
-import AuthPage     from "./components/AuthPage";
-import TodoInput    from "./components/TodoInput";
-import TodoList     from "./components/TodoList";
+import { useAuth } from "./hooks/useAuth.jsx";
+import { useFcm } from "./hooks/useFcm.jsx";
+import AuthPage from "./components/AuthPage";
+import TodoInput from "./components/TodoInput";
+import TodoList from "./components/TodoList";
 import TodoCalendar from "./components/TodoCalendar";
-import Settings     from "./components/Settings";
+import Settings from "./components/Settings";
 import "./App.css";
 
 function App() {
@@ -49,6 +57,8 @@ const AppWithRouter = ({ logout, user }) => {
   useFcm();
 
   const [todos, setTodos] = useState([]);
+
+  // Firestore の購読（userId でフィルタ）
   useEffect(() => {
     if (!user?.uid) return;
     const q = query(
@@ -62,12 +72,46 @@ const AppWithRouter = ({ logout, user }) => {
     return () => unsub();
   }, [user?.uid]);
 
+  /**
+   * 追加処理を一本化：
+   * カレンダーやヘッダー等の “追加” はすべてこの関数を呼ぶ
+   * payload 例:
+   * {
+   *   text: "やること",
+   *   deadline: Date,           // 締切（ローカル日時）
+   *   estimatedMinutes: 90,     // E（分）
+   *   scale: 3,                 // 1..5
+   *   priority: 2               // 1..3
+   * }
+   */
+  const addTodo = async (payload) => {
+    if (!payload?.text?.trim() || !payload?.deadline) return;
+
+    const toNum = (v, fallback = null) =>
+      Number.isFinite(Number(v)) ? Number(v) : fallback;
+
+    const docBody = {
+      userId: user.uid, // ← 購読クエリ(where("userId","==", user.uid)) と揃える
+      text: payload.text.trim(),
+      deadline: Timestamp.fromDate(new Date(payload.deadline)),
+      estimatedMinutes: toNum(payload.estimatedMinutes, null),
+      scale: toNum(payload.scale, 3),
+      priority: toNum(payload.priority, 2),
+      completed: false,
+      createdAt: Timestamp.now(),
+      // startRecommend / explain は Cloud Functions の再計算で付与
+    };
+
+    await addDoc(collection(db, "todos"), docBody);
+    // onSnapshot で即リスト＆カレンダーに反映／通知計算は Functions 側で実行
+  };
+
   return (
     <BrowserRouter>
       <Routes>
         {/* 共通ヘッダーの下に各ページを差し込む */}
         <Route element={<Layout logout={logout} />}>
-          {/* ホーム：従来の2カラム段組みをそのまま index ルートに配置 */}
+          {/* ホーム：従来の2カラム段組みを index ルートに配置 */}
           <Route
             index
             element={
@@ -75,11 +119,13 @@ const AppWithRouter = ({ logout, user }) => {
                 <div className="container">
                   <div className="main-grid">
                     <section className="card pane-left">
-                      <TodoCalendar todos={todos} />
+                      {/* カレンダーに addTodo を渡す */}
+                      <TodoCalendar todos={todos} onAdd={addTodo} />
                     </section>
 
                     <section className="card pane-right">
                       <div className="right-sticky">
+                        {/* 既存の入力はそのまま（必要なら TodoInput 側から addTodo を呼ぶ形に統一可） */}
                         <TodoInput />
                       </div>
                       <div className="right-scroll">
@@ -92,7 +138,7 @@ const AppWithRouter = ({ logout, user }) => {
             }
           />
 
-          {/* 設定：単独ページ表示（ホームの段組みは描画されない） */}
+          {/* 設定ページ */}
           <Route
             path="settings"
             element={
