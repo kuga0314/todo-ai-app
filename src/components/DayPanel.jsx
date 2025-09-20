@@ -109,7 +109,7 @@ export default function DayPanel({ selectedDate, todos, onClose }) {
         position: "absolute",
         left: 12,
         top: 12,
-        width: "clamp(360px, 92vw, 520px)",
+        width: "clamp(400px, 95vw, 640px)",
         maxHeight: "calc(100% - 24px)",
         overflowY: "auto",
         overflowX: "hidden",
