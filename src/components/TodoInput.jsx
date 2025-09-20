@@ -1,6 +1,6 @@
 // src/components/TodoInput.jsx
-import { useState } from "react";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { useState, useEffect } from "react";
+import { collection, addDoc, Timestamp, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { levelToMinutes } from "../utils/levelHours"; // 過渡期フォールバック用
 import { useAuth } from "../hooks/useAuth";
@@ -8,12 +8,35 @@ import "./TodoInput.css";
 
 export default function TodoInput() {
   const { user } = useAuth();
+
+  // 入力フィールド
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [scale, setScale] = useState(3);       // 表示は「規模レベル」
+  const [scale, setScale] = useState(3); // 表示は「規模レベル」
   const [priority, setPriority] = useState(2);
-  const [estimatedMinutes, setEstimatedMinutes] = useState(""); // ★ 新規：E（分）
+  const [estimatedMinutes, setEstimatedMinutes] = useState(""); // E（分）
   const [saving, setSaving] = useState(false);
+
+  // ★ ラベル（1タスク=1ラベル）
+  const [labels, setLabels] = useState([]);
+  const [selectedLabelId, setSelectedLabelId] = useState("");
+
+  // ラベル購読（設定ページで作成した labels を取得）
+  useEffect(() => {
+    if (!user) return;
+    const colRef = collection(db, "users", user.uid, "labels");
+    const unsub = onSnapshot(colRef, (snap) => {
+      const rows = [];
+      snap.forEach((d) => rows.push({ id: d.id, ...(d.data() ?? {}) }));
+      // 追加・削除に即応
+      setLabels(rows);
+      // 選択中ラベルが消えた場合は解除
+      if (rows.findIndex((r) => r.id === selectedLabelId) === -1) {
+        setSelectedLabelId("");
+      }
+    });
+    return () => unsub();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reset = () => {
     setText("");
@@ -21,6 +44,7 @@ export default function TodoInput() {
     setScale(3);
     setPriority(2);
     setEstimatedMinutes("");
+    setSelectedLabelId("");
   };
 
   const handleSubmit = async (e) => {
@@ -43,7 +67,8 @@ export default function TodoInput() {
         deadline: deadlineTS,
         scale,
         priority,
-        estimatedMinutes: E,      // ← ユーザー入力Eを最優先で保存
+        estimatedMinutes: E, // ← ユーザー入力Eを最優先で保存
+        labelId: selectedLabelId || null, // ★ ラベルの関連付け
         notified: false,
         createdAt: Timestamp.now(),
       });
@@ -67,7 +92,7 @@ export default function TodoInput() {
         required
       />
 
-      {/* 下段：締切・規模・優先度・E・追加 */}
+      {/* 下段：締切・規模・優先度・ラベル・E・追加 */}
       <div className="ti-row">
         <input
           className="ti-datetime"
@@ -87,7 +112,9 @@ export default function TodoInput() {
             aria-label="規模"
           >
             {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
         </label>
@@ -103,6 +130,24 @@ export default function TodoInput() {
             <option value={1}>低</option>
             <option value={2}>中</option>
             <option value={3}>高</option>
+          </select>
+        </label>
+
+        {/* ★ ラベル選択 */}
+        <label className="ti-field">
+          ラベル
+          <select
+            className="ti-select"
+            value={selectedLabelId}
+            onChange={(e) => setSelectedLabelId(e.target.value)}
+            aria-label="ラベル"
+          >
+            <option value="">（ラベルなし）</option>
+            {labels.map((lb) => (
+              <option key={lb.id} value={lb.id}>
+                {lb.name}
+              </option>
+            ))}
           </select>
         </label>
 

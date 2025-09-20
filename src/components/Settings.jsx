@@ -1,14 +1,14 @@
 // src/components/Settings.jsx
 import { useState, useEffect } from "react";
 import { db } from "../firebase/firebaseConfig";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  doc, getDoc, setDoc,
+  collection, addDoc, deleteDoc, onSnapshot
+} from "firebase/firestore";
 import { useAuth } from "../hooks/useAuth";
 import "../styles/settings.css";
 
-// Settings.jsx が src/components/ にある前提（←あなたの現状）
-// 後で Settings.jsx を src/pages/ に移す場合は、下を
-//   import WorkHoursSection from "../components/settings/WorkHoursSection";
-// に変更してください。
+// Settings.jsx が src/components/ にある前提
 import WorkHoursSection from "./settings/WorkHoursSection";
 
 function Settings() {
@@ -31,6 +31,21 @@ function Settings() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
 
+  // ===== ラベル管理（追加：users/{uid}/labels をCRUD） =====
+  const [labels, setLabels] = useState([]);
+  const [newLabelName, setNewLabelName] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState("#ff9800"); // 既定: オレンジ
+  const presetColors = [
+    "#ff9800", // オレンジ（例：バイト）
+    "#4caf50", // 緑（例：大学）
+    "#2196f3", // 青
+    "#e91e63", // ピンク
+    "#9c27b0", // 紫
+    "#795548", // ブラウン
+    "#607d8b", // ブルーグレー
+    "#9e9e9e", // グレー
+  ];
+
   // 30分刻み候補
   const timeOptions = Array.from({ length: 48 }, (_, i) => {
     const h = String(Math.floor(i / 2)).padStart(2, "0");
@@ -38,6 +53,7 @@ function Settings() {
     return `${h}:${m}`;
   });
 
+  // 初期設定の読み込み
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -62,7 +78,6 @@ function Settings() {
           Number.isFinite(data.baselineA_hours) ? data.baselineA_hours : 2
         );
       } else {
-        // ドキュメント未作成でも状態は modifiedPERT を維持
         setAlgoVariant("modifiedPERT");
       }
 
@@ -79,6 +94,18 @@ function Settings() {
     })();
   }, [user]);
 
+  // ラベルの購読（リアルタイム）
+  useEffect(() => {
+    if (!user) return;
+    const colRef = collection(db, "users", user.uid, "labels");
+    const unsub = onSnapshot(colRef, (snap) => {
+      const rows = [];
+      snap.forEach((d) => rows.push({ id: d.id, ...(d.data() ?? {}) }));
+      setLabels(rows);
+    });
+    return () => unsub();
+  }, [user]);
+
   const save = async () => {
     if (!user) return;
     setSaving(true);
@@ -93,8 +120,7 @@ function Settings() {
         doc(db, "users", user.uid, "settings", "experiment"),
         {
           algoVariant: "modifiedPERT",
-          // 互換保持：将来削除可（ここでは値を維持）
-          baselineA_hours: Number(baselineAHours),
+          baselineA_hours: Number(baselineAHours), // 互換保持
         },
         { merge: true }
       );
@@ -107,10 +133,36 @@ function Settings() {
         { merge: true }
       );
       setSavedAt(new Date());
-      // 状態も安全のため固定化
       setAlgoVariant("modifiedPERT");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ===== ラベルCRUD =====
+  const handleAddLabel = async () => {
+    if (!user) return;
+    const name = newLabelName.trim();
+    if (!name) return;
+    try {
+      await addDoc(collection(db, "users", user.uid, "labels"), {
+        name,
+        color: newLabelColor,
+        createdAt: new Date(),
+      });
+      setNewLabelName("");
+      // newLabelColorはそのままでもOK（同色連投想定）
+    } catch (e) {
+      console.error("add label failed:", e);
+    }
+  };
+
+  const handleDeleteLabel = async (id) => {
+    if (!user || !id) return;
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "labels", id));
+    } catch (e) {
+      console.error("delete label failed:", e);
     }
   };
 
@@ -205,6 +257,74 @@ function Settings() {
             </span>
           )}
         </div>
+      </section>
+
+      {/* ★ ラベル管理（新規追加セクション） */}
+      <section className="settings-card">
+        <h3>ラベル管理</h3>
+        <p className="hint">カレンダー上のタスク色分けに使います（1タスク＝1ラベル）。</p>
+
+        {/* 追加フォーム */}
+        <div className="label-form">
+          <label className="field">
+            <span className="field-label">ラベル名</span>
+            <input
+              type="text"
+              value={newLabelName}
+              onChange={(e) => setNewLabelName(e.target.value)}
+              placeholder="例）バイト / 大学 / 趣味 など"
+            />
+          </label>
+
+          <div className="field">
+            <span className="field-label">色</span>
+            <div className="color-palette">
+              {presetColors.map((col) => (
+                <button
+                  key={col}
+                  type="button"
+                  className={`color-swatch ${newLabelColor === col ? "selected" : ""}`}
+                  style={{ backgroundColor: col }}
+                  onClick={() => setNewLabelColor(col)}
+                  aria-label={`色 ${col}`}
+                  title={col}
+                />
+              ))}
+              <input
+                type="color"
+                value={newLabelColor}
+                onChange={(e) => setNewLabelColor(e.target.value)}
+                className="color-picker"
+                title="自由に色を選ぶ"
+              />
+            </div>
+          </div>
+
+          <div className="settings-actions">
+            <button className="btn-primary" type="button" onClick={handleAddLabel} disabled={!newLabelName.trim()}>
+              追加
+            </button>
+          </div>
+        </div>
+
+        {/* 一覧 */}
+        <ul className="label-list">
+          {labels.length === 0 && <li className="text-muted">ラベルはまだありません。</li>}
+          {labels.map((lb) => (
+            <li key={lb.id} className="label-item">
+              <span className="label-color" style={{ backgroundColor: lb.color }} />
+              <span className="label-name">{lb.name}</span>
+              <button
+                className="icon-btn"
+                title="削除"
+                aria-label="削除"
+                onClick={() => handleDeleteLabel(lb.id)}
+              >
+                🗑️
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* ★ 作業可能“時間帯”セクション（逆算に使う勤務枠） */}
