@@ -1,6 +1,6 @@
 // src/components/TodoList.jsx
-import { useState } from "react";
-import { doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { doc, deleteDoc, updateDoc, collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { format } from "date-fns";
 import "./TodoList.css";
@@ -35,7 +35,22 @@ function TodoList({ todos, userId }) {
   const [uncertaintyFilter, setUncertaintyFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
 
-  // 月フィルタ候補（タスクがある月のみ）
+  // ★ ラベル購読（name, color を取得）
+  const [labels, setLabels] = useState([]);
+  useEffect(() => {
+    if (!userId) return;
+    const colRef = collection(db, "users", userId, "labels");
+    const unsub = onSnapshot(colRef, (snap) => {
+      const rows = [];
+      snap.forEach((d) => rows.push({ id: d.id, ...(d.data() ?? {}) }));
+      setLabels(rows);
+    });
+    return () => unsub();
+  }, [userId]);
+
+  const getLabel = (labelId) => labels.find((l) => l.id === labelId) || null;
+
+  // 月フィルタ候補
   const monthOptions = [...new Set(
     (todos ?? [])
       .map((t) => t.deadline?.toDate?.())
@@ -66,7 +81,7 @@ function TodoList({ todos, userId }) {
       return (toTime(a.startRecommend) ?? Infinity) - (toTime(b.startRecommend) ?? Infinity);
     if (sortBy === "deadline")
       return (toTime(a.deadline) ?? Infinity) - (toTime(b.deadline) ?? Infinity);
-    return 0; // createdAtはサーバ側orderBy依存
+    return 0;
   });
 
   return (
@@ -136,15 +151,21 @@ function TodoList({ todos, userId }) {
       {/* リスト */}
       <ul className="list">
         {sorted.map((todo) => {
-          const deadlineAt     = todo.deadline?.toDate?.();
-          const notifyAt       = todo.startRecommend?.toDate?.();
-          const latestStartAt  = todo.latestStart?.toDate?.();   // ★ 後方計画L
+          const deadlineAt = todo.deadline?.toDate?.();
+          const notifyAt   = todo.startRecommend?.toDate?.();
           const E  = Number(todo?.estimatedMinutes) || null;
           const TE = calcTE(todo);
           const TEh = TE ? (TE / 60).toFixed(1) : null;
 
+          const label = getLabel(todo.labelId);
+          const borderColor = label?.color ?? "transparent";
+
           return (
-            <li key={todo.id} className="todo-item">
+            <li
+              key={todo.id}
+              className="todo-item"
+              style={{ borderColor }}
+            >
               <div className="todo-content">
                 <label className="todo-main">
                   <input
@@ -157,11 +178,20 @@ function TodoList({ todos, userId }) {
                   <span className={`todo-title ${todo.completed ? "is-done" : ""}`}>
                     {todo.text}
                   </span>
+                  {label && (
+                    <span
+                      className="label-chip"
+                      style={{ backgroundColor: label.color }}
+                      title={label.name}
+                    >
+                      {label.name}
+                    </span>
+                  )}
                 </label>
 
-                {/* === 3行レイアウト === */}
+                {/* === 2行レイアウトに変更 === */}
                 <div className="meta-lines">
-                  {/* 1行目：締切・通知・L */}
+                  {/* 1行目：締切・通知 */}
                   <div className="meta-line">
                     <span className="meta-label">締切:</span>
                     <span className="meta-value">
@@ -172,14 +202,9 @@ function TodoList({ todos, userId }) {
                     <span className="meta-value note">
                       {notifyAt ? format(notifyAt, "M/d HH:mm") : "—"}
                     </span>
-                    <span className="spacer" />
-                    <span className="meta-label">L:</span>
-                    <span className="meta-value">
-                      {latestStartAt ? format(latestStartAt, "M/d HH:mm") : "—"}
-                    </span>
                   </div>
 
-                  {/* 2行目：規模（不確実性）と優先度 */}
+                  {/* 2行目：規模・優先度 */}
                   <div className="meta-line">
                     <span className="meta-label">規模:</span>
                     <span className={`badge badge-scale-${todo.scale}`}>
@@ -190,10 +215,7 @@ function TodoList({ todos, userId }) {
                     <span className={`badge badge-priority-${todo.priority}`}>
                       {priorityLabel(todo.priority)}
                     </span>
-                  </div>
-
-                  {/* 3行目：E と TE */}
-                  <div className="meta-line">
+                    <span className="spacer" />
                     <span className="meta-label">E:</span>
                     <span className="meta-value">{E ?? "—"} 分</span>
                     <span className="spacer" />
