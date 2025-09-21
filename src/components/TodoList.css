@@ -1,10 +1,12 @@
+/* src/components/TodoList.css */
+
 /* 操作エリア */
 .list-controls {
   display: flex;
   flex-wrap: wrap;
   gap: .75rem;
   margin-bottom: 1rem;
-  align-items: center;
+  align-items: flex-start; /* ← 折り返し時に潰れない */
   justify-content: space-between;
 }
 
@@ -17,7 +19,9 @@
   font-size: .85rem;
   background: #fff;
   cursor: pointer;
+  min-width: 150px;          /* ← つぶれ防止 */
 }
+.filter-select--label { min-width: 170px; }
 
 /* セグメントボタン */
 .segmented {
@@ -67,19 +71,17 @@
   display:flex;
   justify-content: space-between;
   align-items:flex-start;
-
-  /* ★ ラベル色を枠に反映（JS から border-color を上書き） */
-  border: 2px solid transparent;
+  border: 2px solid transparent;   /* ラベル色で上書き */
   transition: border-color .18s ease;
 }
-.todo-item:hover { border-color: rgba(0,0,0,.15); } /* ラベル無のアイテムの視覚補助 */
+.todo-item:hover { border-color: rgba(0,0,0,.15); }
 
 .todo-content { flex:1; }
 .todo-main { display:flex; align-items:center; gap:.5rem; }
 .todo-title { font-size:1rem; font-weight:700; }
 .todo-title.is-done { text-decoration:line-through; color:#777; }
 
-/* ===== ラベルチップ ===== */
+/* ラベルチップ */
 .label-chip {
   display: inline-block;
   padding: 2px 8px;
@@ -91,7 +93,7 @@
   transform: translateY(-1px);
 }
 
-/* ===== 3行レイアウト ===== */
+/* メタ行 */
 .meta-lines { margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem; }
 .meta-line {
   display:flex; align-items:center; gap:.5rem;
@@ -103,13 +105,10 @@
 .spacer { flex: 0 0 12px; }
 
 /* バッジ */
-.badge {
-  display:inline-block; padding:2px 8px; border-radius:999px;
-  font-size:12px; font-weight:700; color:#fff;
-}
-.badge-priority-1 { background:#16a34a; } /* 低 */
-.badge-priority-2 { background:#f59e0b; } /* 中 */
-.badge-priority-3 { background:#dc2626; } /* 高 */
+.badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; color:#fff; }
+.badge-priority-1 { background:#16a34a; }
+.badge-priority-2 { background:#f59e0b; }
+.badge-priority-3 { background:#dc2626; }
 .badge-scale-1,
 .badge-scale-2,
 .badge-scale-3,
@@ -117,10 +116,7 @@
 .badge-scale-5 { background: var(--primary); }
 
 /* アクション */
-.icon-btn {
-  border:none; background:transparent; cursor:pointer; font-size:16px;
-  padding:.25rem .35rem; border-radius:6px; align-self:flex-start;
-}
+.icon-btn { border:none; background:transparent; cursor:pointer; font-size:16px; padding:.25rem .35rem; border-radius:6px; align-self:flex-start; }
 .icon-btn:hover { background:#f5f5f5; }
 .delete-btn { color:#c33; }
 .delete-btn:hover { background:#fde8e8; }

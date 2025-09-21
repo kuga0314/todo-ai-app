@@ -4,8 +4,6 @@
 :root {
   --primary: #4f9aff;
   --primary-dark: #2b6cb0;
-  --accent: #ff8a65;     /* 温かみのある補色 */
-  --secondary: #7b6cff;
   --bg: #f5f8ff;
   --card-bg: #fff;
   --text: #2d3748;
@@ -16,9 +14,10 @@
   --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.15);
   --transition-fast: 0.18s ease;
 
-  --hdr-h: 64px;
-  --main-pad: 16px;
-  --vh-slack: 5px;
+  /* 高さを薄くして表示領域を増やす */
+  --hdr-h: 56px;     /* 64 -> 56 */
+  --tabbar-h: 56px;  /* 64 -> 56 */
+  --main-pad: 8px;   /* 16 -> 8 */
 }
 
 * { box-sizing: border-box; }
@@ -29,157 +28,55 @@ body {
   background: var(--bg);
   color: var(--text);
 }
-.container {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 16px;
-}
+
+.container { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
 
 /* ===== Header ===== */
 .app-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
+  position: sticky; top: 0; z-index: 20;
   backdrop-filter: saturate(180%) blur(12px);
-  background: linear-gradient(
-    135deg,
-    var(--primary) 0%,
-    var(--primary-dark) 100%
-  );
-  color: #fff;
-  box-shadow: 0 3px 12px rgba(0,0,0,0.1);
-  animation: fadeDown 0.4s ease;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #fff; box-shadow: 0 3px 12px rgba(0,0,0,0.1);
 }
-.hdr-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: var(--hdr-h);
-}
-.brand {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: .5px;
-}
-.app-nav { display: flex; gap: 12px; }
-.navlink {
-  color: #fff;
-  text-decoration: none;
-  font-weight: 600;
-  opacity: 0.95;
-  padding: 8px 10px;
-  border-radius: 8px;
-  transition: background 0.2s ease, opacity 0.2s ease;
-}
-.navlink:hover {
-  background: rgba(255, 255, 255, 0.16);
-  opacity: 1;
-}
+.hdr-inner { display: flex; align-items: center; justify-content: space-between; min-height: var(--hdr-h); }
+.brand { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: .5px; }
+
+/* ===== Buttons ===== */
+.btn { display:inline-flex; align-items:center; justify-content:center; font-weight:700; padding:.6rem 1rem; border-radius:12px; border:none; cursor:pointer; transition: transform .15s ease, box-shadow .15s ease, filter .2s ease; }
+.btn:hover { filter: brightness(1.05); }
+.btn:active { transform: scale(0.97); }
+.btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.9); padding:.55rem .9rem; border-radius:10px; }
+.btn-outline:hover { background: rgba(255,255,255,.16); }
 
 /* ===== Main ===== */
-.app-main {
-  padding: var(--main-pad) 0 calc(var(--main-pad) + 4px);
-}
+/* 下タブに被らないように下余白を常に確保 */
+.app-main { padding: var(--main-pad) 0 calc(var(--main-pad) + var(--tabbar-h)); }
 
-/* ===== Card ===== */
+/* 共通カード（設定など） */
 .card {
   background: var(--card-bg);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   padding: 14px 16px;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-  animation: fadeIn 0.5s ease;
 }
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+/* ===== ホームの“全面カレンダー”用ラッパ ===== */
+.home-cal{
+  background:#fff;
+  box-shadow:none;          /* 影を消して“面”に */
+  border-radius:8px;
+  padding:8px 8px 4px;
+  min-height: calc(100dvh - var(--hdr-h) - var(--tabbar-h) - (var(--main-pad) * 2));
+  display:flex; flex-direction:column;
 }
 
-/* ===== 2カラム ===== */
-.main-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(520px, 1.3fr) 1fr;
-  align-items: stretch;
-  height: calc(100dvh - var(--hdr-h) - (var(--main-pad) * 2) - var(--vh-slack));
-  overflow: hidden;
-}
-.pane-left {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-}
-.pane-left > * {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  height: 100%;
-}
-.pane-right {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.right-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--card-bg);
-  padding-bottom: 6px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid #eee;
-}
-.right-scroll {
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding-right: 2px;
-}
+/* ===== BottomNav の表示（常時表示前提） ===== */
+.bottom-nav { display: flex; }  /* PCでも表示 */
 
-/* ===== Buttons ===== */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  padding: 0.6rem 1rem;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  transition: transform .15s ease, box-shadow .15s ease, filter .2s ease;
-}
-.btn:hover { filter: brightness(1.05); }
-.btn:active { transform: scale(0.97); }
-.btn-outline {
-  background: transparent;
-  color: #fff;
-  border: 1.5px solid rgba(255, 255, 255, 0.9);
-  padding: 0.55rem 0.9rem;
-  border-radius: 10px;
-}
-.btn-outline:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-/* ===== Notes ===== */
-.text-muted { color: var(--muted); font-size: 0.9rem; }
-
-/* ===== Animations ===== */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeDown {
-  from { opacity: 0; transform: translateY(-12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ===== Responsive ===== */
+/* ===== 小さめ画面 ===== */
 @media (max-width: 980px) {
-  .main-grid { grid-template-columns: 1fr; height: auto; overflow: visible; }
-  .pane-right { overflow: visible; }
-  .right-scroll { max-height: none; overflow: visible; }
+  .container { padding: 0 12px; }
+  .home-cal { border-radius: 6px; padding: 6px; }
 }
