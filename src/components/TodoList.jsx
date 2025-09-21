@@ -2,40 +2,42 @@
 import { useEffect, useState } from "react";
 import { doc, deleteDoc, updateDoc, collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
+import { useAuth } from "../hooks/useAuth";
 import { format } from "date-fns";
 import "./TodoList.css";
 
 const priorityLabel = (v) => (v === 1 ? "低" : v === 3 ? "高" : "中");
 const uncertaintyLabel = (v) =>
   ({ 1: "小", 2: "中", 3: "大", 4: "特大", 5: "超特大" }[v] || "未設定");
-
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
 
-// 三点見積もり期待値（表示専用）
 const calcTE = (todo) => {
   const w = Number.isFinite(+todo?.pertWeight) ? +todo.pertWeight : 4;
   const M = Number.isFinite(+todo?.estimatedMinutes) ? +todo.estimatedMinutes : null;
   if (!M) return null;
   const O = 0.8 * M;
   const P = 1.5 * M;
-  return (O + w * M + P) / (w + 2); // 例: M=90 → TE≈94.5
+  return (O + w * M + P) / (w + 2);
 };
 
-// 並び順
 const SORT_OPTIONS = [
   { key: "createdAt", label: "登録順" },
   { key: "startRecommend", label: "通知順" },
   { key: "deadline", label: "締切順" },
 ];
 
-function TodoList({ todos, userId }) {
+function TodoList({ todos, userId: userIdProp }) {
+  const { user } = useAuth();
+  const userId = userIdProp || user?.uid;
+
   const [sortBy, setSortBy] = useState("createdAt");
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [monthFilter, setMonthFilter] = useState("all");
   const [uncertaintyFilter, setUncertaintyFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [labelFilter, setLabelFilter] = useState("all"); // ★ ラベル
 
-  // ★ ラベル購読（name, color を取得）
+  // labels 購読
   const [labels, setLabels] = useState([]);
   useEffect(() => {
     if (!userId) return;
@@ -72,10 +74,13 @@ function TodoList({ todos, userId }) {
     if (uncertaintyFilter !== "all" && t.scale !== +uncertaintyFilter) return false;
     if (priorityFilter !== "all" && t.priority !== +priorityFilter) return false;
 
+    // ★ ラベルフィルタ
+    if (labelFilter !== "all" && t.labelId !== labelFilter) return false;
+
     return true;
   });
 
-  // 並べ替え
+  // 並び替え
   const sorted = [...filtered].sort((a, b) => {
     if (sortBy === "startRecommend")
       return (toTime(a.startRecommend) ?? Infinity) - (toTime(b.startRecommend) ?? Infinity);
@@ -106,11 +111,12 @@ function TodoList({ todos, userId }) {
             checked={showIncompleteOnly}
             onChange={() => setShowIncompleteOnly((p) => !p)}
           />
-          <span className="switch-track"></span>
+          <span className="switch-track" />
           <span className="switch-label">未完のみ</span>
         </label>
 
         <div className="filter-row">
+          {/* 月 */}
           <select
             value={monthFilter}
             onChange={(e) => setMonthFilter(e.target.value)}
@@ -124,6 +130,7 @@ function TodoList({ todos, userId }) {
             ))}
           </select>
 
+          {/* 不確実性 */}
           <select
             value={uncertaintyFilter}
             onChange={(e) => setUncertaintyFilter(e.target.value)}
@@ -135,6 +142,7 @@ function TodoList({ todos, userId }) {
             ))}
           </select>
 
+          {/* 優先度 */}
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
@@ -144,6 +152,18 @@ function TodoList({ todos, userId }) {
             <option value={3}>高</option>
             <option value={2}>中</option>
             <option value={1}>低</option>
+          </select>
+
+          {/* ★ ラベル（優先度の隣に移動） */}
+          <select
+            value={labelFilter}
+            onChange={(e) => setLabelFilter(e.target.value)}
+            className="filter-select filter-select--label"
+          >
+            <option value="all">ラベル: 全て</option>
+            {labels.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -161,11 +181,7 @@ function TodoList({ todos, userId }) {
           const borderColor = label?.color ?? "transparent";
 
           return (
-            <li
-              key={todo.id}
-              className="todo-item"
-              style={{ borderColor }}
-            >
+            <li key={todo.id} className="todo-item" style={{ borderColor }}>
               <div className="todo-content">
                 <label className="todo-main">
                   <input
@@ -189,9 +205,7 @@ function TodoList({ todos, userId }) {
                   )}
                 </label>
 
-                {/* === 2行レイアウトに変更 === */}
                 <div className="meta-lines">
-                  {/* 1行目：締切・通知 */}
                   <div className="meta-line">
                     <span className="meta-label">締切:</span>
                     <span className="meta-value">
@@ -204,7 +218,6 @@ function TodoList({ todos, userId }) {
                     </span>
                   </div>
 
-                  {/* 2行目：規模・優先度 */}
                   <div className="meta-line">
                     <span className="meta-label">規模:</span>
                     <span className={`badge badge-scale-${todo.scale}`}>
