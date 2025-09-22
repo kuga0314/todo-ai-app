@@ -73,8 +73,8 @@ export default function TodoCalendar({ todos, onAdd }) {
   }, [todos, labels]);
 
   return (
-    <div className="calendar-wrapper">
-      <div className="calendar-box" style={{ height: 540, position: "relative" }}>
+    <div className="calendar-wrapper" style={{ flex: 1, display: "flex" }}>
+      <div className="calendar-box" style={{ flex: 1, position: "relative" }}>
         <Calendar
           localizer={localizer}
           date={currentDate}
@@ -90,14 +90,18 @@ export default function TodoCalendar({ todos, onAdd }) {
           messages={{ month: "月表示", today: "今日", previous: "前", next: "次" }}
           // ★ ラベル色を背景色に反映。完了クラスは維持。
           eventPropGetter={(event) => {
-            const baseClass = event.completed ? "event-completed" : "event-active";
+            const baseClass = event.completed
+              ? "event-completed"
+              : "event-active";
             return {
               className: baseClass,
               style: {
                 backgroundColor: event.color,
-                color: "#000",         // 背景に応じて必要なら動的に切替も可
+                color: "#fff", // ★ 黒 → 白文字に変更
                 opacity: 0.9,
                 border: "none",
+                padding: "4px 6px",   // ★ 縦幅拡大
+                lineHeight: 1.4,
               },
             };
           }}
@@ -110,6 +114,7 @@ export default function TodoCalendar({ todos, onAdd }) {
             todos={todos}
             onClose={() => setSelectedDate(null)}
             onAdd={onAdd} // 親の addTodo をそのまま渡す
+            labels={labels} // ★ DayPanel にラベルを渡す
           />
         )}
       </div>
