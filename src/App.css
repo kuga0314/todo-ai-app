@@ -14,10 +14,10 @@
   --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.15);
   --transition-fast: 0.18s ease;
 
-  /* 高さを薄くして表示領域を増やす */
-  --hdr-h: 56px;     /* 64 -> 56 */
-  --tabbar-h: 56px;  /* 64 -> 56 */
-  --main-pad: 8px;   /* 16 -> 8 */
+  /* ヘッダー/タブの高さ（BottomNav.css と合わせて 64px に統一） */
+  --hdr-h: 56px;
+  --tabbar-h: 64px;
+  --main-pad: 8px;
 }
 
 * { box-sizing: border-box; }
@@ -33,24 +33,33 @@ body {
 
 /* ===== Header ===== */
 .app-header {
-  position: sticky; top: 0; z-index: 20;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   backdrop-filter: saturate(180%) blur(12px);
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  color: #fff; box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.1);
 }
 .hdr-inner { display: flex; align-items: center; justify-content: space-between; min-height: var(--hdr-h); }
 .brand { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: .5px; }
 
 /* ===== Buttons ===== */
-.btn { display:inline-flex; align-items:center; justify-content:center; font-weight:700; padding:.6rem 1rem; border-radius:12px; border:none; cursor:pointer; transition: transform .15s ease, box-shadow .15s ease, filter .2s ease; }
+.btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  font-weight:700; padding:.6rem 1rem; border-radius:12px; border:none;
+  cursor:pointer; transition: transform .15s ease, box-shadow .15s ease, filter .2s ease;
+}
 .btn:hover { filter: brightness(1.05); }
 .btn:active { transform: scale(0.97); }
 .btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.9); padding:.55rem .9rem; border-radius:10px; }
 .btn-outline:hover { background: rgba(255,255,255,.16); }
 
 /* ===== Main ===== */
-/* 下タブに被らないように下余白を常に確保 */
-.app-main { padding: var(--main-pad) 0 calc(var(--main-pad) + var(--tabbar-h)); }
+/* 下タブに被らないように、タブ + safe-area 分の下余白を確保 */
+.app-main {
+  padding: var(--main-pad) 0 calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+}
 
 /* 共通カード（設定など） */
 .card {
@@ -67,13 +76,17 @@ body {
   background:#fff;
   box-shadow:none;          /* 影を消して“面”に */
   border-radius:8px;
-  padding:8px 8px 4px;
-  min-height: calc(100dvh - var(--hdr-h) - var(--tabbar-h) - (var(--main-pad) * 2));
+  padding: 8px;             /* ← 下は通常の余白だけに戻す */
+
+  /* 画面高からヘッダー/タブ/余白/safe-area を差し引き */
+  min-height: calc(
+    100dvh - var(--hdr-h) - var(--tabbar-h) - (var(--main-pad) * 2) - env(safe-area-inset-bottom, 0px)
+  );
   display:flex; flex-direction:column;
 }
 
-/* ===== BottomNav の表示（常時表示前提） ===== */
-.bottom-nav { display: flex; }  /* PCでも表示 */
+/* ===== BottomNav の表示（常時表示前提。スタイル自体は BottomNav.css） ===== */
+.bottom-nav { display: flex; }
 
 /* ===== 小さめ画面 ===== */
 @media (max-width: 980px) {

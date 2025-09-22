@@ -12,7 +12,7 @@ import { getDeadline, getNotifyAt } from "../utils/calendarHelpers";
  * 「＋」を押すと入力欄だけ表示→送信で Firestore に直接 addDoc。
  * App 側の onSnapshot が拾うのでリスト/カレンダーに即反映されます。
  */
-export default function DayPanel({ selectedDate, todos, onClose }) {
+export default function DayPanel({ selectedDate, todos, onClose, labels = [] }) {
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState("deadline"); // "deadline" | "working"
@@ -24,6 +24,7 @@ export default function DayPanel({ selectedDate, todos, onClose }) {
   const [qE, setQE] = useState("90");
   const [qScale, setQScale] = useState(3);
   const [qPriority, setQPriority] = useState(2);
+  const [qLabelId, setQLabelId] = useState(""); // ★ 追加：ラベル選択
   const [saving, setSaving] = useState(false);
 
   const resetQuickAdd = () => {
@@ -32,6 +33,7 @@ export default function DayPanel({ selectedDate, todos, onClose }) {
     setQE("90");
     setQScale(3);
     setQPriority(2);
+    setQLabelId("");
   };
 
   /* --- 当日締切タスク --- */
@@ -84,6 +86,7 @@ export default function DayPanel({ selectedDate, todos, onClose }) {
         deadline: Timestamp.fromDate(dl),            // ← カレンダーは締切ベースで描画
         scale: Number(qScale),
         priority: Number(qPriority),
+        labelId: qLabelId || null,                  // ★ 追加：ラベルを保存
         // TodoInput と同じく E（分）を最優先で保存（未入力なら別途フォールバックしている実装）
         estimatedMinutes: Number(qE) > 0 ? Math.round(Number(qE)) : null,
         notified: false,
@@ -276,7 +279,32 @@ export default function DayPanel({ selectedDate, todos, onClose }) {
             </select>
           </div>
 
-          {/* 3行目: 追加ボタン */}
+          {/* 3行目: ラベル選択 */}
+          <div style={{ marginTop: 10 }}>
+            <label style={{ display: "block", fontSize: ".85rem", marginBottom: 6 }}>
+              ラベル
+            </label>
+            <select
+              value={qLabelId}
+              onChange={(e) => setQLabelId(e.target.value)}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                fontSize: ".95rem",
+                width: "100%",
+              }}
+            >
+              <option value="">（ラベルなし）</option>
+              {labels.map((lb) => (
+                <option key={lb.id} value={lb.id}>
+                  {lb.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4行目: 追加ボタン */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
             <button type="submit" className="btn btn-close" disabled={saving}>
               {saving ? "追加中…" : "追加"}

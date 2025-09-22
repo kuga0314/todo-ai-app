@@ -16,8 +16,11 @@
 .calendar-box .rbc-row-content { min-height: 0; }
 
 /* 角丸や影でのはみ出し防止 */
+/* overflow: hidden を削除してタブの途切れを防ぐ */
 .calendar-box .rbc-calendar,
-.calendar-box .rbc-month-view { overflow: hidden; border-radius: 10px; }
+.calendar-box .rbc-month-view {
+  border-radius: 10px;
+}
 
 /* ===== 見た目のベース（カード風） ===== */
 .calendar-box .rbc-calendar {
@@ -84,21 +87,30 @@
 .calendar-box .rbc-off-range .rbc-date-cell { color: #a7abb4; font-weight: 600; }
 .calendar-box .rbc-today                    { background: rgba(79,154,255,.08); }
 
+/* ===== 土日の背景色を色分け ===== */
+.calendar-box .rbc-month-row .rbc-day-bg:nth-child(1) {
+  background-color: #ffeef0;  /* 日曜: 淡い赤/ピンク */
+}
+.calendar-box .rbc-month-row .rbc-day-bg:nth-child(7) {
+  background-color: #e3f2fd;  /* 土曜: 淡い青 */
+}
+
 /* ===== イベント（カレンダー内のToDo） ===== */
 .calendar-box .rbc-event {
-  padding: 1px 4px;
+  padding: 4px 6px;       /* ← 縦幅拡大 */
   border-radius: 6px;
-  font-size: .75rem;
-  line-height: 1.2;
+  font-size: .85rem;      /* ← 少し大きく */
+  line-height: 1.4;       /* ← 行間を広げる */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   border: none;
   box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  color: #fff;            /* ← 白文字をデフォルト */
 }
 /* デフォルトの見た目（JSで色を当てない時） */
 .calendar-box .event-default   { background: var(--primary); color: #fff; }
-/* 未完了/完了の基底クラス（JSで色を上書き可能にするため !important を削除） */
+/* 未完了/完了の基底クラス */
 .calendar-box .event-active    { background: var(--primary); color: #fff; }
 .calendar-box .event-completed { background: #9aa0aa;        color: #fff; opacity: .75; }
 
@@ -122,7 +134,6 @@
 
 /* =========================================================
    ここから “左カラムにだけ出す” 日別パネル向けの見た目
-   （中央モーダルを使わない運用）
    ========================================================= */
 .day-panel-left .tab { padding: 6px 10px; border-radius: 10px; }
 .day-panel-left .tab.active { background: rgba(79,154,255,.12); }
@@ -163,7 +174,6 @@
 }
 .day-panel-left .meta-value { font-variant-numeric: tabular-nums; }
 
-/* チップ */
 .day-panel-left .chip-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
 .day-panel-left .chip {
   font-size: .78rem; font-weight: 700;
@@ -179,7 +189,6 @@
 .day-panel-left .chip-sca-中 { background: #eef7ff; color: #1a6d8c; box-shadow: inset 0 0 0 1px rgba(26,109,140,.18); }
 .day-panel-left .chip-sca-小 { background: #f0f7f2; color: #2a6d3f; box-shadow: inset 0 0 0 1px rgba(42,109,63,.18); }
 
-/* 閉じるボタン */
 .day-panel-left .btn.btn-close {
   margin-top: .25rem;
   background: var(--primary);
@@ -191,7 +200,6 @@
 }
 .day-panel-left .btn.btn-close:hover { filter: brightness(0.95); }
 
-/* 空表示 */
 .day-panel-left .empty { color: #6a7280; margin: .25rem 0 .5rem; }
 
 /* =========================================================
@@ -217,7 +225,6 @@
 .modal-lg { max-width: 560px; }
 .modal h3 { margin: 0 0 8px; }
 
-/* ヘッダー内にタブコントロールを並列配置 */
 .modal-head {
   display: flex;
   gap: 10px;
@@ -226,7 +233,6 @@
   margin-bottom: 8px;
 }
 
-/* ===== タブ（モーダル/左パネル共通で流用可能） ===== */
 .tab-controls {
   display: inline-flex;
   background: #eef2f7;
@@ -253,7 +259,6 @@
   box-shadow: 0 1px 2px rgba(0,0,0,.06);
 }
 
-/* ===== リスト（モーダル版のクラス。互換のため残置） ===== */
 .modal-task-list { list-style: none; padding: 0; margin: .2rem 0 0; }
 .modal-task-list.rich { margin-top: .4rem; }
 .modal-task-item {
@@ -273,7 +278,6 @@
 .checkbox-row input { transform: translateY(1px); }
 .is-done { text-decoration: line-through; color: #777; }
 
-/* 完了済み行は灰色で残す */
 .row-done { opacity: .75; }
 .row-done .checkbox-row span { color: #7a7a7a; }
 
@@ -290,7 +294,6 @@
 }
 .meta-value { font-variant-numeric: tabular-nums; }
 
-/* チップ（モーダル版のクラス。互換のため残置） */
 .chip-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
 .chip {
   font-size: .78rem; font-weight: 700;
@@ -319,5 +322,4 @@
 }
 .btn.btn-close:hover { filter: brightness(0.95); }
 
-/* 空表示 */
 .empty { color: #6a7280; margin: .25rem 0 .5rem; }
