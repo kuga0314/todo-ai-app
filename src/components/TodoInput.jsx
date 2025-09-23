@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { collection, addDoc, Timestamp, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
-import { levelToMinutes } from "../utils/levelHours"; // 過渡期フォールバック用
 import { useAuth } from "../hooks/useAuth";
 import "./TodoInput.css";
 
@@ -12,31 +11,32 @@ export default function TodoInput() {
   // 入力フィールド
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [scale, setScale] = useState(3); // 表示は「規模レベル」
+  const [scale, setScale] = useState(3); // 不確実性レベル 1..5
   const [priority, setPriority] = useState(2);
-  const [estimatedMinutes, setEstimatedMinutes] = useState(""); // E（分）
+  const [estimatedMinutes, setEstimatedMinutes] = useState(""); // M（分）必須
+  const [Omin, setOmin] = useState(""); // 任意 O（分）
+  const [Pmin, setPmin] = useState(""); // 任意 P（分）
   const [saving, setSaving] = useState(false);
 
-  // ★ ラベル（1タスク=1ラベル）
+  // ラベル（使っていなければセクションごと削ってもOK）
   const [labels, setLabels] = useState([]);
   const [selectedLabelId, setSelectedLabelId] = useState("");
 
-  // ラベル購読（設定ページで作成した labels を取得）
   useEffect(() => {
     if (!user) return;
     const colRef = collection(db, "users", user.uid, "labels");
     const unsub = onSnapshot(colRef, (snap) => {
       const rows = [];
       snap.forEach((d) => rows.push({ id: d.id, ...(d.data() ?? {}) }));
-      // 追加・削除に即応
       setLabels(rows);
-      // 選択中ラベルが消えた場合は解除
+      // 既存選択が消えていたら解除
       if (rows.findIndex((r) => r.id === selectedLabelId) === -1) {
         setSelectedLabelId("");
       }
     });
     return () => unsub();
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const reset = () => {
     setText("");
@@ -44,21 +44,41 @@ export default function TodoInput() {
     setScale(3);
     setPriority(2);
     setEstimatedMinutes("");
+    setOmin("");
+    setPmin("");
     setSelectedLabelId("");
   };
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     if (!user || !text.trim() || saving) return;
+
+    // M は必須
+    const M = Number(estimatedMinutes);
+    if (!Number.isFinite(M) || M <= 0) {
+      alert("所要時間（M, 分）を正の数で入力してください。");
+      return;
+    }
+
+    // O/P は任意。与えられていれば妥当性チェック
+    let O = Omin === "" ? null : Math.round(Number(Omin));
+    let P = Pmin === "" ? null : Math.round(Number(Pmin));
+    if (O != null && (!Number.isFinite(O) || O <= 0)) {
+      alert("O（楽観・分）は正の数で入力してください。");
+      return;
+    }
+    if (P != null && (!Number.isFinite(P) || P <= 0)) {
+      alert("P（悲観・分）は正の数で入力してください。");
+      return;
+    }
+    if (O != null && P != null && P <= O) {
+      alert("P は O より大きい必要があります。");
+      return;
+    }
+
     setSaving(true);
     try {
       const deadlineTS = deadline ? Timestamp.fromDate(new Date(deadline)) : null;
-
-      // E が未入力なら互換フォールバック（後日撤去予定）
-      const E =
-        estimatedMinutes !== "" && Number(estimatedMinutes) > 0
-          ? Math.round(Number(estimatedMinutes))
-          : levelToMinutes(scale);
 
       await addDoc(collection(db, "todos"), {
         userId: user.uid,
@@ -67,13 +87,18 @@ export default function TodoInput() {
         deadline: deadlineTS,
         scale,
         priority,
-        estimatedMinutes: E, // ← ユーザー入力Eを最優先で保存
-        labelId: selectedLabelId || null, // ★ ラベルの関連付け
+        estimatedMinutes: Math.round(M), // M（必須）
+        O: O ?? null,                    // 任意（未入力なら保存しない＝null）
+        P: P ?? null,                    // 任意（未入力なら保存しない＝null）
+        labelId: selectedLabelId || null,
         notified: false,
         createdAt: Timestamp.now(),
       });
 
       reset();
+    } catch (err) {
+      console.error("add todo failed:", err);
+      alert("追加に失敗しました。もう一度お試しください。");
     } finally {
       setSaving(false);
     }
@@ -92,7 +117,7 @@ export default function TodoInput() {
         required
       />
 
-      {/* 下段：締切・規模・優先度・ラベル・E・追加 */}
+      {/* 下段：締切・規模・優先度・ラベル・M/O/P・追加 */}
       <div className="ti-row">
         <input
           className="ti-datetime"
@@ -104,17 +129,15 @@ export default function TodoInput() {
         />
 
         <label className="ti-field">
-          規模
+          不確実性
           <select
             className="ti-select"
             value={scale}
             onChange={(e) => setScale(+e.target.value)}
-            aria-label="規模"
+            aria-label="不確実性"
           >
             {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
+              <option key={n} value={n}>{n}</option>
             ))}
           </select>
         </label>
@@ -133,7 +156,6 @@ export default function TodoInput() {
           </select>
         </label>
 
-        {/* ★ ラベル選択 */}
         <label className="ti-field">
           ラベル
           <select
@@ -144,24 +166,51 @@ export default function TodoInput() {
           >
             <option value="">（ラベルなし）</option>
             {labels.map((lb) => (
-              <option key={lb.id} value={lb.id}>
-                {lb.name}
-              </option>
+              <option key={lb.id} value={lb.id}>{lb.name}</option>
             ))}
           </select>
         </label>
 
         <label className="ti-field">
-          所要時間（分）E
+          M（分）*
           <input
             className="ti-number"
             type="number"
             min={1}
             step={1}
             placeholder="例: 90"
-            aria-label="所要時間（分）"
+            aria-label="M（分）"
             value={estimatedMinutes}
             onChange={(e) => setEstimatedMinutes(e.target.value)}
+            required
+          />
+        </label>
+
+        <label className="ti-field">
+          O（分）
+          <input
+            className="ti-number"
+            type="number"
+            min={1}
+            step={1}
+            placeholder="任意"
+            aria-label="O（分）"
+            value={Omin}
+            onChange={(e) => setOmin(e.target.value)}
+          />
+        </label>
+
+        <label className="ti-field">
+          P（分）
+          <input
+            className="ti-number"
+            type="number"
+            min={1}
+            step={1}
+            placeholder="任意"
+            aria-label="P（分）"
+            value={Pmin}
+            onChange={(e) => setPmin(e.target.value)}
           />
         </label>
 

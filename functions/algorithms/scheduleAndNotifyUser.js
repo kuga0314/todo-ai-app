@@ -56,9 +56,9 @@ async function loadUserSettings(uid) {
   const notifyWindow = nSnap.exists ? (nSnap.data() || {}) : {
     weekday: { start: "08:00", end: "23:00" },
     weekend: { start: "09:00", end: "23:30" },
-  }; // Settings.jsx の構造に対応。:contentReference[oaicite:3]{index=3}
+  };
 
-  // 作業時間帯（無ければデフォルト）。WorkHoursSection が別ドキュメントを使うならここで読む。
+  // 作業時間帯（無ければデフォルト）
   const wSnap = await db.doc(`users/${uid}/settings/workHours`).get();
   const workHours = wSnap.exists ? (wSnap.data() || {}) : {
     weekday: { start: "09:00", end: "23:00" },
@@ -71,7 +71,7 @@ async function loadUserSettings(uid) {
   let capacity = { weekday: 2, weekend: 4 };
   if (cSnap.exists) {
     const d = cSnap.data() || {};
-    capacity = { weekday: Number(d.weekday ?? 2), weekend: Number(d.weekend ?? 4) }; // :contentReference[oaicite:4]{index=4}
+    capacity = { weekday: Number(d.weekday ?? 2), weekend: Number(d.weekend ?? 4) };
   }
   const dailyCapacityByDOW = {
     // 0=Sun,1=Mon,...6=Sat
@@ -113,6 +113,11 @@ async function recomputeForUser(uid) {
       buffer: Number(t.bufferRate_input ?? t.bufferRate ?? t.buffer ?? 0),
       createdAt: t.createdAt?.toDate?.()?.toISOString?.() || null, // 安定ソート用
       explain: t.explain || null,
+
+      // ★ ここを追加：手入力があればスケジューラに渡す
+      O: Number.isFinite(Number(t.O)) ? Number(t.O) : null,
+      P: Number.isFinite(Number(t.P)) ? Number(t.P) : null,
+      pertWeight: Number.isFinite(Number(t.pertWeight)) ? Number(t.pertWeight) : null,
     });
     docs.push({ id: docSnap.id, ref: docSnap.ref, data: t });
   });
@@ -215,7 +220,7 @@ exports.recomputeUser = onCall(async (req) => {
   return await recomputeForUser(userId);
 });
 
-/* 互換エクスポート */
+/* 互換エクスポート（旧名） */
 async function scheduleAndNotifyUser(uid) {
   if (!uid) return { ok: false, reason: "no-userId" };
   return await recomputeForUser(uid);

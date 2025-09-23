@@ -11,12 +11,23 @@ const uncertaintyLabel = (v) =>
   ({ 1: "小", 2: "中", 3: "大", 4: "特大", 5: "超特大" }[v] || "未設定");
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
 
-const calcTE = (todo) => {
-  const w = Number.isFinite(+todo?.pertWeight) ? +todo.pertWeight : 4;
-  const M = Number.isFinite(+todo?.estimatedMinutes) ? +todo.estimatedMinutes : null;
+/** TE（修正版PERT）を計算。
+ * 1) サーバ explain.TEw があればそれを**最優先**で表示
+ * 2) 無ければローカルで O/P/w を使って概算（O/P 入力が無い時は M から近似）
+ */
+const calcTE = (t) => {
+  // 1) サーバ結果を最優先（Cloud Functions の scheduleShift が計算）
+  const TEw = t?.explain?.TEw;
+  if (Number.isFinite(+TEw)) return +TEw;
+
+  // 2) ローカル概算
+  const M = Number.isFinite(+t?.estimatedMinutes) ? +t.estimatedMinutes : null;
   if (!M) return null;
-  const O = 0.8 * M;
-  const P = 1.5 * M;
+  const w = Number.isFinite(+t?.pertWeight) ? +t.pertWeight : 4;
+  const hasO = Number.isFinite(+t?.O);
+  const hasP = Number.isFinite(+t?.P);
+  const O = hasO ? Math.max(1, Math.round(+t.O)) : Math.round(M * 0.8);
+  const P = hasP ? Math.max(O + 1, Math.round(+t.P)) : Math.max(O + 1, Math.round(M * 1.5));
   return (O + w * M + P) / (w + 2);
 };
 
@@ -35,7 +46,7 @@ function TodoList({ todos, userId: userIdProp }) {
   const [monthFilter, setMonthFilter] = useState("all");
   const [uncertaintyFilter, setUncertaintyFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
-  const [labelFilter, setLabelFilter] = useState("all"); // ★ ラベル
+  const [labelFilter, setLabelFilter] = useState("all");
 
   // labels 購読
   const [labels, setLabels] = useState([]);
@@ -74,7 +85,6 @@ function TodoList({ todos, userId: userIdProp }) {
     if (uncertaintyFilter !== "all" && t.scale !== +uncertaintyFilter) return false;
     if (priorityFilter !== "all" && t.priority !== +priorityFilter) return false;
 
-    // ★ ラベルフィルタ
     if (labelFilter !== "all" && t.labelId !== labelFilter) return false;
 
     return true;
@@ -154,7 +164,7 @@ function TodoList({ todos, userId: userIdProp }) {
             <option value={1}>低</option>
           </select>
 
-          {/* ★ ラベル（優先度の隣に移動） */}
+          {/* ラベル */}
           <select
             value={labelFilter}
             onChange={(e) => setLabelFilter(e.target.value)}
@@ -173,12 +183,18 @@ function TodoList({ todos, userId: userIdProp }) {
         {sorted.map((todo) => {
           const deadlineAt = todo.deadline?.toDate?.();
           const notifyAt   = todo.startRecommend?.toDate?.();
-          const E  = Number(todo?.estimatedMinutes) || null;
+          const M  = Number(todo?.estimatedMinutes) || null;
           const TE = calcTE(todo);
-          const TEh = TE ? (TE / 60).toFixed(1) : null;
+          const TEh = Number.isFinite(TE) ? (TE / 60).toFixed(1) : null;
 
           const label = getLabel(todo.labelId);
           const borderColor = label?.color ?? "transparent";
+
+          // O/P（任意入力があれば表示）
+          const hasO = Number.isFinite(+todo?.O);
+          const hasP = Number.isFinite(+todo?.P);
+          const Ov = hasO ? Math.round(+todo.O) : null;
+          const Pv = hasP ? Math.round(+todo.P) : null;
 
           return (
             <li key={todo.id} className="todo-item" style={{ borderColor }}>
@@ -206,6 +222,7 @@ function TodoList({ todos, userId: userIdProp }) {
                 </label>
 
                 <div className="meta-lines">
+                  {/* 締切・通知 */}
                   <div className="meta-line">
                     <span className="meta-label">締切:</span>
                     <span className="meta-value">
@@ -218,23 +235,42 @@ function TodoList({ todos, userId: userIdProp }) {
                     </span>
                   </div>
 
+                  {/* 規模・優先度・M/O/P/TE */}
                   <div className="meta-line">
                     <span className="meta-label">規模:</span>
                     <span className={`badge badge-scale-${todo.scale}`}>
                       {uncertaintyLabel(todo.scale)}
                     </span>
+
                     <span className="spacer" />
                     <span className="meta-label">優先度:</span>
                     <span className={`badge badge-priority-${todo.priority}`}>
                       {priorityLabel(todo.priority)}
                     </span>
+
                     <span className="spacer" />
-                    <span className="meta-label">E:</span>
-                    <span className="meta-value">{E ?? "—"} 分</span>
+                    <span className="meta-label">M:</span>
+                    <span className="meta-value">{M ?? "—"} 分</span>
+
+                    {hasO && (
+                      <>
+                        <span className="spacer" />
+                        <span className="meta-label">O:</span>
+                        <span className="meta-value">{Ov} 分</span>
+                      </>
+                    )}
+                    {hasP && (
+                      <>
+                        <span className="spacer" />
+                        <span className="meta-label">P:</span>
+                        <span className="meta-value">{Pv} 分</span>
+                      </>
+                    )}
+
                     <span className="spacer" />
                     <span className="meta-label">TE:</span>
                     <span className="meta-value">
-                      {TE ? `${TE.toFixed(1)} 分（≒ ${TEh} 時間）` : "—"}
+                      {Number.isFinite(TE) ? `${TE.toFixed(1)} 分（≒ ${TEh} 時間）` : "—"}
                     </span>
                   </div>
                 </div>
