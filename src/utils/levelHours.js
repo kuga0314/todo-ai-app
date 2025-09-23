@@ -1,32 +1,32 @@
 /**
- * utils/levelHours.js（移行用・最小残存版）
+ * utils/levelHours.js
  * 目的：
  *  - 「規模＝所要時間」誤用を廃止
- *  - 不確実性レベルの辞書とラベル関数だけを提供
+ *  - w（重みレベル）の辞書とラベル関数を提供
  *  - 旧API（levelToMinutes 等）は明示的にエラーで落として依存を早期に発見
  *
  * 使い方：
- *  - UI表示：uncertaintyLabel(level) を使う（1..5 -> "小/中/大/特大/超特大"）
+ *  - UI表示：wLabel(level) を使う（1..5 -> "小/中/大/特大/超特大"）
  *  - 内部計算：所要時間Eはユーザー入力をそのまま使用（このファイルでは計算しない）
  */
 
-export const UNCERTAINTY_LEVELS = Object.freeze({
+export const W_LEVELS = Object.freeze({
   1: { label: "小",  note: "ばらつき小（M重視）" },
-  2: { label: "中",  note: "標準的な不確実性" },
+  2: { label: "中",  note: "標準的な重み" },
   3: { label: "大",  note: "見積り幅が広い" },
   4: { label: "特大", note: "悲観側を強めに考慮" },
   5: { label: "超特大", note: "極めて不確実" },
 });
 
-export function clampUncertaintyLevel(level = 3) {
+export function clampW(level = 3) {
   const n = Number(level);
   if (!Number.isFinite(n)) return 3;
   return Math.min(5, Math.max(1, Math.round(n)));
 }
 
-export function uncertaintyLabel(level) {
-  const lv = clampUncertaintyLevel(level);
-  return UNCERTAINTY_LEVELS[lv]?.label ?? "未設定";
+export function wLabel(level) {
+  const lv = clampW(level);
+  return W_LEVELS[lv]?.label ?? "未設定";
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ export function uncertaintyLabel(level) {
 function _deprecated(name) {
   throw new Error(
     `${name} は廃止されました。E（所要時間）はユーザー入力を直接使用してください。` +
-    ` 不確実性レベルは PERT の O/P/w 決定にのみ用います。`
+    ` w（重みレベル）は PERT の O/M/P 計算にのみ用います。`
   );
 }
 

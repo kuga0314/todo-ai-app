@@ -114,7 +114,8 @@ export default function TaskList({ tasks, mode }) {
                   <span className="meta" title={`理由: ${adj.reasons || "—"}`}>
                     <span className="meta-label">調整</span>
                     <span className="meta-value">
-                      {format(adj.raw, "M/d HH:mm")} → {format(adj.sr, "M/d HH:mm")}
+                      {format(adj.raw, "M/d HH:mm")} →{" "}
+                      {format(adj.sr, "M/d HH:mm")}
                       （{Math.abs(adj.diffMin)}分 {adj.direction}）
                     </span>
                   </span>
@@ -122,8 +123,12 @@ export default function TaskList({ tasks, mode }) {
               </div>
 
               <div className="chip-row">
-                {pri && <span className={`chip chip-pri-${pri}`}>優先度: {pri}</span>}
-                {sca && <span className={`chip chip-sca-${sca}`}>規模: {sca}</span>}
+                {pri && (
+                  <span className={`chip chip-pri-${pri}`}>重要度: {pri}</span>
+                )}
+                {sca && (
+                  <span className={`chip chip-sca-${sca}`}>w: {sca}</span>
+                )}
                 {adj && <span className="chip">調整済</span>}
               </div>
             </div>

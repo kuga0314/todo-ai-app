@@ -21,8 +21,8 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
   const [qText, setQText] = useState("");
   const [qTime, setQTime] = useState("18:00");
   const [qE, setQE] = useState("90");        // M（分）必須
-  const [qScale, setQScale] = useState(3);   // 不確実性 1..5
-  const [qPriority, setQPriority] = useState(2);
+  const [qScale, setQScale] = useState(3);   // UI上は「w」表示（保存キーは scale）
+  const [qPriority, setQPriority] = useState(2); // UI上は「重要度」表示（保存キーは priority）
   const [qLabelId, setQLabelId] = useState("");
   const [qO, setQO] = useState("");          // 任意 O（分）
   const [qP, setQP] = useState("");          // 任意 P（分）
@@ -113,8 +113,8 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
         text: qText.trim(),
         completed: false,
         deadline: Timestamp.fromDate(dl),
-        scale: Number(qScale),
-        priority: Number(qPriority),
+        scale: Number(qScale),        // ← DB上は従来どおり scale
+        priority: Number(qPriority),  // ← DB上は従来どおり priority
         labelId: qLabelId || null,
         estimatedMinutes: Math.round(M), // M
         O: O ?? null,                    // 任意
@@ -219,7 +219,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
             />
           </div>
 
-          {/* 2行目：M・不確実性・優先度 */}
+          {/* 2行目：M・w・重要度 */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
             <div>
               <label style={labelStyle}>M（分）*</label>
@@ -235,16 +235,26 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
               />
             </div>
             <div>
-              <label style={labelStyle}>不確実性</label>
-              <select value={qScale} onChange={(e) => setQScale(Number(e.target.value))} style={inputStyle}>
+              <label style={labelStyle}>w</label>
+              <select
+                value={qScale}
+                onChange={(e) => setQScale(Number(e.target.value))}
+                style={inputStyle}
+                aria-label="w"
+              >
                 {[1, 2, 3, 4, 5].map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>優先度</label>
-              <select value={qPriority} onChange={(e) => setQPriority(Number(e.target.value))} style={inputStyle}>
+              <label style={labelStyle}>重要度</label>
+              <select
+                value={qPriority}
+                onChange={(e) => setQPriority(Number(e.target.value))}
+                style={inputStyle}
+                aria-label="重要度"
+              >
                 <option value={1}>低</option>
                 <option value={2}>中</option>
                 <option value={3}>高</option>
@@ -283,7 +293,11 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
           {/* 4行目：ラベル */}
           <div style={{ marginTop: 10 }}>
             <label style={labelStyle}>ラベル</label>
-            <select value={qLabelId} onChange={(e) => setQLabelId(e.target.value)} style={inputStyle}>
+            <select
+              value={qLabelId}
+              onChange={(e) => setQLabelId(e.target.value)}
+              style={inputStyle}
+            >
               <option value="">（ラベルなし）</option>
               {labels.map((lb) => (
                 <option key={lb.id} value={lb.id}>{lb.name}</option>
