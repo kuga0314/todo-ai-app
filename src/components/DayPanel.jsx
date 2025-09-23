@@ -1,102 +1,131 @@
 // src/components/DayPanel.jsx
-import React, { useMemo, useState } from "react";
-import { format, isSameDay, startOfDay, endOfDay } from "date-fns";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { useState, useEffect, useCallback } from "react";
+import { collection, addDoc, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
-import { useAuth } from "../hooks/useAuth"; // userId を付けるため
-import TaskList from "./TaskList";
-import { getDeadline, getNotifyAt } from "../utils/calendarHelpers";
+import { useAuth } from "../hooks/useAuth";
 
 /**
- * カレンダーで日付をクリックすると出る左上パネル。
- * 「＋」を押すと入力欄だけ表示→送信で Firestore に直接 addDoc。
- * App 側の onSnapshot が拾うのでリスト/カレンダーに即反映されます。
+ * 仕様:
+ * - 画面左上（固定位置）に出るモーダル。背面に半透明のオーバーレイ。
+ * - クリックで外側を押す/ESCキーで閉じる。
+ * - クイック追加フォームに O/P（任意）を追加。Mは必須。
+ * - selectedDate（日付セルから渡される Date）を締切日とし、時刻はフォームの time で指定。
  */
-export default function DayPanel({ selectedDate, todos, onClose, labels = [] }) {
+export default function DayPanel({ selectedDate, onAdded, onClose }) {
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("deadline"); // "deadline" | "working"
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-
-  // 入力状態
-  const [qText, setQText] = useState("");
-  const [qTime, setQTime] = useState("18:00");
-  const [qE, setQE] = useState("90");
-  const [qScale, setQScale] = useState(3);
-  const [qPriority, setQPriority] = useState(2);
-  const [qLabelId, setQLabelId] = useState(""); // ★ 追加：ラベル選択
+  // 送信状態
   const [saving, setSaving] = useState(false);
 
-  const resetQuickAdd = () => {
+  // 入力UI（クイック追加）
+  const [qText, setQText] = useState("");
+  const [qTime, setQTime] = useState("18:00");
+  const [qE, setQE] = useState("90");        // M（分）必須
+  const [qScale, setQScale] = useState(3);   // 不確実性 1..5
+  const [qPriority, setQPriority] = useState(2);
+  const [qLabelId, setQLabelId] = useState("");
+  const [qO, setQO] = useState("");          // 任意 O（分）
+  const [qP, setQP] = useState("");          // 任意 P（分）
+
+  // ラベル
+  const [labels, setLabels] = useState([]);
+  useEffect(() => {
+    if (!user) return;
+    const colRef = collection(db, "users", user.uid, "labels");
+    const unsub = onSnapshot(colRef, (snap) => {
+      const rows = [];
+      snap.forEach((d) => rows.push({ id: d.id, ...(d.data() ?? {}) }));
+      setLabels(rows);
+      if (rows.findIndex((r) => r.id === qLabelId) === -1) setQLabelId("");
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const resetQuick = () => {
     setQText("");
     setQTime("18:00");
     setQE("90");
     setQScale(3);
     setQPriority(2);
     setQLabelId("");
+    setQO("");
+    setQP("");
   };
 
-  /* --- 当日締切タスク --- */
-  const deadlineTasksForSelected = useMemo(() => {
-    if (!selectedDate) return [];
-    return (todos ?? []).filter((t) => {
-      const d = getDeadline(t);
-      return d && isSameDay(d, selectedDate);
-    });
-  }, [todos, selectedDate]);
+  const handleClose = useCallback(() => {
+    if (saving) return;
+    onClose?.();
+  }, [onClose, saving]);
 
-  /* --- 通知〜締切の期間中は毎日表示（取り組むタスク） --- */
-  const workingTasksForSelected = useMemo(() => {
-    if (!selectedDate) return [];
-    const dayStart = startOfDay(selectedDate);
-    const dayEnd = endOfDay(selectedDate);
-    return (todos ?? []).filter((t) => {
-      const start = getNotifyAt(t);
-      const end = getDeadline(t);
-      if (!start || !end) return false;
-      const rangeStart = startOfDay(start);
-      const rangeEnd = endOfDay(end);
-      return dayStart <= rangeEnd && dayEnd >= rangeStart;
-    });
-  }, [todos, selectedDate]);
+  // ESCで閉じる
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleClose]);
 
-  /* --- その日締切で追加（TodoInput と同じ形で保存） --- */
+  const handleBackdropClick = (e) => {
+    // モーダル外側（オーバーレイ）クリックで閉じる（中身クリックは閉じない）
+    if (e.target === e.currentTarget) handleClose();
+  };
+
   const handleQuickAdd = async (e) => {
     e?.preventDefault?.();
     if (!user?.uid || !selectedDate || !qText.trim() || saving) return;
 
+    // M 必須
+    const M = Number(qE);
+    if (!Number.isFinite(M) || M <= 0) {
+      alert("M（分）は正の数で入力してください。");
+      return;
+    }
+
+    // O/P 任意・妥当性チェック
+    let O = qO === "" ? null : Math.round(Number(qO));
+    let P = qP === "" ? null : Math.round(Number(qP));
+    if (O != null && (!Number.isFinite(O) || O <= 0)) {
+      alert("O（分）は正の数で入力してください。");
+      return;
+    }
+    if (P != null && (!Number.isFinite(P) || P <= 0)) {
+      alert("P（分）は正の数で入力してください。");
+      return;
+    }
+    if (O != null && P != null && P <= O) {
+      alert("P は O より大きい必要があります。");
+      return;
+    }
+
     try {
       setSaving(true);
-      // selectedDate(年月日) + qTime(HH:mm) を締切にする
+      // selectedDate + qTime → 締切日時
       const [hh, mm] = (qTime || "00:00").split(":").map((s) => parseInt(s, 10) || 0);
       const dl = new Date(
-        selectedDate.getFullYear(),
-        selectedDate.getMonth(),
-        selectedDate.getDate(),
-        hh,
-        mm,
-        0,
-        0
+        selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(),
+        hh, mm, 0, 0
       );
 
       await addDoc(collection(db, "todos"), {
-        userId: user.uid,                            // ← Appの購読 where("userId","==",uid) と一致
+        userId: user.uid,
         text: qText.trim(),
         completed: false,
-        deadline: Timestamp.fromDate(dl),            // ← カレンダーは締切ベースで描画
+        deadline: Timestamp.fromDate(dl),
         scale: Number(qScale),
         priority: Number(qPriority),
-        labelId: qLabelId || null,                  // ★ 追加：ラベルを保存
-        // TodoInput と同じく E（分）を最優先で保存（未入力なら別途フォールバックしている実装）
-        estimatedMinutes: Number(qE) > 0 ? Math.round(Number(qE)) : null,
+        labelId: qLabelId || null,
+        estimatedMinutes: Math.round(M), // M
+        O: O ?? null,                    // 任意
+        P: P ?? null,                    // 任意
         notified: false,
         createdAt: Timestamp.now(),
-        // startRecommend / explain は Cloud Functions で付与される想定
       });
 
-      resetQuickAdd();
-      setShowQuickAdd(false); // 送信後はフォームを閉じる
-      // onSnapshot（App.jsx）で自動的にリスト/カレンダーへ反映されます
+      resetQuick();
+      onAdded?.();
+      handleClose();
     } catch (err) {
       console.error("quick add failed:", err);
       alert("追加に失敗しました。もう一度お試しください。");
@@ -105,217 +134,186 @@ export default function DayPanel({ selectedDate, todos, onClose, labels = [] }) 
     }
   };
 
+  // UIスタイル（モーダル左上）
+  const overlayStyle = {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.20)",
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+  };
+  const modalStyle = {
+    position: "relative",
+    marginTop: 16,        // 画面上からの距離（以前の“左上”感）
+    marginLeft: 16,       // 画面左からの距離
+    width: "min(720px, calc(100vw - 32px))",
+    background: "#fff",
+    borderRadius: 12,
+    boxShadow: "0 12px 28px rgba(0,0,0,0.18)",
+    padding: 16,
+  };
+  const headerStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
+  };
+  const titleStyle = {
+    fontSize: "1rem",
+    fontWeight: 700,
+    margin: 0,
+    lineHeight: 1.2,
+  };
+  const closeBtnStyle = {
+    marginLeft: "auto",
+    padding: "6px 10px",
+    borderRadius: 8,
+    border: "1px solid #ddd",
+    background: "#f8f8f8",
+    cursor: "pointer",
+  };
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #ddd",
+    borderRadius: 10,
+    fontSize: "0.95rem",
+  };
+  const labelStyle = { display: "block", fontSize: ".85rem", marginBottom: 6, color: "#555" };
+
   return (
-    <div
-      className="day-panel-left card"
-      style={{
-        position: "absolute",
-        left: 12,
-        top: 12,
-        width: "clamp(400px, 95vw, 640px)",
-        maxHeight: "calc(100% - 24px)",
-        overflowY: "auto",
-        overflowX: "hidden",
-        background: "#fff",
-        borderRadius: 14,
-        boxShadow: "0 10px 24px rgba(0,0,0,.15)",
-        zIndex: 5,
-        boxSizing: "border-box",
-      }}
-    >
-      {/* ヘッダー */}
-      <div
-        className="modal-head"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          marginBottom: 8,
-          padding: "8px 10px 0 10px",
-        }}
-      >
-        <h3 style={{ margin: 0 }}>{format(selectedDate, "yyyy年M月d日")}</h3>
+    <div style={overlayStyle} onMouseDown={handleBackdropClick}>
+      <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
+        {/* ヘッダー */}
+        <div style={headerStyle}>
+          <h3 style={titleStyle}>
+            {selectedDate
+              ? `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 のタスク`
+              : "タスク追加"}
+          </h3>
+          <button type="button" onClick={handleClose} style={closeBtnStyle}>
+            閉じる
+          </button>
+        </div>
 
-        {!showQuickAdd ? (
-          <div className="tab-controls" role="tablist" aria-label="表示切替">
-            <button
-              role="tab"
-              aria-selected={activeTab === "deadline"}
-              className={`tab ${activeTab === "deadline" ? "active" : ""}`}
-              onClick={() => setActiveTab("deadline")}
-            >
-              締切タスク
-            </button>
-            <button
-              role="tab"
-              aria-selected={activeTab === "working"}
-              className={`tab ${activeTab === "working" ? "active" : ""}`}
-              onClick={() => setActiveTab("working")}
-            >
-              取り組むタスク
-            </button>
-
-            {/* ＋：入力欄だけ表示（リストは隠す） */}
-            <button
-              className="btn btn-close"
-              onClick={() => setShowQuickAdd(true)}
-              style={{ marginLeft: 8, background: "#4f8bff" }}
-              title="この日が締切のタスクを追加"
-            >
-              ＋
-            </button>
-
-            <button className="btn btn-close" onClick={onClose} style={{ marginLeft: 8 }}>
-              閉じる
-            </button>
-          </div>
-        ) : (
-          <div className="tab-controls" aria-label="入力モード">
-            <button
-              className="btn btn-close"
-              onClick={() => (resetQuickAdd(), setShowQuickAdd(false))}
-              style={{ background: "#9aa0aa" }}
-              title="入力をやめる"
-            >
-              キャンセル
-            </button>
-            <button className="btn btn-close" onClick={onClose} style={{ marginLeft: 8 }}>
-              閉じる
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* 本体：入力モードならフォームだけ／通常はタブに応じたリスト */}
-      {showQuickAdd ? (
-        <form onSubmit={handleQuickAdd} style={{ padding: "10px", boxSizing: "border-box" }}>
-          {/* 1行目: タスク名 + 時刻 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 10 }}>
+        {/* フォーム */}
+        <form onSubmit={handleQuickAdd}>
+          {/* 1行目：テキスト & 時刻 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 10 }}>
             <input
-              autoFocus
               type="text"
-              placeholder="やること（必須）"
+              placeholder="やること"
               value={qText}
               onChange={(e) => setQText(e.target.value)}
+              style={inputStyle}
               required
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
-                fontSize: ".95rem",
-                minWidth: 0,
-              }}
             />
             <input
               type="time"
               value={qTime}
               onChange={(e) => setQTime(e.target.value)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
-                fontSize: ".95rem",
-                minWidth: 0,
-              }}
+              style={inputStyle}
+              required
             />
           </div>
 
-          {/* 2行目: E・規模・優先度 */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 10,
-              marginTop: 10,
-            }}
-          >
-            <input
-              type="number"
-              min="1"
-              step="1"
-              placeholder="E（分）"
-              value={qE}
-              onChange={(e) => setQE(e.target.value)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
-                fontSize: ".95rem",
-                minWidth: 0,
-              }}
-            />
-            <select
-              value={qScale}
-              onChange={(e) => setQScale(e.target.value)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
-                fontSize: ".95rem",
-                minWidth: 0,
-              }}
-            >
-              <option value={1}>規模: 小</option>
-              <option value={2}>規模: 中</option>
-              <option value={3}>規模: 大</option>
-              <option value={4}>規模: 特大</option>
-              <option value={5}>規模: 超特大</option>
-            </select>
-            <select
-              value={qPriority}
-              onChange={(e) => setQPriority(e.target.value)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
-                fontSize: ".95rem",
-                minWidth: 0,
-              }}
-            >
-              <option value={1}>優先度: 低</option>
-              <option value={2}>優先度: 中</option>
-              <option value={3}>優先度: 高</option>
-            </select>
+          {/* 2行目：M・不確実性・優先度 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
+            <div>
+              <label style={labelStyle}>M（分）*</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="例: 90"
+                value={qE}
+                onChange={(e) => setQE(e.target.value)}
+                style={inputStyle}
+                required
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>不確実性</label>
+              <select value={qScale} onChange={(e) => setQScale(Number(e.target.value))} style={inputStyle}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>優先度</label>
+              <select value={qPriority} onChange={(e) => setQPriority(Number(e.target.value))} style={inputStyle}>
+                <option value={1}>低</option>
+                <option value={2}>中</option>
+                <option value={3}>高</option>
+              </select>
+            </div>
           </div>
 
-          {/* 3行目: ラベル選択 */}
+          {/* 3行目：O/P 任意 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+            <div>
+              <label style={labelStyle}>O（分）任意</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="例: 60"
+                value={qO}
+                onChange={(e) => setQO(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>P（分）任意</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="例: 120"
+                value={qP}
+                onChange={(e) => setQP(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {/* 4行目：ラベル */}
           <div style={{ marginTop: 10 }}>
-            <label style={{ display: "block", fontSize: ".85rem", marginBottom: 6 }}>
-              ラベル
-            </label>
-            <select
-              value={qLabelId}
-              onChange={(e) => setQLabelId(e.target.value)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
-                fontSize: ".95rem",
-                width: "100%",
-              }}
-            >
+            <label style={labelStyle}>ラベル</label>
+            <select value={qLabelId} onChange={(e) => setQLabelId(e.target.value)} style={inputStyle}>
               <option value="">（ラベルなし）</option>
               {labels.map((lb) => (
-                <option key={lb.id} value={lb.id}>
-                  {lb.name}
-                </option>
+                <option key={lb.id} value={lb.id}>{lb.name}</option>
               ))}
             </select>
           </div>
 
-          {/* 4行目: 追加ボタン */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-            <button type="submit" className="btn btn-close" disabled={saving}>
+          {/* 送信 */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, gap: 8 }}>
+            <button type="button" onClick={handleClose} style={{ ...closeBtnStyle, background: "#fff" }}>
+              キャンセル
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid #2e7d32",
+                background: saving ? "#9ccc9c" : "#43a047",
+                color: "#fff",
+                cursor: saving ? "default" : "pointer",
+                fontWeight: 600,
+              }}
+            >
               {saving ? "追加中…" : "追加"}
             </button>
           </div>
         </form>
-      ) : activeTab === "deadline" ? (
-        <TaskList tasks={deadlineTasksForSelected} mode="deadline" />
-      ) : (
-        <TaskList tasks={workingTasksForSelected} mode="working" />
-      )}
+      </div>
     </div>
   );
 }
