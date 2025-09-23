@@ -9,11 +9,17 @@ const { clampToAllowedWindowNoDelay, dayAllowedWindowUtc, dayKeyJst } = require(
 const PRIORITY_FACTOR = { 3: 1.15, 2: 1.0, 1: 0.9 };
 
 function kFromRiskMode(riskMode) {
-  if (riskMode === "safe") return +1;
-  if (riskMode === "challenge") return -1;
-  return 0;
+  if (riskMode === "safe") return +1;         // 平均＋σ
+  if (riskMode === "challenge") return -1;    // 平均−σ
+  return 0;                                    // 平均
 }
 
+/**
+ * 所要分を計算：
+ * 1) E/scale から O/M/P/w を自動生成
+ * 2) タスクに O/P/pertWeight が入っていれば **その値で上書き**
+ * 3) σ と TEw を再計算して T_req（優先度/バッファ反映）を返す
+ */
 function computeRequiredMinutes(task, exp) {
   const kSigma = kFromRiskMode(exp?.riskMode || "mean");
   const bufferRate = Number.isFinite(task.buffer) ? task.buffer : 0;
@@ -21,7 +27,22 @@ function computeRequiredMinutes(task, exp) {
   const E = Math.max(1, Number(task.estimatedMinutes ?? task.E ?? 0));
   const scale = task.scale ?? task.uncertainty ?? 3;
 
-  const { O, M, P, w, sigma } = deriveOMPW(E, scale);
+  // 1) 既定（自動生成）
+  let { O, M, P, w, sigma } = deriveOMPW(E, scale);
+
+  // 2) 任意入力で上書き（存在するものだけ）
+  const Oin = Number(task.O);
+  const Pin = Number(task.P);
+  const win = Number(task.pertWeight);
+  if (Number.isFinite(Oin) && Oin > 0) O = Math.round(Oin);
+  if (Number.isFinite(Pin) && Pin > 0) P = Math.round(Pin);
+  if (Number.isFinite(win) && win > 0) w = win;
+
+  // 3) 妥当化 & 再計算
+  if (!(P > O)) P = Math.max(O + 1, P || (O + 1));
+  if (M <= 0) M = Math.max(1, Math.round(E));
+
+  sigma = (P - O) / 6;
   const TEw = modifiedPERT(O, M, P, w);
 
   let core = TEw + kSigma * sigma;
@@ -33,6 +54,7 @@ function computeRequiredMinutes(task, exp) {
   return { Treq, explain: { O, M, P, w, sigma, TEw, kSigma, bufferRate, pf } };
 }
 
+/** 期限から逆算してブロックを配置（許可ウィンドウ・キャパ・衝突回避） */
 function allocateBackward(deadline, minutesNeeded, userSettings, occupiedByDay, capacityUsed) {
   let remain = minutesNeeded;
   let cursor = new Date(deadline);
@@ -123,6 +145,10 @@ function blocksToLatestStartIso(blocks) {
   return blocks[0].start.toISOString();
 }
 
+/**
+ * メイン：タスク群へ T_req を付与 → 期限昇順、
+ * 同一期限は優先度（高→低）→作成時刻 で安定ソート → ブロック敷設
+ */
 function scheduleShift(tasks, userSettings, experimentSettings) {
   if (!Array.isArray(tasks)) return [];
 
@@ -136,12 +162,11 @@ function scheduleShift(tasks, userSettings, experimentSettings) {
     return { ...t, T_req_min: Treq, _explainCore: explain };
   });
 
-  // ★ 修正: 締切同じ場合は「優先度高い順」に右側から確保する
   withT.sort((a, b) => {
     const da = new Date(a.deadlineIso), db = new Date(b.deadlineIso);
     if (da - db !== 0) return da - db;
     const pa = Number(a.priority) || 2, pb = Number(b.priority) || 2;
-    if (pb - pa !== 0) return pb - pa; // 高優先度を先に
+    if (pb - pa !== 0) return pb - pa;
     const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return ca - cb;
