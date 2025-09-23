@@ -11,8 +11,8 @@ export default function TodoInput() {
   // 入力フィールド
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [scale, setScale] = useState(3); // 不確実性レベル 1..5
-  const [priority, setPriority] = useState(2);
+  const [scale, setScale] = useState(3); // ★ UI上は「w」、保存キーは既存の scale を継続利用
+  const [priority, setPriority] = useState(2); // ★ UI上は「重要度」、保存キーは既存の priority を継続利用
   const [estimatedMinutes, setEstimatedMinutes] = useState(""); // M（分）必須
   const [Omin, setOmin] = useState(""); // 任意 O（分）
   const [Pmin, setPmin] = useState(""); // 任意 P（分）
@@ -85,11 +85,11 @@ export default function TodoInput() {
         text: text.trim(),
         completed: false,
         deadline: deadlineTS,
-        scale,
-        priority,
+        scale,                      // ← DBフィールドは現状維持（UI名は w）
+        priority,                   // ← DBフィールドは現状維持（UI名は 重要度）
         estimatedMinutes: Math.round(M), // M（必須）
-        O: O ?? null,                    // 任意（未入力なら保存しない＝null）
-        P: P ?? null,                    // 任意（未入力なら保存しない＝null）
+        O: O ?? null,                    // 任意（未入力なら null）
+        P: P ?? null,                    // 任意（未入力なら null）
         labelId: selectedLabelId || null,
         notified: false,
         createdAt: Timestamp.now(),
@@ -117,7 +117,7 @@ export default function TodoInput() {
         required
       />
 
-      {/* 下段：締切・規模・優先度・ラベル・M/O/P・追加 */}
+      {/* 下段：締切・w・重要度・ラベル・M/O/P・追加 */}
       <div className="ti-row">
         <input
           className="ti-datetime"
@@ -128,13 +128,14 @@ export default function TodoInput() {
           required
         />
 
+        {/* 旧「不確実性」→ w（UI表示のみ変更、保存キーは scale） */}
         <label className="ti-field">
-          不確実性
+          w
           <select
             className="ti-select"
             value={scale}
             onChange={(e) => setScale(+e.target.value)}
-            aria-label="不確実性"
+            aria-label="w"
           >
             {[1, 2, 3, 4, 5].map((n) => (
               <option key={n} value={n}>{n}</option>
@@ -142,13 +143,14 @@ export default function TodoInput() {
           </select>
         </label>
 
+        {/* 旧「優先度」→ 重要度（UI表示のみ変更、保存キーは priority） */}
         <label className="ti-field">
-          優先度
+          重要度
           <select
             className="ti-select"
             value={priority}
             onChange={(e) => setPriority(+e.target.value)}
-            aria-label="優先度"
+            aria-label="重要度"
           >
             <option value={1}>低</option>
             <option value={2}>中</option>

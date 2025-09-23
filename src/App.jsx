@@ -1,3 +1,4 @@
+// src/App.jsx
 import { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -5,6 +6,7 @@ import {
   Route,
   Navigate,
   Outlet,
+  Link,              // ★ 追加：ヘッダの「？」リンクで使用
 } from "react-router-dom";
 import {
   collection,
@@ -33,13 +35,52 @@ function App() {
 }
 export default App;
 
-/* 共通レイアウト（上部はタイトル＋ログアウト、下にBottomNav） */
+/* ─────────────────────────────
+   ヘルプ（簡易版）
+   後で src/components/Help.jsx に分離可
+───────────────────────────── */
+const HelpPage = () => {
+  return (
+    <main className="app-main">
+      <div className="container">
+        <section className="card" style={{ lineHeight: 1.7 }}>
+          <h2>O / M / P / w について</h2>
+          <ul>
+            <li><b>O（Optimistic）</b>…最も順調なときの所要（分）</li>
+            <li><b>M（Most likely）</b>…最もありそうな所要（分）</li>
+            <li><b>P（Pessimistic）</b>…最も時間がかかる想定（分）</li>
+            <li>
+              <b>w</b>…修正版PERTにおける M の重み（大きいほど M を重視）。
+              期待値は <code>TE<sub>w</sub> = (O + w·M + P) / (w + 2)</code>
+            </li>
+          </ul>
+          <p style={{ marginTop: 12 }}>
+            ※ 本アプリでは「優先度」という語は使わず<strong>「重要度」</strong>表記に統一します。
+            重要度は見分け（表示・フィルタ）用で、通知時刻の計算には影響しません。
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+};
+
+/* 共通レイアウト（上部はタイトル＋ログアウト＋ヘルプ、下にBottomNav） */
 const Layout = ({ logout }) => (
   <>
     <header className="app-header">
       <div className="container hdr-inner">
         <h1 className="brand">ToDoリスト</h1>
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* ★ 追加：ヘルプ導線（ログアウトの隣に「？」） */}
+          <Link
+            to="/help"
+            className="btn btn-ghost"
+            title="O/M/P と w の説明"
+            aria-label="ヘルプ"
+            style={{ fontSize: "18px" }}
+          >
+            ❓
+          </Link>
           <button onClick={logout} className="btn btn-outline">ログアウト</button>
         </div>
       </div>
@@ -78,6 +119,7 @@ const AppWithRouter = ({ logout, user }) => {
       text: payload.text.trim(),
       deadline: Timestamp.fromDate(new Date(payload.deadline)),
       estimatedMinutes: toNum(payload.estimatedMinutes, null),
+      // DBのキーは当面そのまま（UI上の呼称のみ変更：規模/不確実性→w、優先度→重要度）
       scale: toNum(payload.scale, 3),
       priority: toNum(payload.priority, 2),
       completed: false,
@@ -90,7 +132,7 @@ const AppWithRouter = ({ logout, user }) => {
     <BrowserRouter>
       <Routes>
         <Route element={<Layout logout={logout} />}>
-          {/* ホーム：カレンダーのみ、画面高いっぱい */}
+          {/* ホーム：カレンダー */}
           <Route
             index
             element={
@@ -104,7 +146,7 @@ const AppWithRouter = ({ logout, user }) => {
             }
           />
 
-          {/* すべてのタスク（縦スクロール） */}
+          {/* すべてのタスク */}
           <Route path="all-tasks" element={<AllTasksPage todos={todos} />} />
 
           {/* 設定 */}
@@ -120,6 +162,9 @@ const AppWithRouter = ({ logout, user }) => {
               </main>
             }
           />
+
+          {/* ★ 追加：/help */}
+          <Route path="help" element={<HelpPage />} />
 
           <Route path="*" element={<Navigate to="/" />} />
         </Route>

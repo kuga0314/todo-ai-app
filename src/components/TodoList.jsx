@@ -7,8 +7,9 @@ import { format } from "date-fns";
 import "./TodoList.css";
 
 const priorityLabel = (v) => (v === 1 ? "低" : v === 3 ? "高" : "中");
-const uncertaintyLabel = (v) =>
-  ({ 1: "小", 2: "中", 3: "大", 4: "特大", 5: "超特大" }[v] || "未設定");
+// 不確実性ラベルは使わず、w（数値）をそのまま見せる運用に変更
+// const uncertaintyLabel = (v) => ({ 1: "小", 2: "中", 3: "大", 4: "特大", 5: "超特大" }[v] || "未設定");
+
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
 
 /** TE（修正版PERT）を計算。
@@ -44,8 +45,8 @@ function TodoList({ todos, userId: userIdProp }) {
   const [sortBy, setSortBy] = useState("createdAt");
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [monthFilter, setMonthFilter] = useState("all");
-  const [uncertaintyFilter, setUncertaintyFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [uncertaintyFilter, setUncertaintyFilter] = useState("all"); // 変数名はそのまま（互換維持）
+  const [priorityFilter, setPriorityFilter] = useState("all");       // 変数名はそのまま（互換維持）
   const [labelFilter, setLabelFilter] = useState("all");
 
   // labels 購読
@@ -82,8 +83,8 @@ function TodoList({ todos, userId: userIdProp }) {
       if (ym !== monthFilter) return false;
     }
 
-    if (uncertaintyFilter !== "all" && t.scale !== +uncertaintyFilter) return false;
-    if (priorityFilter !== "all" && t.priority !== +priorityFilter) return false;
+    if (uncertaintyFilter !== "all" && t.scale !== +uncertaintyFilter) return false; // scale は w 相当
+    if (priorityFilter !== "all" && t.priority !== +priorityFilter) return false;    // priority は 重要度相当
 
     if (labelFilter !== "all" && t.labelId !== labelFilter) return false;
 
@@ -140,25 +141,25 @@ function TodoList({ todos, userId: userIdProp }) {
             ))}
           </select>
 
-          {/* 不確実性 */}
+          {/* ★ 不確実性 → w */}
           <select
             value={uncertaintyFilter}
             onChange={(e) => setUncertaintyFilter(e.target.value)}
             className="filter-select"
           >
-            <option value="all">不確実性: 全て</option>
-            {[1,2,3,4,5].map((v) => (
-              <option key={v} value={v}>{uncertaintyLabel(v)}</option>
+            <option value="all">w: 全て</option>
+            {[1, 2, 3, 4, 5].map((v) => (
+              <option key={v} value={v}>w={v}</option>
             ))}
           </select>
 
-          {/* 優先度 */}
+          {/* ★ 優先度 → 重要度 */}
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
             className="filter-select"
           >
-            <option value="all">優先度: 全て</option>
+            <option value="all">重要度: 全て</option>
             <option value={3}>高</option>
             <option value={2}>中</option>
             <option value={1}>低</option>
@@ -235,15 +236,15 @@ function TodoList({ todos, userId: userIdProp }) {
                     </span>
                   </div>
 
-                  {/* 規模・優先度・M/O/P/TE */}
+                  {/* ★ w・重要度・M/O/P/TE */}
                   <div className="meta-line">
-                    <span className="meta-label">規模:</span>
+                    <span className="meta-label">w:</span>
                     <span className={`badge badge-scale-${todo.scale}`}>
-                      {uncertaintyLabel(todo.scale)}
+                      {Number.isFinite(+todo.scale) ? String(+todo.scale) : "—"}
                     </span>
 
                     <span className="spacer" />
-                    <span className="meta-label">優先度:</span>
+                    <span className="meta-label">重要度:</span>
                     <span className={`badge badge-priority-${todo.priority}`}>
                       {priorityLabel(todo.priority)}
                     </span>
