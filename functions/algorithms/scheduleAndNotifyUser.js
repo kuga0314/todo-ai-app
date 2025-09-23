@@ -28,10 +28,11 @@ function fingerprintInput(payload) {
   const keys = [
     "deadline","deadlineIso","deadlineISO",
     "estimatedMinutes","E",
-    "scale","priority",
+    "w","pertWeight","scale",        // ★ w 関連
+    "importance","priority",         // ★ 重要度関連
     "buffer","bufferRate","bufferRate_input",
     "riskMode","algoVariant",
-    "O","M","P","pertWeight",
+    "O","M","P",
     "userId",
   ];
   const obj = {};
@@ -47,18 +48,15 @@ function fingerprintInput(payload) {
 
 /* ───────── 設定ロード（Settings.jsx 構成に一致） ───────── */
 async function loadUserSettings(uid) {
-  // 実験（アルゴリズムは UI 側で modifiedPERT 固定）
   const expSnap = await db.doc(`users/${uid}/settings/experiment`).get();
   const experiment = expSnap.exists ? (expSnap.data() || {}) : { algoVariant: "modifiedPERT", riskMode: "mean" };
 
-  // 通知可能時間（weekday/weekend の start/end）
   const nSnap = await db.doc(`users/${uid}/settings/notifyWindow`).get();
   const notifyWindow = nSnap.exists ? (nSnap.data() || {}) : {
     weekday: { start: "08:00", end: "23:00" },
     weekend: { start: "09:00", end: "23:30" },
   };
 
-  // 作業時間帯（無ければデフォルト）
   const wSnap = await db.doc(`users/${uid}/settings/workHours`).get();
   const workHours = wSnap.exists ? (wSnap.data() || {}) : {
     weekday: { start: "09:00", end: "23:00" },
@@ -66,7 +64,6 @@ async function loadUserSettings(uid) {
     skipWeekends: false,
   };
 
-  // 日次キャパ（h）: capacity.weekday / capacity.weekend → DOW ごと分に換算
   const cSnap = await db.doc(`users/${uid}/settings/capacity`).get();
   let capacity = { weekday: 2, weekend: 4 };
   if (cSnap.exists) {
@@ -74,7 +71,6 @@ async function loadUserSettings(uid) {
     capacity = { weekday: Number(d.weekday ?? 2), weekend: Number(d.weekend ?? 4) };
   }
   const dailyCapacityByDOW = {
-    // 0=Sun,1=Mon,...6=Sat
     0: capacity.weekend * 60,
     1: capacity.weekday * 60,
     2: capacity.weekday * 60,
@@ -101,23 +97,29 @@ async function recomputeForUser(uid) {
       toDateMaybe(t.deadlineIso) ||
       toDateMaybe(t.deadlineISO) ||
       toDateMaybe(t.deadline);
-    if (!D) return; // 締切なしはスキップ
+    if (!D) return;
 
     tasks.push({
       id: docSnap.id,
       text: t.text,
       deadlineIso: D.toISOString(),
       estimatedMinutes: Number(t.estimatedMinutes ?? t.E ?? 0),
-      scale: t.scale ?? t.uncertainty ?? 3,
-      priority: t.priority ?? 2,                  // 1=低,2=中,3=高
+
+      // ★ w と importance を優先的に正規化
+      w: Number.isFinite(Number(t.w)) ? Number(t.w) : (
+        Number.isFinite(Number(t.pertWeight)) ? Number(t.pertWeight) :
+        (Number.isFinite(Number(t.scale)) ? Number(t.scale) : 3)
+      ),
+      importance: Number.isFinite(Number(t.importance)) ? Number(t.importance) : (
+        Number.isFinite(Number(t.priority)) ? Number(t.priority) : 2
+      ),
+
       buffer: Number(t.bufferRate_input ?? t.bufferRate ?? t.buffer ?? 0),
-      createdAt: t.createdAt?.toDate?.()?.toISOString?.() || null, // 安定ソート用
+      createdAt: t.createdAt?.toDate?.()?.toISOString?.() || null,
       explain: t.explain || null,
 
-      // ★ ここを追加：手入力があればスケジューラに渡す
       O: Number.isFinite(Number(t.O)) ? Number(t.O) : null,
       P: Number.isFinite(Number(t.P)) ? Number(t.P) : null,
-      pertWeight: Number.isFinite(Number(t.pertWeight)) ? Number(t.pertWeight) : null,
     });
     docs.push({ id: docSnap.id, ref: docSnap.ref, data: t });
   });
@@ -202,7 +204,6 @@ exports.recalcOnWrite = onDocumentWritten(DOC_PATH, async (event) => {
   const after  = event.data.after?.data()  || null;
   if (!after) return;
 
-  // 入力指紋が同じならスキップ（自己ループ抑止）
   const fp = fingerprintInput(after);
   const prevFp = before?.calcMeta?.inputFingerprint || null;
   if (prevFp && prevFp === fp) return;

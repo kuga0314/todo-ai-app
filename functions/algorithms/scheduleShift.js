@@ -6,37 +6,37 @@ const admin = require("firebase-admin");
 const { modifiedPERT, deriveOMPW } = require("./pert");
 const { clampToAllowedWindowNoDelay, dayAllowedWindowUtc, dayKeyJst } = require("./timeWindows");
 
-const PRIORITY_FACTOR = { 3: 1.15, 2: 1.0, 1: 0.9 };
+// 重要度による係数（通知計算には影響しないが T_req 調整用に残す）
+const IMPORTANCE_FACTOR = { 3: 1.15, 2: 1.0, 1: 0.9 };
 
 function kFromRiskMode(riskMode) {
-  if (riskMode === "safe") return +1;         // 平均＋σ
-  if (riskMode === "challenge") return -1;    // 平均−σ
-  return 0;                                    // 平均
+  if (riskMode === "safe") return +1;       // 平均＋σ
+  if (riskMode === "challenge") return -1;  // 平均−σ
+  return 0;                                 // 平均
 }
 
 /**
  * 所要分を計算：
- * 1) E/scale から O/M/P/w を自動生成
- * 2) タスクに O/P/pertWeight が入っていれば **その値で上書き**
- * 3) σ と TEw を再計算して T_req（優先度/バッファ反映）を返す
+ * 1) E から deriveOMPW で初期 O/M/P/w を生成（w が未入力ならフォールバック）
+ * 2) タスクに O/P/w が入っていればその値で上書き
+ * 3) σ と TEw を再計算して T_req を返す
  */
 function computeRequiredMinutes(task, exp) {
   const kSigma = kFromRiskMode(exp?.riskMode || "mean");
   const bufferRate = Number.isFinite(task.buffer) ? task.buffer : 0;
 
   const E = Math.max(1, Number(task.estimatedMinutes ?? task.E ?? 0));
-  const scale = task.scale ?? task.uncertainty ?? 3;
 
-  // 1) 既定（自動生成）
-  let { O, M, P, w, sigma } = deriveOMPW(E, scale);
+  // 1) 初期値生成（w を優先、無ければ3）
+  let { O, M, P, w, sigma } = deriveOMPW(E, task.w ?? task.pertWeight ?? task.scale ?? 3);
 
-  // 2) 任意入力で上書き（存在するものだけ）
+  // 2) 任意入力があれば上書き
   const Oin = Number(task.O);
   const Pin = Number(task.P);
-  const win = Number(task.pertWeight);
+  const win = Number(task.w ?? task.pertWeight);
   if (Number.isFinite(Oin) && Oin > 0) O = Math.round(Oin);
   if (Number.isFinite(Pin) && Pin > 0) P = Math.round(Pin);
-  if (Number.isFinite(win) && win > 0) w = win;
+  if (Number.isFinite(win) && win > 0) w = Math.round(win);
 
   // 3) 妥当化 & 再計算
   if (!(P > O)) P = Math.max(O + 1, P || (O + 1));
@@ -48,7 +48,8 @@ function computeRequiredMinutes(task, exp) {
   let core = TEw + kSigma * sigma;
   if (!isFinite(core) || core <= 0) core = Math.max(1, E);
 
-  const pf = PRIORITY_FACTOR[Number(task.priority) || 2] ?? 1.0;
+  const imp = Number(task.importance ?? task.priority) || 2;
+  const pf = IMPORTANCE_FACTOR[imp] ?? 1.0;
   const Treq = Math.max(1, Math.round(core * (1 + bufferRate) * pf));
 
   return { Treq, explain: { O, M, P, w, sigma, TEw, kSigma, bufferRate, pf } };
@@ -147,7 +148,7 @@ function blocksToLatestStartIso(blocks) {
 
 /**
  * メイン：タスク群へ T_req を付与 → 期限昇順、
- * 同一期限は優先度（高→低）→作成時刻 で安定ソート → ブロック敷設
+ * 同一期限は重要度（高→低）→作成時刻で安定ソート → ブロック敷設
  */
 function scheduleShift(tasks, userSettings, experimentSettings) {
   if (!Array.isArray(tasks)) return [];
@@ -165,8 +166,9 @@ function scheduleShift(tasks, userSettings, experimentSettings) {
   withT.sort((a, b) => {
     const da = new Date(a.deadlineIso), db = new Date(b.deadlineIso);
     if (da - db !== 0) return da - db;
-    const pa = Number(a.priority) || 2, pb = Number(b.priority) || 2;
-    if (pb - pa !== 0) return pb - pa;
+    const ia = Number(a.importance ?? a.priority) || 2;
+    const ib = Number(b.importance ?? b.priority) || 2;
+    if (ib - ia !== 0) return ib - ia;
     const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return ca - cb;
