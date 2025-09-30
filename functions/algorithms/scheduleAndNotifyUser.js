@@ -342,10 +342,7 @@ async function recomputeForUser(uid) {
       updatePayload.startRecommend = null;
       updatePayload.latestStartIso = null;
       updatePayload.latestStart = null;
-<<<<<<< ours
-=======
       updatePayload.morningSummaryNotified = false;
->>>>>>> theirs
     } else {
       updatePayload.startRecommendIso = u.startRecommendIso ?? null;
       updatePayload.startRecommend = u.startRecommendIso

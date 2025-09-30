@@ -93,9 +93,8 @@ async function dispatchMorningSummaries() {
         lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
         lastSentDate: todayKey,
       }, { merge: true });
-<<<<<<< ours
-=======
 
+      // 通知に含まれた todo へフラグ反映
       const todoIds = [...new Set(assignments.map((a) => a.todoId).filter(Boolean))];
       if (todoIds.length) {
         const batch = db.batch();
@@ -109,7 +108,6 @@ async function dispatchMorningSummaries() {
         });
         await batch.commit();
       }
->>>>>>> theirs
     } catch (error) {
       console.error("morning summary send failed", uid, error);
     }
