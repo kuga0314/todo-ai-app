@@ -1,5 +1,5 @@
 // src/components/Settings.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { db } from "../firebase/firebaseConfig";
 import {
   doc, getDoc, setDoc,
@@ -19,7 +19,6 @@ function Settings() {
   const [weekend, setWeekend] = useState(4);
 
   // 実験設定（アルゴリズムは修正版PERTで固定）
-  const [algoVariant, setAlgoVariant] = useState("modifiedPERT");
   const [baselineAHours, setBaselineAHours] = useState(2); // 互換保持のみ（UIでは非表示）
 
   // 通知可能時間（平日/休日の送信ウィンドウ）
@@ -54,11 +53,13 @@ function Settings() {
   ];
 
   // 30分刻み候補
-  const timeOptions = Array.from({ length: 48 }, (_, i) => {
-    const h = String(Math.floor(i / 2)).padStart(2, "0");
-    const m = i % 2 === 0 ? "00" : "30";
-    return `${h}:${m}`;
-  });
+  const timeOptions = useMemo(() => (
+    Array.from({ length: 48 }, (_, i) => {
+      const h = String(Math.floor(i / 2)).padStart(2, "0");
+      const m = i % 2 === 0 ? "00" : "30";
+      return `${h}:${m}`;
+    })
+  ), []);
 
   // 初期設定の読み込み
   useEffect(() => {
@@ -79,13 +80,10 @@ function Settings() {
       if (expSnap.exists()) {
         const data = expSnap.data();
         // 読み込み時点では何が入っていても UI/状態は modifiedPERT に矯正
-        setAlgoVariant("modifiedPERT");
         // 互換目的で baselineA_hours は保持（UIでは使わない）
         setBaselineAHours(
           Number.isFinite(data.baselineA_hours) ? data.baselineA_hours : 2
         );
-      } else {
-        setAlgoVariant("modifiedPERT");
       }
 
       // notifyWindow（通知を送ってよい時間帯）
@@ -132,7 +130,7 @@ function Settings() {
         }
       }
     })();
-  }, [user]);
+  }, [user, timeOptions]);
 
   // ラベルの購読（リアルタイム）
   useEffect(() => {
@@ -208,7 +206,6 @@ function Settings() {
         { merge: true }
       );
       setSavedAt(new Date());
-      setAlgoVariant("modifiedPERT");
     } finally {
       setSaving(false);
     }
