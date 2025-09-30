@@ -21,7 +21,23 @@ import {
  */
 export default function TaskList({ tasks, mode }) {
   const toggleComplete = async (todo) => {
-    await updateDoc(doc(db, "todos", todo.id), { completed: !todo.completed });
+    const assignments = Array.isArray(todo?.dailyAssignments)
+      ? todo.dailyAssignments
+      : [];
+    const nextCompleted = !todo.completed;
+    const progressUpdate = {};
+    assignments.forEach((assignment) => {
+      if (!assignment?.date) return;
+      progressUpdate[`dailyProgress.${assignment.date}`] = nextCompleted;
+    });
+    try {
+      await updateDoc(doc(db, "todos", todo.id), {
+        completed: nextCompleted,
+        ...progressUpdate,
+      });
+    } catch (error) {
+      console.error("toggle task complete failed", error);
+    }
   };
   const deleteTask = async (todo) => {
     await deleteDoc(doc(db, "todos", todo.id));

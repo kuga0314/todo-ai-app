@@ -237,6 +237,31 @@ async function recomputeForUser(uid) {
     docs.push({ id: docSnap.id, ref: docSnap.ref, data: t });
   });
 
+  // 既存タスクに対するスキーママイグレーション（互換用フィールドを補完）
+  const migrationBatch = db.batch();
+  let migrationOps = 0;
+  for (const doc of docs) {
+    const src = doc.data || {};
+    const patch = {};
+    const has = (key) => Object.prototype.hasOwnProperty.call(src, key);
+    if (!has("dailyMinutes")) patch.dailyMinutes = src.dailyMinutes ?? null;
+    if (!has("dailyAssignments") || !Array.isArray(src.dailyAssignments)) patch.dailyAssignments = Array.isArray(src.dailyAssignments) ? src.dailyAssignments : [];
+    if (!has("dailyPlanGeneratedAt")) patch.dailyPlanGeneratedAt = src.dailyPlanGeneratedAt ?? null;
+    if (!has("dailyProgress") || typeof src.dailyProgress !== "object" || src.dailyProgress == null) patch.dailyProgress = {};
+    if (!has("assignedMinutes")) patch.assignedMinutes = src.assignedMinutes ?? null;
+    if (!has("unallocatedMinutes")) patch.unallocatedMinutes = src.unallocatedMinutes ?? null;
+    if (!has("morningSummaryNotified")) patch.morningSummaryNotified = false;
+    if (!has("morningSummaryLastDate")) patch.morningSummaryLastDate = src.morningSummaryLastDate ?? null;
+    if (!has("morningSummaryNotifiedAt")) patch.morningSummaryNotifiedAt = src.morningSummaryNotifiedAt ?? null;
+    if (Object.keys(patch).length > 0) {
+      migrationBatch.set(doc.ref, patch, { merge: true });
+      migrationOps += 1;
+    }
+  }
+  if (migrationOps > 0) {
+    await migrationBatch.commit();
+  }
+
   const updatedList = scheduleShift(
     tasks,
     { notifyWindow, workHours, dailyCapacityByDOW, defaults },
@@ -317,6 +342,10 @@ async function recomputeForUser(uid) {
       updatePayload.startRecommend = null;
       updatePayload.latestStartIso = null;
       updatePayload.latestStart = null;
+<<<<<<< ours
+=======
+      updatePayload.morningSummaryNotified = false;
+>>>>>>> theirs
     } else {
       updatePayload.startRecommendIso = u.startRecommendIso ?? null;
       updatePayload.startRecommend = u.startRecommendIso

@@ -132,6 +132,14 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
         P: P ?? null,                    // 任意
         notified: false,
         createdAt: Timestamp.now(),
+        dailyAssignments: [],
+        dailyPlanGeneratedAt: null,
+        dailyProgress: {},
+        assignedMinutes: null,
+        unallocatedMinutes: null,
+        morningSummaryNotified: false,
+        morningSummaryNotifiedAt: null,
+        morningSummaryLastDate: null,
       });
 
       resetQuick();
