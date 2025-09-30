@@ -7,6 +7,7 @@ admin.initializeApp();
 const REGION = "asia-northeast1";
 
 const { scheduleAndNotifyUser } = require("./algorithms/scheduleAndNotifyUser");
+const { dispatchMorningSummaries } = require("./notifications/morningSummary");
 
 /* ── 1) todos/{taskId} 作成/更新/削除で再計算 ───────────────── */
 exports.onTodoCreate = functions
@@ -50,7 +51,20 @@ exports.nightlyReschedule = functions
     }
   });
 
-/* ── 3) 手動再計算（Callable） ─────────────────────────────── */
+/* ── 3) 朝まとめ通知ディスパッチ ──────────────────────────── */
+exports.morningSummaryCron = functions
+  .region(REGION)
+  .pubsub.schedule("*/5 5-12 * * *")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    try {
+      await dispatchMorningSummaries();
+    } catch (error) {
+      console.error("morningSummaryCron failed", error);
+    }
+  });
+
+/* ── 4) 手動再計算（Callable） ─────────────────────────────── */
 exports.recalcAllForUser = functions
   .region(REGION)
   .https.onCall(async (data, context) => {

@@ -11,14 +11,14 @@ const DEFAULTS = {
   // 将来拡張してもここにデフォルトを書く。未指定は絶対に削らない（merge: true）
 };
 
-const numberOr = (v, f) => (Number.isFinite(Number(v)) ? Number(v) : f);
-
 export default function WorkHoursSection() {
   const { user } = useAuth();
   const [form, setForm] = useState(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [capacity, setCapacity] = useState({ weekday: null, weekend: null });
+  const [notificationMode, setNotificationMode] = useState("justInTime");
 
   const settingsDocRef = useMemo(() => {
     if (!user?.uid) return null;
@@ -58,11 +58,55 @@ export default function WorkHoursSection() {
     };
   }, [settingsDocRef]);
 
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const capRef = doc(db, "users", user.uid, "settings", "capacity");
+        const capSnap = await getDoc(capRef);
+        if (active && capSnap.exists()) {
+          const data = capSnap.data() || {};
+          setCapacity({
+            weekday: Number.isFinite(Number(data.weekday)) ? Number(data.weekday) : null,
+            weekend: Number.isFinite(Number(data.weekend)) ? Number(data.weekend) : null,
+          });
+        }
+
+        const notifRef = doc(db, "users", user.uid, "settings", "notification");
+        const notifSnap = await getDoc(notifRef);
+        if (active && notifSnap.exists()) {
+          const data = notifSnap.data() || {};
+          setNotificationMode(
+            data.mode === "morningSummary" ? "morningSummary" : "justInTime"
+          );
+        }
+      } catch (error) {
+        console.warn("work hours side data load failed", error);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
   const timeOrderValid = (() => {
     const [sh, sm] = (form.workStart || "00:00").split(":").map(Number);
     const [eh, em] = (form.workEnd || "00:00").split(":").map(Number);
     return eh * 60 + em > sh * 60 + sm; // 夜跨ぎは未対応
   })();
+
+  const weekendCapacity =
+    capacity.weekend != null && Number.isFinite(capacity.weekend)
+      ? capacity.weekend
+      : null;
+  const weekdayCapacity =
+    capacity.weekday != null && Number.isFinite(capacity.weekday)
+      ? capacity.weekday
+      : null;
+  const weekendMismatch = form.skipWeekends && weekendCapacity && weekendCapacity > 0;
+  const weekendZeroButIncluded =
+    !form.skipWeekends && weekendCapacity != null && weekendCapacity <= 0;
 
   const handleSave = async () => {
     if (!settingsDocRef) return;
@@ -151,8 +195,34 @@ export default function WorkHoursSection() {
         </p>
       )}
       <p className="text-sm text-gray-600 mt-3">
-        通知はこの時間帯の<strong>み</strong>で締切から逆算されます（他の設定は保持）。
+        {notificationMode === "morningSummary"
+          ? "朝まとめ通知モードでは、ここで設定した時間帯が日次プランの作業枠や朝のサマリー本文に利用されます。"
+          : "通知はこの時間帯のみに送信されます（従来の直前リマインドモード）。"}
       </p>
+      <div
+        className="text-sm text-gray-600 mt-2"
+        style={{ display: "grid", gap: "0.25rem" }}
+      >
+        <p>
+          平日キャパシティ: {weekdayCapacity != null ? `${weekdayCapacity}時間/日` : "未設定"} ／
+          休日キャパシティ: {weekendCapacity != null ? `${weekendCapacity}時間/日` : "未設定"}
+        </p>
+        <p>
+          {form.skipWeekends
+            ? "土日は日次プランから除外されます。"
+            : "土日も計画対象に含めます。"}
+        </p>
+        {weekendMismatch && (
+          <p style={{ color: "#dc2626" }}>
+            ※ 土日除外に設定されていますが、休日キャパシティが {weekendCapacity} 時間のままです。必要に応じて「作業可能時間」で休日を 0 時間に設定してください。
+          </p>
+        )}
+        {weekendZeroButIncluded && (
+          <p style={{ color: "#d97706" }}>
+            ※ 休日キャパシティが 0 時間のため、週末にも取り組みたい場合は「土日を除外する」をオンにするか、休日キャパシティを見直してください。
+          </p>
+        )}
+      </div>
 
       <div className="mt-4">
         <button

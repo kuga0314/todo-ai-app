@@ -14,6 +14,7 @@ export default function TodoInput() {
   const [scale, setScale] = useState(3); // ★ UI上は「w」、保存キーは既存の scale を継続利用
   const [priority, setPriority] = useState(2); // ★ UI上は「重要度」、保存キーは既存の priority を継続利用
   const [estimatedMinutes, setEstimatedMinutes] = useState(""); // M（分）必須
+  const [dailyMinutes, setDailyMinutes] = useState(""); // 1日あたり取り組む時間（任意）
   const [Omin, setOmin] = useState(""); // 任意 O（分）
   const [Pmin, setPmin] = useState(""); // 任意 P（分）
   const [saving, setSaving] = useState(false);
@@ -44,6 +45,7 @@ export default function TodoInput() {
     setScale(3);
     setPriority(2);
     setEstimatedMinutes("");
+    setDailyMinutes("");
     setOmin("");
     setPmin("");
     setSelectedLabelId("");
@@ -57,6 +59,14 @@ export default function TodoInput() {
     const M = Number(estimatedMinutes);
     if (!Number.isFinite(M) || M <= 0) {
       alert("所要時間（M, 分）を正の数で入力してください。");
+      return;
+    }
+
+    // 1日あたり取り組む時間（任意）
+    const daily =
+      dailyMinutes === "" ? null : Math.round(Number(dailyMinutes));
+    if (daily != null && (!Number.isFinite(daily) || daily <= 0)) {
+      alert("1日あたり取り組む時間は正の数（分）で入力してください。");
       return;
     }
 
@@ -88,6 +98,7 @@ export default function TodoInput() {
         scale,                      // ← DBフィールドは現状維持（UI名は w）
         priority,                   // ← DBフィールドは現状維持（UI名は 重要度）
         estimatedMinutes: Math.round(M), // M（必須）
+        dailyMinutes: daily,
         O: O ?? null,                    // 任意（未入力なら null）
         P: P ?? null,                    // 任意（未入力なら null）
         labelId: selectedLabelId || null,
@@ -185,6 +196,20 @@ export default function TodoInput() {
             value={estimatedMinutes}
             onChange={(e) => setEstimatedMinutes(e.target.value)}
             required
+          />
+        </label>
+
+        <label className="ti-field">
+          1日あたり（分）
+          <input
+            className="ti-number"
+            type="number"
+            min={1}
+            step={1}
+            placeholder="例: 60"
+            aria-label="1日あたり取り組む時間（分）"
+            value={dailyMinutes}
+            onChange={(e) => setDailyMinutes(e.target.value)}
           />
         </label>
 

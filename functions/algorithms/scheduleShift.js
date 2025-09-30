@@ -4,7 +4,12 @@
 
 const admin = require("firebase-admin");
 const { modifiedPERT, deriveOMPW } = require("./pert");
-const { clampToAllowedWindowNoDelay, dayAllowedWindowUtc, dayKeyJst } = require("./timeWindows");
+const {
+  clampToAllowedWindowNoDelay,
+  dayAllowedWindowUtc,
+  dayKeyJst,
+  dayKeyIso,
+} = require("./timeWindows");
 
 // 重要度による係数（通知計算には影響しないが T_req 調整用に残す）
 const IMPORTANCE_FACTOR = { 3: 1.15, 2: 1.0, 1: 0.9 };
@@ -56,10 +61,17 @@ function computeRequiredMinutes(task, exp) {
 }
 
 /** 期限から逆算してブロックを配置（許可ウィンドウ・キャパ・衝突回避） */
-function allocateBackward(deadline, minutesNeeded, userSettings, occupiedByDay, capacityUsed) {
+function allocateBackward(deadline, minutesNeeded, userSettings, occupiedByDay, capacityUsed, options = {}) {
   let remain = minutesNeeded;
   let cursor = new Date(deadline);
   const blocks = [];
+  const perDayLimit = Number.isFinite(options?.dailyLimit) && options.dailyLimit > 0
+    ? Math.max(1, Math.round(options.dailyLimit))
+    : null;
+  const maxLookbackDays = Number.isFinite(options?.maxLookbackDays)
+    ? Math.max(1, Math.round(options.maxLookbackDays))
+    : 180;
+  let lookedDays = 0;
 
   while (remain > 0) {
     const { startUtc, endUtc, empty } = dayAllowedWindowUtc(
@@ -103,7 +115,9 @@ function allocateBackward(deadline, minutesNeeded, userSettings, occupiedByDay, 
       const availableMin = Math.max(0, Math.floor((segRight - segLeft) / 60000));
 
       if (availableMin > 0) {
-        const take = Math.min(availableMin, remain, capRemain - todayTaken);
+        const limitRemain = perDayLimit != null ? Math.max(0, perDayLimit - todayTaken) : Infinity;
+        if (limitRemain <= 0) break;
+        const take = Math.min(availableMin, remain, capRemain - todayTaken, limitRemain);
         if (take > 0) {
           const blockStart = new Date(segRight.getTime() - take * 60000);
           const blockEnd = segRight;
@@ -128,11 +142,15 @@ function allocateBackward(deadline, minutesNeeded, userSettings, occupiedByDay, 
       occupiedByDay.set(dk, dayOcc);
     }
 
-    if (remain > 0) cursor = new Date(startUtc.getTime() - 1);
+    lookedDays += 1;
+    if (remain > 0) {
+      cursor = new Date(startUtc.getTime() - 1);
+      if (lookedDays > maxLookbackDays) break;
+    }
   }
 
   blocks.sort((a, b) => a.start - b.start);
-  return { blocks, usedMinutes: minutesNeeded - remain };
+  return { blocks, usedMinutes: minutesNeeded - remain, remaining: remain };
 }
 
 function blocksToStartRecommendIso(blocks, userSettings) {
@@ -144,6 +162,20 @@ function blocksToStartRecommendIso(blocks, userSettings) {
 function blocksToLatestStartIso(blocks) {
   if (!blocks?.length) return null;
   return blocks[0].start.toISOString();
+}
+
+function blocksToDailyAssignments(blocks) {
+  if (!Array.isArray(blocks) || blocks.length === 0) return [];
+  const buckets = new Map();
+  for (const block of blocks) {
+    const minutes = Math.max(0, Math.round((block.end - block.start) / 60000));
+    if (minutes <= 0) continue;
+    const key = dayKeyIso(block.start);
+    buckets.set(key, (buckets.get(key) || 0) + minutes);
+  }
+  return [...buckets.entries()]
+    .map(([date, minutes]) => ({ date, minutes }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
@@ -160,7 +192,13 @@ function scheduleShift(tasks, userSettings, experimentSettings) {
 
   const withT = tasks.map((t) => {
     const { Treq, explain } = computeRequiredMinutes(t, exp);
-    return { ...t, T_req_min: Treq, _explainCore: explain };
+    const dailyLimit = Number.isFinite(t.dailyMinutes) && t.dailyMinutes > 0
+      ? Math.round(t.dailyMinutes)
+      : (Number.isFinite(userSettings?.defaults?.todoDailyMinutes)
+        && userSettings.defaults.todoDailyMinutes > 0
+        ? Math.round(userSettings.defaults.todoDailyMinutes)
+        : null);
+    return { ...t, T_req_min: Treq, _explainCore: explain, _dailyLimit: dailyLimit };
   });
 
   withT.sort((a, b) => {
@@ -179,10 +217,19 @@ function scheduleShift(tasks, userSettings, experimentSettings) {
 
   const results = withT.map((t) => {
     const deadline = new Date(t.deadlineIso);
-    const { blocks } = allocateBackward(deadline, t.T_req_min, userSettings, occupiedByDay, capacityUsed);
+    const { blocks, remaining } = allocateBackward(
+      deadline,
+      t.T_req_min,
+      userSettings,
+      occupiedByDay,
+      capacityUsed,
+      { dailyLimit: t._dailyLimit }
+    );
 
     const latestStartIso = blocksToLatestStartIso(blocks);
     const startRecommendIso = blocksToStartRecommendIso(blocks, userSettings);
+    const dailyAssignments = blocksToDailyAssignments(blocks);
+    const assignedMinutes = dailyAssignments.reduce((sum, row) => sum + row.minutes, 0);
 
     const startRecommendTs = startRecommendIso ? admin.firestore.Timestamp.fromDate(new Date(startRecommendIso)) : null;
     const latestStartTs = latestStartIso ? admin.firestore.Timestamp.fromDate(new Date(latestStartIso)) : null;
@@ -193,6 +240,9 @@ function scheduleShift(tasks, userSettings, experimentSettings) {
       latestStart: latestStartTs,
       startRecommendIso,
       startRecommend: startRecommendTs,
+      assignedMinutes,
+      unallocatedMinutes: Math.max(0, Math.round(remaining || 0)),
+      dailyAssignments,
       explain: {
         ...(t.explain || {}),
         variant: exp.algoVariant,

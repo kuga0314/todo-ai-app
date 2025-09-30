@@ -5,6 +5,14 @@ import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import { format } from "date-fns";
 import "./TodoList.css";
+import {
+  getDailyAssignments,
+  todayKey,
+  findAssignmentForDate,
+  sumAssignmentMinutes,
+  formatMinutes,
+  formatAssignmentsSummary,
+} from "../utils/calendarHelpers";
 
 const priorityLabel = (v) => (v === 1 ? "低" : v === 3 ? "高" : "中");
 // 不確実性ラベルは使わず、w（数値）をそのまま見せる運用に変更
@@ -38,9 +46,15 @@ const SORT_OPTIONS = [
   { key: "deadline", label: "締切順" },
 ];
 
-function TodoList({ todos, userId: userIdProp }) {
+function TodoList({
+  todos,
+  userId: userIdProp,
+  onToggleDailyProgress,
+  notificationMode = "justInTime",
+}) {
   const { user } = useAuth();
   const userId = userIdProp || user?.uid;
+  const [todayKeyValue] = useState(() => todayKey());
 
   const [sortBy, setSortBy] = useState("createdAt");
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
@@ -99,6 +113,21 @@ function TodoList({ todos, userId: userIdProp }) {
       return (toTime(a.deadline) ?? Infinity) - (toTime(b.deadline) ?? Infinity);
     return 0;
   });
+
+  const toggleDailyProgress = async (todoId, dateKey, nextValue) => {
+    if (!dateKey) return;
+    if (typeof onToggleDailyProgress === "function") {
+      await onToggleDailyProgress(todoId, dateKey, nextValue);
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "todos", todoId), {
+        [`dailyProgress.${dateKey}`]: nextValue,
+      });
+    } catch (error) {
+      console.error("toggle daily progress failed", error);
+    }
+  };
 
   return (
     <div>
@@ -191,6 +220,18 @@ function TodoList({ todos, userId: userIdProp }) {
           const label = getLabel(todo.labelId);
           const borderColor = label?.color ?? "transparent";
 
+          const assignments = getDailyAssignments(todo);
+          const totalAssigned = sumAssignmentMinutes(assignments);
+          const todayAssignment = findAssignmentForDate(assignments, todayKeyValue);
+          const todayMinutes = todayAssignment?.minutes || 0;
+          const todayDone = !!todo?.dailyProgress?.[todayKeyValue];
+          const unallocated = Number.isFinite(Number(todo?.unallocatedMinutes))
+            ? Math.max(0, Math.round(Number(todo.unallocatedMinutes)))
+            : 0;
+          const dailyLimit = Number.isFinite(Number(todo?.dailyMinutes))
+            ? Math.max(0, Math.round(Number(todo.dailyMinutes)))
+            : null;
+
           // O/P（任意入力があれば表示）
           const hasO = Number.isFinite(+todo?.O);
           const hasP = Number.isFinite(+todo?.P);
@@ -274,6 +315,58 @@ function TodoList({ todos, userId: userIdProp }) {
                       {Number.isFinite(TE) ? `${TE.toFixed(1)} 分（≒ ${TEh} 時間）` : "—"}
                     </span>
                   </div>
+
+                  {assignments.length > 0 && (
+                    <div className="meta-line meta-line--plan">
+                      <span className="meta-label">日次割当:</span>
+                      <span className="meta-value">
+                        {formatAssignmentsSummary(assignments)}
+                      </span>
+                    </div>
+                  )}
+
+                  {notificationMode === "morningSummary" && (
+                    <div className="meta-line meta-line--plan">
+                      <span className="meta-label">今日:</span>
+                      <label className="plan-check">
+                        <input
+                          type="checkbox"
+                          disabled={!todayAssignment}
+                          checked={todayAssignment ? todayDone : false}
+                          onChange={(e) =>
+                            toggleDailyProgress(todo.id, todayKeyValue, e.target.checked)
+                          }
+                        />
+                        <span>
+                          {todayAssignment
+                            ? `${formatMinutes(todayMinutes)} 割当`
+                            : "割当なし"}
+                        </span>
+                      </label>
+
+                      <span className="spacer" />
+                      <span className="meta-label">合計:</span>
+                      <span className="meta-value">{formatMinutes(totalAssigned)}</span>
+
+                      {dailyLimit != null && (
+                        <>
+                          <span className="spacer" />
+                          <span className="meta-label">1日上限:</span>
+                          <span className="meta-value">{formatMinutes(dailyLimit)}</span>
+                        </>
+                      )}
+
+                      {unallocated > 0 && (
+                        <>
+                          <span className="spacer" />
+                          <span className="meta-label">未割当:</span>
+                          <span className="meta-value text-red-600">
+                            {formatMinutes(unallocated)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
