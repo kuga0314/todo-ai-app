@@ -28,6 +28,13 @@ function Settings() {
   const [weekendStart, setWeekendStart] = useState("09:00");
   const [weekendEnd, setWeekendEnd] = useState("23:30");
 
+  // 通知モードと朝の通知時刻
+  const [notificationMode, setNotificationMode] = useState("justInTime");
+  const [morningTime, setMorningTime] = useState("08:00");
+
+  // タスク入力時の既定値
+  const [defaultDailyMinutes, setDefaultDailyMinutes] = useState("");
+
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
 
@@ -91,6 +98,39 @@ function Settings() {
         setWeekendStart(data.weekend?.start ?? "09:00");
         setWeekendEnd(data.weekend?.end ?? "23:30");
       }
+
+      // notification（通知モードと朝の通知時刻）
+      const notifRef = doc(db, "users", user.uid, "settings", "notification");
+      const notifSnap = await getDoc(notifRef);
+      if (notifSnap.exists()) {
+        const data = notifSnap.data();
+        setNotificationMode(
+          data.mode === "morningSummary" ? "morningSummary" : "justInTime"
+        );
+        if (
+          typeof data.morningTime === "string" &&
+          timeOptions.includes(data.morningTime)
+        ) {
+          setMorningTime(data.morningTime);
+        } else {
+          setMorningTime("08:00");
+        }
+      }
+
+      // defaults（入力時の既定値）
+      const defaultsRef = doc(db, "users", user.uid, "settings", "defaults");
+      const defaultsSnap = await getDoc(defaultsRef);
+      if (defaultsSnap.exists()) {
+        const data = defaultsSnap.data();
+        if (
+          typeof data.todoDailyMinutes === "number" &&
+          Number.isFinite(data.todoDailyMinutes)
+        ) {
+          setDefaultDailyMinutes(String(data.todoDailyMinutes));
+        } else {
+          setDefaultDailyMinutes("");
+        }
+      }
     })();
   }, [user]);
 
@@ -107,7 +147,29 @@ function Settings() {
   }, [user]);
 
   const save = async () => {
-    if (!user) return;
+    if (!user || saving) return;
+
+    const defaultDailyValue =
+      defaultDailyMinutes === ""
+        ? null
+        : Math.round(Number(defaultDailyMinutes));
+
+    if (
+      defaultDailyValue != null &&
+      (!Number.isFinite(defaultDailyValue) || defaultDailyValue <= 0)
+    ) {
+      alert("1日あたり取り組む時間の既定値は正の数（分）で入力してください。");
+      return;
+    }
+
+    if (
+      notificationMode === "morningSummary" &&
+      !timeOptions.includes(morningTime)
+    ) {
+      alert("朝の通知時刻を一覧から選択してください。");
+      return;
+    }
+
     setSaving(true);
     try {
       await setDoc(
@@ -130,6 +192,19 @@ function Settings() {
           weekday: { start: weekdayStart, end: weekdayEnd },
           weekend: { start: weekendStart, end: weekendEnd },
         },
+        { merge: true }
+      );
+      await setDoc(
+        doc(db, "users", user.uid, "settings", "notification"),
+        {
+          mode: notificationMode,
+          morningTime: notificationMode === "morningSummary" ? morningTime : null,
+        },
+        { merge: true }
+      );
+      await setDoc(
+        doc(db, "users", user.uid, "settings", "defaults"),
+        { todoDailyMinutes: defaultDailyValue },
         { merge: true }
       );
       setSavedAt(new Date());
@@ -232,6 +307,78 @@ function Settings() {
             <select value={weekendEnd} onChange={(e) => setWeekendEnd(e.target.value)}>
               {timeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
+          </label>
+        </div>
+      </section>
+
+      {/* 通知モード切替 */}
+      <section className="settings-card">
+        <h3>通知モード</h3>
+        <p className="hint">
+          朝まとめ通知では、指定した時刻にその日の学習プランをまとめて受け取ります。
+        </p>
+        <div className="settings-grid">
+          <label className="field field-radio">
+            <input
+              type="radio"
+              name="notificationMode"
+              value="justInTime"
+              checked={notificationMode === "justInTime"}
+              onChange={(e) => setNotificationMode(e.target.value)}
+            />
+            <span>直前リマインド（従来どおり）</span>
+          </label>
+          <label className="field field-radio">
+            <input
+              type="radio"
+              name="notificationMode"
+              value="morningSummary"
+              checked={notificationMode === "morningSummary"}
+              onChange={(e) => setNotificationMode(e.target.value)}
+            />
+            <span>朝まとめ通知（今日のプラン）</span>
+          </label>
+        </div>
+
+        {notificationMode === "morningSummary" && (
+          <div className="settings-grid">
+            <label className="field">
+              <span className="field-label">朝の通知時刻</span>
+              <select
+                value={morningTime}
+                onChange={(e) => setMorningTime(e.target.value)}
+              >
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <small className="hint">
+                この時刻に当日の推奨タスクと割当時間をまとめて通知します。
+              </small>
+            </label>
+          </div>
+        )}
+      </section>
+
+      {/* タスク入力の既定値 */}
+      <section className="settings-card">
+        <h3>タスク入力の既定値</h3>
+        <div className="settings-grid">
+          <label className="field">
+            <span className="field-label">1日あたり取り組む時間（分）</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={defaultDailyMinutes}
+              onChange={(e) => setDefaultDailyMinutes(e.target.value)}
+              placeholder="例: 60"
+            />
+            <small className="hint">
+              タスク追加時の既定値として設定され、必要に応じて個別調整できます。
+            </small>
           </label>
         </div>
       </section>

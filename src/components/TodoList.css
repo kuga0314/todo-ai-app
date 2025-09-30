@@ -99,10 +99,20 @@
   display:flex; align-items:center; gap:.5rem;
   font-size:.88rem; color:#1f2a37; flex-wrap:wrap;
 }
+.meta-line--plan {
+  background:#f8fafc;
+  padding:4px 8px;
+  border-radius:6px;
+}
 .meta-label { color:#6a7785; font-weight:600; }
 .meta-value { font-weight:600; }
 .note { color:#0d9488; }
 .spacer { flex: 0 0 12px; }
+
+.plan-check { display:inline-flex; align-items:center; gap:6px; font-weight:600; }
+.plan-check input { width:18px; height:18px; }
+
+.text-red-600 { color:#dc2626; }
 
 /* バッジ */
 .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; color:#fff; }
