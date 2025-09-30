@@ -245,9 +245,22 @@ function TodoList({
                   <input
                     type="checkbox"
                     checked={todo.completed}
-                    onChange={() =>
-                      updateDoc(doc(db, "todos", todo.id), { completed: !todo.completed })
-                    }
+                    onChange={async () => {
+                      const nextCompleted = !todo.completed;
+                      const progressUpdate = {};
+                      assignments.forEach((assignment) => {
+                        if (!assignment?.date) return;
+                        progressUpdate[`dailyProgress.${assignment.date}`] = nextCompleted;
+                      });
+                      try {
+                        await updateDoc(doc(db, "todos", todo.id), {
+                          completed: nextCompleted,
+                          ...progressUpdate,
+                        });
+                      } catch (error) {
+                        console.error("toggle todo complete failed", error);
+                      }
+                    }}
                   />
                   <span className={`todo-title ${todo.completed ? "is-done" : ""}`}>
                     {todo.text}

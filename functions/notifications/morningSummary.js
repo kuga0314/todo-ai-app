@@ -93,6 +93,23 @@ async function dispatchMorningSummaries() {
         lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
         lastSentDate: todayKey,
       }, { merge: true });
+<<<<<<< ours
+=======
+
+      const todoIds = [...new Set(assignments.map((a) => a.todoId).filter(Boolean))];
+      if (todoIds.length) {
+        const batch = db.batch();
+        const sentAt = admin.firestore.FieldValue.serverTimestamp();
+        todoIds.forEach((todoId) => {
+          batch.set(db.doc(`todos/${todoId}`), {
+            morningSummaryNotified: true,
+            morningSummaryLastDate: todayKey,
+            morningSummaryNotifiedAt: sentAt,
+          }, { merge: true });
+        });
+        await batch.commit();
+      }
+>>>>>>> theirs
     } catch (error) {
       console.error("morning summary send failed", uid, error);
     }

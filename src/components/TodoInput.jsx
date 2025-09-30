@@ -104,6 +104,14 @@ export default function TodoInput() {
         labelId: selectedLabelId || null,
         notified: false,
         createdAt: Timestamp.now(),
+        dailyAssignments: [],
+        dailyPlanGeneratedAt: null,
+        dailyProgress: {},
+        assignedMinutes: null,
+        unallocatedMinutes: null,
+        morningSummaryNotified: false,
+        morningSummaryNotifiedAt: null,
+        morningSummaryLastDate: null,
       });
 
       reset();
