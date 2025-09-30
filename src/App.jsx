@@ -170,6 +170,15 @@ const AppWithRouter = ({ logout, user }) => {
       priority: toNum(payload.priority, 2),
       completed: false,
       createdAt: Timestamp.now(),
+      dailyMinutes: toNum(payload.dailyMinutes, null),
+      dailyAssignments: [],
+      dailyPlanGeneratedAt: null,
+      dailyProgress: {},
+      assignedMinutes: null,
+      unallocatedMinutes: null,
+      morningSummaryNotified: false,
+      morningSummaryNotifiedAt: null,
+      morningSummaryLastDate: null,
     };
     await addDoc(collection(db, "todos"), body);
   };
