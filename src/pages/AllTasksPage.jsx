@@ -7,7 +7,7 @@ import TodoList from "../components/TodoList";
  * - レイアウトは既存のクラス（app-main / container / card）を流用。
  * - 追加フォームは置かず、閲覧・編集・完了チェックのみ（追加はホームで）。
  */
-export default function AllTasksPage({ todos }) {
+export default function AllTasksPage({ todos, notificationMode = "justInTime", onToggleDailyProgress }) {
   return (
     <main className="app-main">
       <div className="container">
@@ -34,7 +34,12 @@ export default function AllTasksPage({ todos }) {
               paddingRight: 4,
             }}
           >
-            <TodoList todos={todos} mode="all" />
+            <TodoList
+              todos={todos}
+              mode="all"
+              notificationMode={notificationMode}
+              onToggleDailyProgress={onToggleDailyProgress}
+            />
           </div>
         </section>
       </div>

@@ -16,6 +16,16 @@ export default function BottomNav() {
       </NavLink>
 
       <NavLink
+        to="/plan"
+        className={({ isActive }) =>
+          isActive ? "tab-item active" : "tab-item"
+        }
+      >
+        <span role="img" aria-label="plan">🗓️</span>
+        <span className="tab-label">今日のプラン</span>
+      </NavLink>
+
+      <NavLink
         to="/all-tasks"
         className={({ isActive }) =>
           isActive ? "tab-item active" : "tab-item"

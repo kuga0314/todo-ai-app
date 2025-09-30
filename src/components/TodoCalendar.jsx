@@ -12,7 +12,13 @@ import ja from "date-fns/locale/ja";
 import "../styles/calendar.css";
 
 import DayPanel from "./DayPanel";
-import { getDeadline } from "../utils/calendarHelpers";
+import {
+  getDeadline,
+  getDailyAssignments,
+  formatMinutes,
+  dateFromKey,
+  endOfDayExclusive,
+} from "../utils/calendarHelpers";
 
 // ★ ラベル購読用
 import { collection, onSnapshot } from "firebase/firestore";
@@ -28,7 +34,7 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-export default function TodoCalendar({ todos, onAdd }) {
+export default function TodoCalendar({ todos, onAdd, notificationMode = "justInTime" }) {
   const { user } = useAuth();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -49,14 +55,13 @@ export default function TodoCalendar({ todos, onAdd }) {
 
   // カレンダー表示用イベント（締切ベース）
   const events = useMemo(() => {
-    return (todos ?? [])
+    const deadlineEvents = (todos ?? [])
       .map((t) => {
         const d = getDeadline(t);
         if (!d || Number.isNaN(d.getTime())) return null;
 
-        // ★ todo.labelId に紐づく色をひく（なければ既定色）
         const lb = labels.find((l) => l.id === t.labelId);
-        const color = lb?.color ?? "#5c6bc0"; // 既定: 少し落ち着いたブルー
+        const color = lb?.color ?? "#5c6bc0";
 
         return {
           id: t.id,
@@ -66,11 +71,47 @@ export default function TodoCalendar({ todos, onAdd }) {
           allDay: true,
           completed: !!t.completed,
           labelId: t.labelId ?? null,
-          color, // ★ イベント自身にも持たせておく
+          color,
+          type: "deadline",
         };
       })
       .filter(Boolean);
-  }, [todos, labels]);
+
+    if (notificationMode !== "morningSummary") {
+      return deadlineEvents;
+    }
+
+    const assignmentEvents = [];
+
+    (todos ?? []).forEach((todo) => {
+      const assignments = getDailyAssignments(todo);
+      if (!assignments.length) return;
+      const lb = labels.find((l) => l.id === todo.labelId);
+      const color = lb?.color ?? "#38bdf8";
+
+      assignments.forEach((assignment) => {
+        const date = dateFromKey(assignment.date);
+        if (!date) return;
+        const end = endOfDayExclusive(date) || date;
+        assignmentEvents.push({
+          id: `${todo.id}-${assignment.date}`,
+          title: `[日次] ${todo.text} (${formatMinutes(assignment.minutes)})`,
+          start: date,
+          end,
+          allDay: true,
+          completed: !!todo?.dailyProgress?.[assignment.date],
+          labelId: todo.labelId ?? null,
+          color,
+          type: "assignment",
+          todoId: todo.id,
+          minutes: assignment.minutes,
+          dateKey: assignment.date,
+        });
+      });
+    });
+
+    return [...deadlineEvents, ...assignmentEvents];
+  }, [todos, labels, notificationMode]);
 
   return (
     <div className="calendar-wrapper" style={{ flex: 1, display: "flex" }}>
@@ -90,19 +131,21 @@ export default function TodoCalendar({ todos, onAdd }) {
           messages={{ month: "月表示", today: "今日", previous: "前", next: "次" }}
           // ★ ラベル色を背景色に反映。完了クラスは維持。
           eventPropGetter={(event) => {
+            const isAssignment = event.type === "assignment";
             const baseClass = event.completed
               ? "event-completed"
               : "event-active";
+            const style = {
+              backgroundColor: event.color,
+              color: "#fff",
+              opacity: isAssignment ? (event.completed ? 0.45 : 0.8) : 0.9,
+              border: isAssignment ? "2px dashed rgba(255,255,255,0.75)" : "none",
+              padding: isAssignment ? "4px 6px" : "4px 6px",
+              lineHeight: 1.35,
+            };
             return {
-              className: baseClass,
-              style: {
-                backgroundColor: event.color,
-                color: "#fff", // ★ 黒 → 白文字に変更
-                opacity: 0.9,
-                border: "none",
-                padding: "4px 6px",   // ★ 縦幅拡大
-                lineHeight: 1.4,
-              },
+              className: `${baseClass}${isAssignment ? " event-plan" : ""}`,
+              style,
             };
           }}
           style={{ height: "100%" }}

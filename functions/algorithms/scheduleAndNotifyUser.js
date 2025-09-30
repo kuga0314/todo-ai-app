@@ -8,6 +8,7 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 const { scheduleShift } = require("./scheduleShift");
+const { dayKeyIso } = require("./timeWindows");
 
 /* ───────── ユーティリティ ───────── */
 function toDateMaybe(v) {
@@ -80,12 +81,123 @@ async function loadUserSettings(uid) {
     6: capacity.weekend * 60,
   };
 
-  return { experiment, notifyWindow, workHours, dailyCapacityByDOW };
+  const notifSnap = await db.doc(`users/${uid}/settings/notification`).get();
+  const notificationRaw = notifSnap.exists ? (notifSnap.data() || {}) : {};
+  const notification = {
+    mode: notificationRaw.mode === "morningSummary" ? "morningSummary" : "justInTime",
+    morningTime: typeof notificationRaw.morningTime === "string" ? notificationRaw.morningTime : "08:00",
+  };
+
+  const defaultsSnap = await db.doc(`users/${uid}/settings/defaults`).get();
+  const defaultsRaw = defaultsSnap.exists ? (defaultsSnap.data() || {}) : {};
+  const todoDaily = Number(defaultsRaw.todoDailyMinutes);
+  const defaults = {
+    todoDailyMinutes: Number.isFinite(todoDaily) && todoDaily > 0
+      ? Math.max(1, Math.round(todoDaily))
+      : null,
+  };
+
+  return { experiment, notifyWindow, workHours, dailyCapacityByDOW, notification, defaults };
+}
+
+function dateKeyToMillisJst(dateStr) {
+  if (typeof dateStr !== "string") return null;
+  const iso = `${dateStr}T00:00:00+09:00`;
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.getTime();
+}
+
+function buildDailyPlanMap(results, options = {}) {
+  const todayKey = options.todayKey ?? dayKeyIso(new Date());
+  const todayMs = dateKeyToMillisJst(todayKey) ?? Date.now();
+  const horizonDays = Number.isFinite(options.horizonDays) ? options.horizonDays : 30;
+  const maxMs = todayMs + horizonDays * 24 * 60 * 60 * 1000;
+
+  const plan = new Map();
+
+  for (const task of results) {
+    const assignments = Array.isArray(task.dailyAssignments) ? task.dailyAssignments : [];
+    for (const assignment of assignments) {
+      const minutes = Number(assignment?.minutes);
+      const date = assignment?.date;
+      if (!date || !Number.isFinite(minutes) || minutes <= 0) continue;
+      const ms = dateKeyToMillisJst(date);
+      if (ms == null) continue;
+      if (ms < todayMs) continue;
+      if (ms > maxMs) continue;
+
+      const record = plan.get(date) || { date, totalMinutes: 0, assignments: [] };
+      record.totalMinutes += Math.round(minutes);
+      record.assignments.push({
+        todoId: task.id,
+        text: task.text || "",
+        minutes: Math.round(minutes),
+        importance: Number(task.importance ?? task.priority) || 2,
+        deadlineIso: task.deadlineIso,
+      });
+      plan.set(date, record);
+    }
+  }
+
+  for (const record of plan.values()) {
+    record.assignments.sort((a, b) => {
+      const impDiff = (b.importance || 0) - (a.importance || 0);
+      if (impDiff !== 0) return impDiff;
+      return (b.minutes || 0) - (a.minutes || 0);
+    });
+  }
+
+  return plan;
+}
+
+async function persistDailyPlanDocs(uid, planMap, mode) {
+  const colRef = db.collection(`users/${uid}/dailyPlans`);
+  const existingSnap = await colRef.get();
+  const batch = db.batch();
+  let ops = 0;
+
+  if (mode === "morningSummary") {
+    const keepDates = new Set(planMap.keys());
+    for (const [date, record] of planMap.entries()) {
+      const ref = colRef.doc(date);
+      batch.set(ref, {
+        date,
+        totalMinutes: record.totalMinutes,
+        assignments: record.assignments,
+        generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      ops += 1;
+    }
+
+    existingSnap.forEach((doc) => {
+      if (!keepDates.has(doc.id)) {
+        batch.delete(doc.ref);
+        ops += 1;
+      }
+    });
+  } else {
+    existingSnap.forEach((doc) => {
+      batch.delete(doc.ref);
+      ops += 1;
+    });
+  }
+
+  if (ops > 0) {
+    await batch.commit();
+  }
 }
 
 /* ───────── 1ユーザーの全タスクを一括再配置 ───────── */
 async function recomputeForUser(uid) {
-  const { experiment, notifyWindow, workHours, dailyCapacityByDOW } = await loadUserSettings(uid);
+  const {
+    experiment,
+    notifyWindow,
+    workHours,
+    dailyCapacityByDOW,
+    notification,
+    defaults,
+  } = await loadUserSettings(uid);
 
   const snap = await db.collection("todos").where("userId", "==", uid).get();
 
@@ -120,13 +232,14 @@ async function recomputeForUser(uid) {
 
       O: Number.isFinite(Number(t.O)) ? Number(t.O) : null,
       P: Number.isFinite(Number(t.P)) ? Number(t.P) : null,
+      dailyMinutes: Number.isFinite(Number(t.dailyMinutes)) ? Number(t.dailyMinutes) : null,
     });
     docs.push({ id: docSnap.id, ref: docSnap.ref, data: t });
   });
 
   const updatedList = scheduleShift(
     tasks,
-    { notifyWindow, workHours, dailyCapacityByDOW },
+    { notifyWindow, workHours, dailyCapacityByDOW, defaults },
     { algoVariant: experiment.algoVariant || "modifiedPERT", riskMode: experiment.riskMode || "mean" }
   );
 
@@ -143,6 +256,9 @@ async function recomputeForUser(uid) {
       startRecommendIso: prev.startRecommendIso ?? null,
       latestStartIso: prev.latestStartIso ?? null,
       T_req_min: prev.T_req_min ?? null,
+      dailyAssignments: prev.dailyAssignments ?? [],
+      assignedMinutes: prev.assignedMinutes ?? null,
+      unallocatedMinutes: prev.unallocatedMinutes ?? null,
       explainCore: {
         variant: prev.explain?.variant ?? null,
         riskMode: prev.explain?.riskMode ?? null,
@@ -161,6 +277,9 @@ async function recomputeForUser(uid) {
       startRecommendIso: u.startRecommendIso ?? null,
       latestStartIso: u.latestStartIso ?? null,
       T_req_min: u.T_req_min ?? null,
+      dailyAssignments: u.dailyAssignments ?? [],
+      assignedMinutes: u.assignedMinutes ?? null,
+      unallocatedMinutes: u.unallocatedMinutes ?? null,
       explainCore: {
         variant: u.explain?.variant ?? null,
         riskMode: u.explain?.riskMode ?? null,
@@ -177,23 +296,47 @@ async function recomputeForUser(uid) {
     };
     if (deepEqual(prevComparable, nextComparable)) { skipped++; continue; }
 
-    batch.update(d.ref, {
-      startRecommendIso: u.startRecommendIso ?? null,
-      startRecommend: u.startRecommendIso ? admin.firestore.Timestamp.fromDate(new Date(u.startRecommendIso)) : null,
-      latestStartIso: u.latestStartIso ?? null,
-      latestStart: u.latestStartIso ? admin.firestore.Timestamp.fromDate(new Date(u.latestStartIso)) : null,
+    const updatePayload = {
       T_req_min: u.T_req_min ?? null,
+      dailyAssignments: u.dailyAssignments ?? [],
+      assignedMinutes: u.assignedMinutes ?? null,
+      unallocatedMinutes: u.unallocatedMinutes ?? null,
+      dailyPlanGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
       explain: u.explain || null,
       calcMeta: {
         ...(u.explain || {}),
+        notificationMode: notification.mode,
+        dailyLimit: Number.isFinite(u._dailyLimit) ? u._dailyLimit : null,
         inputFingerprint: fingerprintInput(d.data),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
-    });
+    };
+
+    if (notification.mode === "morningSummary") {
+      updatePayload.startRecommendIso = null;
+      updatePayload.startRecommend = null;
+      updatePayload.latestStartIso = null;
+      updatePayload.latestStart = null;
+    } else {
+      updatePayload.startRecommendIso = u.startRecommendIso ?? null;
+      updatePayload.startRecommend = u.startRecommendIso
+        ? admin.firestore.Timestamp.fromDate(new Date(u.startRecommendIso))
+        : null;
+      updatePayload.latestStartIso = u.latestStartIso ?? null;
+      updatePayload.latestStart = u.latestStartIso
+        ? admin.firestore.Timestamp.fromDate(new Date(u.latestStartIso))
+        : null;
+    }
+
+    batch.update(d.ref, updatePayload);
     updated++;
   }
 
   if (updated > 0) await batch.commit();
+
+  const planMap = buildDailyPlanMap(updatedList);
+  await persistDailyPlanDocs(uid, planMap, notification.mode);
+
   return { ok: true, userId: uid, updated, skipped };
 }
 

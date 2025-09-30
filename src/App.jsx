@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -16,6 +16,8 @@ import {
   where,
   addDoc,
   Timestamp,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "./firebase/firebaseConfig";
 
@@ -26,6 +28,7 @@ import TodoCalendar from "./components/TodoCalendar";
 import Settings from "./components/Settings";
 import BottomNav from "./components/BottomNav";
 import AllTasksPage from "./pages/AllTasksPage";
+import DailyPlan from "./components/DailyPlan";
 import "./App.css";
 
 function App() {
@@ -95,6 +98,8 @@ const Layout = ({ logout }) => (
 const AppWithRouter = ({ logout, user }) => {
   useFcm();
   const [todos, setTodos] = useState([]);
+  const [notificationMode, setNotificationMode] = useState("justInTime");
+  const [dailyPlans, setDailyPlans] = useState([]);
 
   // Firestore購読（ユーザーごと）
   useEffect(() => {
@@ -109,6 +114,47 @@ const AppWithRouter = ({ logout, user }) => {
     );
     return () => unsub();
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const ref = doc(db, "users", user.uid, "settings", "notification");
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) {
+        setNotificationMode("justInTime");
+        return;
+      }
+      const data = snap.data() || {};
+      setNotificationMode(data.mode === "morningSummary" ? "morningSummary" : "justInTime");
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const colRef = collection(db, "users", user.uid, "dailyPlans");
+    const qPlans = query(colRef, orderBy("date", "asc"));
+    const unsub = onSnapshot(qPlans, (snap) => {
+      const rows = [];
+      snap.forEach((docSnap) => {
+        rows.push({ id: docSnap.id, ...(docSnap.data() ?? {}) });
+      });
+      setDailyPlans(rows);
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  const todosWithId = useMemo(() => todos ?? [], [todos]);
+
+  const toggleDailyProgress = async (todoId, dateKey, checked) => {
+    if (!todoId || !dateKey) return;
+    try {
+      await updateDoc(doc(db, "todos", todoId), {
+        [`dailyProgress.${dateKey}`]: checked,
+      });
+    } catch (error) {
+      console.error("update daily progress failed", error);
+    }
+  };
 
   // 追加（必要に応じてTodoCalendarから呼ぶ）
   const addTodo = async (payload) => {
@@ -138,8 +184,21 @@ const AppWithRouter = ({ logout, user }) => {
             element={
               <main className="app-main">
                 <div className="container">
+                  {notificationMode === "morningSummary" && (
+                    <section className="card" style={{ marginBottom: 16 }}>
+                      <DailyPlan
+                        plans={dailyPlans}
+                        todos={todosWithId}
+                        onToggleDailyProgress={toggleDailyProgress}
+                      />
+                    </section>
+                  )}
                   <section className="home-cal">
-                    <TodoCalendar todos={todos} onAdd={addTodo} />
+                    <TodoCalendar
+                      todos={todosWithId}
+                      onAdd={addTodo}
+                      notificationMode={notificationMode}
+                    />
                   </section>
                 </div>
               </main>
@@ -147,7 +206,35 @@ const AppWithRouter = ({ logout, user }) => {
           />
 
           {/* すべてのタスク */}
-          <Route path="all-tasks" element={<AllTasksPage todos={todos} />} />
+          <Route
+            path="all-tasks"
+            element={
+              <AllTasksPage
+                todos={todosWithId}
+                notificationMode={notificationMode}
+                onToggleDailyProgress={toggleDailyProgress}
+              />
+            }
+          />
+
+          <Route
+            path="plan"
+            element={
+              <main className="app-main">
+                <div className="container">
+                  <section className="card" style={{ padding: "20px" }}>
+                    <DailyPlan
+                      plans={dailyPlans}
+                      todos={todosWithId}
+                      onToggleDailyProgress={toggleDailyProgress}
+                      headline="日次プラン一覧"
+                      showUpcoming
+                    />
+                  </section>
+                </div>
+              </main>
+            }
+          />
 
           {/* 設定 */}
           <Route

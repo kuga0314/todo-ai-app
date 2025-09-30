@@ -24,6 +24,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
   const [qScale, setQScale] = useState(3);   // UI上は「w」表示（保存キーは scale）
   const [qPriority, setQPriority] = useState(2); // UI上は「重要度」表示（保存キーは priority）
   const [qLabelId, setQLabelId] = useState("");
+  const [qDailyMinutes, setQDailyMinutes] = useState(""); // 任意 1日あたりの取り組み時間
   const [qO, setQO] = useState("");          // 任意 O（分）
   const [qP, setQP] = useState("");          // 任意 P（分）
 
@@ -49,6 +50,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
     setQScale(3);
     setQPriority(2);
     setQLabelId("");
+    setQDailyMinutes("");
     setQO("");
     setQP("");
   };
@@ -80,6 +82,14 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
     const M = Number(qE);
     if (!Number.isFinite(M) || M <= 0) {
       alert("M（分）は正の数で入力してください。");
+      return;
+    }
+
+    // 1日あたり取り組む時間（任意）
+    const daily =
+      qDailyMinutes === "" ? null : Math.round(Number(qDailyMinutes));
+    if (daily != null && (!Number.isFinite(daily) || daily <= 0)) {
+      alert("1日あたり取り組む時間は正の数（分）で入力してください。");
       return;
     }
 
@@ -117,6 +127,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
         priority: Number(qPriority),  // ← DB上は従来どおり priority
         labelId: qLabelId || null,
         estimatedMinutes: Math.round(M), // M
+        dailyMinutes: daily,
         O: O ?? null,                    // 任意
         P: P ?? null,                    // 任意
         notified: false,
@@ -262,8 +273,20 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
             </div>
           </div>
 
-          {/* 3行目：O/P 任意 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+          {/* 3行目：1日あたり取り組む時間・O/P 任意 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
+            <div>
+              <label style={labelStyle}>1日あたり（分）任意</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="例: 60"
+                value={qDailyMinutes}
+                onChange={(e) => setQDailyMinutes(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
             <div>
               <label style={labelStyle}>O（分）任意</label>
               <input

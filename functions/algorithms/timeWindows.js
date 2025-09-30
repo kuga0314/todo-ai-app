@@ -87,9 +87,36 @@ function clampToAllowedWindowNoDelay(date, notifyWindow, workHours) {
 const dayKeyJst = (dUtc) => { const j = toJst(dUtc); j.setHours(0, 0, 0, 0); return j.getTime(); };
 const isWeekendUtc = (dUtc) => { const j = toJst(dUtc); const w = j.getDay(); return w === 0 || w === 6; };
 
+const dayKeyIso = (dUtc) => {
+  const j = toJst(dUtc);
+  j.setHours(0, 0, 0, 0);
+  const yyyy = j.getFullYear();
+  const mm = String(j.getMonth() + 1).padStart(2, "0");
+  const dd = String(j.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+function dayCapacityMinutes(dateUtc, dailyCapacityByDOW) {
+  if (!dailyCapacityByDOW) return null;
+  const dow = toJst(dateUtc).getDay();
+  const minutes = dailyCapacityByDOW?.[dow];
+  if (!Number.isFinite(minutes)) return null;
+  return Math.max(0, Number(minutes));
+}
+
+function dayStartSlotUtc(dateUtc, notifyWindow, workHours) {
+  const window = dayAllowedWindowUtc(dateUtc, notifyWindow, workHours);
+  if (window.empty) return { ...window };
+  return {
+    startUtc: new Date(window.startUtc),
+    endUtc: new Date(window.endUtc),
+    empty: false,
+  };
+}
+
 module.exports = {
   JST_OFF, toJst, toUtc, toDate,
   remindMin, bufferRatio,
   hhmmToMin, dayAllowedWindowUtc, clampToAllowedWindowNoDelay,
-  dayKeyJst, isWeekendUtc,
+  dayKeyJst, isWeekendUtc, dayKeyIso, dayCapacityMinutes, dayStartSlotUtc,
 };
