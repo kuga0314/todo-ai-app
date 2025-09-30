@@ -41,7 +41,10 @@ self.addEventListener("notificationclick", (event) => {
   const url = event.notification?.data?.url || "/";
 
   event.waitUntil((async () => {
-    const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
+    const allClients = await self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    });
     const targetPath = new URL(url, self.location.origin).pathname; // ← ここがポイント
     for (const client of allClients) {
       if (client.url.includes(targetPath)) {
@@ -49,6 +52,6 @@ self.addEventListener("notificationclick", (event) => {
         return;
       }
     }
-    await clients.openWindow(url);
+    await self.clients.openWindow(url);
   })());
 });
