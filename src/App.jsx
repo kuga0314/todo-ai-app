@@ -6,7 +6,7 @@ import {
   Route,
   Navigate,
   Outlet,
-  Link,              // ★ 追加：ヘッダの「？」リンクで使用
+  Link,
 } from "react-router-dom";
 import {
   collection,
@@ -29,6 +29,7 @@ import Settings from "./components/Settings";
 import BottomNav from "./components/BottomNav";
 import AllTasksPage from "./pages/AllTasksPage";
 import DailyPlan from "./components/DailyPlan";
+import ProgressEntry from "./pages/ProgressEntry"; // ←追加
 import "./App.css";
 
 function App() {
@@ -39,27 +40,30 @@ function App() {
 export default App;
 
 /* ─────────────────────────────
-   ヘルプ（簡易版）
-   後で src/components/Help.jsx に分離可
+   ヘルプページ
 ───────────────────────────── */
 const HelpPage = () => {
   return (
     <main className="app-main">
       <div className="container">
         <section className="card" style={{ lineHeight: 1.7 }}>
-          <h2>O / M / P / w について</h2>
+          <h2>このアプリで使う考え方</h2>
           <ul>
-            <li><b>O（Optimistic）</b>…最も順調なときの所要（分）</li>
-            <li><b>M（Most likely）</b>…最もありそうな所要（分）</li>
-            <li><b>P（Pessimistic）</b>…最も時間がかかる想定（分）</li>
             <li>
-              <b>w</b>…修正版PERTにおける M の重み（大きいほど M を重視）。
-              期待値は <code>TE<sub>w</sub> = (O + w·M + P) / (w + 2)</code>
+              <b>E（Estimate）</b>…タスク完了に必要な見積所要時間（分）。
+            </li>
+            <li>
+              <b>A(t)</b>…今日までの累積実績時間（分）。タスク行の「実績追加」で記録。
+            </li>
+            <li>
+              <b>R(t)</b>…残量（分）= max(0, E − A(t))。
+            </li>
+            <li>
+              <b>必要ペース</b>…R(t) を締切までの残日数で割った値（分/日）。
             </li>
           </ul>
           <p style={{ marginTop: 12 }}>
-            ※ 本アプリでは「優先度」という語は使わず<strong>「重要度」</strong>表記に統一します。
-            重要度は見分け（表示・フィルタ）用で、通知時刻の計算には影響しません。
+            ※ 研究では O/P/W/重要度は使用しません。E と実績ログから進捗やペースを評価します。
           </p>
         </section>
       </div>
@@ -67,30 +71,30 @@ const HelpPage = () => {
   );
 };
 
-/* 共通レイアウト（上部はタイトル＋ログアウト＋ヘルプ、下にBottomNav） */
+/* 共通レイアウト */
 const Layout = ({ logout }) => (
   <>
     <header className="app-header">
       <div className="container hdr-inner">
         <h1 className="brand">ToDoリスト</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* ★ 追加：ヘルプ導線（ログアウトの隣に「？」） */}
           <Link
             to="/help"
             className="btn btn-ghost"
-            title="O/M/P と w の説明"
+            title="進捗指標の説明"
             aria-label="ヘルプ"
             style={{ fontSize: "18px" }}
           >
             ❓
           </Link>
-          <button onClick={logout} className="btn btn-outline">ログアウト</button>
+          <button onClick={logout} className="btn btn-outline">
+            ログアウト
+          </button>
         </div>
       </div>
     </header>
 
     <Outlet />
-
     <BottomNav />
   </>
 );
@@ -101,7 +105,7 @@ const AppWithRouter = ({ logout, user }) => {
   const [notificationMode, setNotificationMode] = useState("justInTime");
   const [dailyPlans, setDailyPlans] = useState([]);
 
-  // Firestore購読（ユーザーごと）
+  // Firestore購読: todos
   useEffect(() => {
     if (!user?.uid) return;
     const q = query(
@@ -115,6 +119,7 @@ const AppWithRouter = ({ logout, user }) => {
     return () => unsub();
   }, [user?.uid]);
 
+  // Firestore購読: 通知設定
   useEffect(() => {
     if (!user?.uid) return;
     const ref = doc(db, "users", user.uid, "settings", "notification");
@@ -124,11 +129,14 @@ const AppWithRouter = ({ logout, user }) => {
         return;
       }
       const data = snap.data() || {};
-      setNotificationMode(data.mode === "morningSummary" ? "morningSummary" : "justInTime");
+      setNotificationMode(
+        data?.morningSummaryTime ? "morningSummary" : "off"
+      );
     });
     return () => unsub();
   }, [user?.uid]);
 
+  // Firestore購読: dailyPlans
   useEffect(() => {
     if (!user?.uid) return;
     const colRef = collection(db, "users", user.uid, "dailyPlans");
@@ -156,21 +164,21 @@ const AppWithRouter = ({ logout, user }) => {
     }
   };
 
-  // 追加（必要に応じてTodoCalendarから呼ぶ）
+  // タスク追加
   const addTodo = async (payload) => {
     if (!payload?.text?.trim() || !payload?.deadline) return;
-    const toNum = (v, fb = null) => (Number.isFinite(Number(v)) ? Number(v) : fb);
+    const toNum = (v, fb = null) =>
+      Number.isFinite(Number(v)) ? Number(v) : fb;
+
     const body = {
       userId: user.uid,
       text: payload.text.trim(),
       deadline: Timestamp.fromDate(new Date(payload.deadline)),
       estimatedMinutes: toNum(payload.estimatedMinutes, null),
-      // DBのキーは当面そのまま（UI上の呼称のみ変更：規模/不確実性→w、優先度→重要度）
-      scale: toNum(payload.scale, 3),
-      priority: toNum(payload.priority, 2),
+      labelId: payload.labelId || null,
+      actualTotalMinutes: 0,
       completed: false,
       createdAt: Timestamp.now(),
-      dailyMinutes: toNum(payload.dailyMinutes, null),
       dailyAssignments: [],
       dailyPlanGeneratedAt: null,
       dailyProgress: {},
@@ -187,7 +195,7 @@ const AppWithRouter = ({ logout, user }) => {
     <BrowserRouter>
       <Routes>
         <Route element={<Layout logout={logout} />}>
-          {/* ホーム：カレンダー */}
+          {/* ホーム */}
           <Route
             index
             element={
@@ -214,6 +222,12 @@ const AppWithRouter = ({ logout, user }) => {
             }
           />
 
+          {/* 進捗入力 */}
+          <Route
+            path="progress"
+            element={<ProgressEntry todos={todosWithId} />}
+          />
+
           {/* すべてのタスク */}
           <Route
             path="all-tasks"
@@ -226,6 +240,7 @@ const AppWithRouter = ({ logout, user }) => {
             }
           />
 
+          {/* プラン一覧 */}
           <Route
             path="plan"
             element={
@@ -259,9 +274,8 @@ const AppWithRouter = ({ logout, user }) => {
             }
           />
 
-          {/* ★ 追加：/help */}
+          {/* ヘルプ */}
           <Route path="help" element={<HelpPage />} />
-
           <Route path="*" element={<Navigate to="/" />} />
         </Route>
       </Routes>

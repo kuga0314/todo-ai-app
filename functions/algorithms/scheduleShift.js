@@ -1,6 +1,5 @@
 // functions/scheduleShift.js
 /* eslint-env node */
-/* eslint-disable no-undef */
 
 /**
  * 互換スタブ。

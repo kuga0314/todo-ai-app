@@ -1,5 +1,4 @@
 /* eslint-env node */
-/* eslint-disable no-undef */
 // functions/_metrics.js
 const admin = require("firebase-admin");
 module.exports.logMetric = async ({ uid, taskId, algo, event, ts, task }) => {

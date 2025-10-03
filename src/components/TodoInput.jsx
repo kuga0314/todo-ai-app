@@ -1,120 +1,58 @@
 // src/components/TodoInput.jsx
-import { useState, useEffect } from "react";
-import { collection, addDoc, Timestamp, onSnapshot } from "firebase/firestore";
+import { useState } from "react";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
-import "./TodoInput.css";
 
-export default function TodoInput() {
+export default function TodoInput({ labels = [] }) {
   const { user } = useAuth();
 
-  // 入力フィールド
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [scale, setScale] = useState(3); // ★ UI上は「w」、保存キーは既存の scale を継続利用
-  const [priority, setPriority] = useState(2); // ★ UI上は「重要度」、保存キーは既存の priority を継続利用
-  const [estimatedMinutes, setEstimatedMinutes] = useState(""); // M（分）必須
-  const [dailyMinutes, setDailyMinutes] = useState(""); // 1日あたり取り組む時間（任意）
-  const [Omin, setOmin] = useState(""); // 任意 O（分）
-  const [Pmin, setPmin] = useState(""); // 任意 P（分）
+  const [time, setTime] = useState("18:00");
+  const [estimatedMinutes, setEstimatedMinutes] = useState("90");
+  const [labelId, setLabelId] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // ラベル（使っていなければセクションごと削ってもOK）
-  const [labels, setLabels] = useState([]);
-  const [selectedLabelId, setSelectedLabelId] = useState("");
-
-  useEffect(() => {
-    if (!user) return;
-    const colRef = collection(db, "users", user.uid, "labels");
-    const unsub = onSnapshot(colRef, (snap) => {
-      const rows = [];
-      snap.forEach((d) => rows.push({ id: d.id, ...(d.data() ?? {}) }));
-      setLabels(rows);
-      // 既存選択が消えていたら解除
-      if (rows.findIndex((r) => r.id === selectedLabelId) === -1) {
-        setSelectedLabelId("");
-      }
-    });
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  const reset = () => {
-    setText("");
-    setDeadline("");
-    setScale(3);
-    setPriority(2);
-    setEstimatedMinutes("");
-    setDailyMinutes("");
-    setOmin("");
-    setPmin("");
-    setSelectedLabelId("");
-  };
-
   const handleSubmit = async (e) => {
-    e?.preventDefault?.();
-    if (!user || !text.trim() || saving) return;
-
-    // M は必須
-    const M = Number(estimatedMinutes);
-    if (!Number.isFinite(M) || M <= 0) {
-      alert("所要時間（M, 分）を正の数で入力してください。");
+    e.preventDefault();
+    if (!user || saving) return;
+    if (!text.trim()) {
+      alert("タスク名を入力してください");
+      return;
+    }
+    const E = Math.round(Number(estimatedMinutes));
+    if (!Number.isFinite(E) || E <= 0) {
+      alert("E（見積分）は正の数で入力してください。");
+      return;
+    }
+    if (!deadline) {
+      alert("締切日を選んでください");
       return;
     }
 
-    // 1日あたり取り組む時間（任意）
-    const daily =
-      dailyMinutes === "" ? null : Math.round(Number(dailyMinutes));
-    if (daily != null && (!Number.isFinite(daily) || daily <= 0)) {
-      alert("1日あたり取り組む時間は正の数（分）で入力してください。");
-      return;
-    }
+    // deadline + time を Date に変換
+    const [hh, mm] = (time || "00:00").split(":").map((s) => parseInt(s, 10) || 0);
+    const d = new Date(deadline);
+    d.setHours(hh, mm, 0, 0);
 
-    // O/P は任意。与えられていれば妥当性チェック
-    let O = Omin === "" ? null : Math.round(Number(Omin));
-    let P = Pmin === "" ? null : Math.round(Number(Pmin));
-    if (O != null && (!Number.isFinite(O) || O <= 0)) {
-      alert("O（楽観・分）は正の数で入力してください。");
-      return;
-    }
-    if (P != null && (!Number.isFinite(P) || P <= 0)) {
-      alert("P（悲観・分）は正の数で入力してください。");
-      return;
-    }
-    if (O != null && P != null && P <= O) {
-      alert("P は O より大きい必要があります。");
-      return;
-    }
-
-    setSaving(true);
     try {
-      const deadlineTS = deadline ? Timestamp.fromDate(new Date(deadline)) : null;
-
+      setSaving(true);
       await addDoc(collection(db, "todos"), {
-        userId: user.uid,
         text: text.trim(),
+        deadline: d,
+        estimatedMinutes: E,
+        labelId: labelId || null,
+        actualTotalMinutes: 0,
         completed: false,
-        deadline: deadlineTS,
-        scale,                      // ← DBフィールドは現状維持（UI名は w）
-        priority,                   // ← DBフィールドは現状維持（UI名は 重要度）
-        estimatedMinutes: Math.round(M), // M（必須）
-        dailyMinutes: daily,
-        O: O ?? null,                    // 任意（未入力なら null）
-        P: P ?? null,                    // 任意（未入力なら null）
-        labelId: selectedLabelId || null,
-        notified: false,
-        createdAt: Timestamp.now(),
-        dailyAssignments: [],
-        dailyPlanGeneratedAt: null,
-        dailyProgress: {},
-        assignedMinutes: null,
-        unallocatedMinutes: null,
-        morningSummaryNotified: false,
-        morningSummaryNotifiedAt: null,
-        morningSummaryLastDate: null,
+        createdAt: serverTimestamp(),
+        uid: user.uid,
       });
-
-      reset();
+      setText("");
+      setDeadline("");
+      setTime("18:00");
+      setEstimatedMinutes("90");
+      setLabelId("");
     } catch (err) {
       console.error("add todo failed:", err);
       alert("追加に失敗しました。もう一度お試しください。");
@@ -124,135 +62,54 @@ export default function TodoInput() {
   };
 
   return (
-    <form className="ti" onSubmit={handleSubmit}>
-      {/* 上段：やること */}
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: 8 }}>
       <input
-        className="ti-input"
         type="text"
-        placeholder="やることを入力..."
-        aria-label="やること"
+        placeholder="やること"
         value={text}
         onChange={(e) => setText(e.target.value)}
         required
+        style={{ padding: 8 }}
       />
-
-      {/* 下段：締切・w・重要度・ラベル・M/O/P・追加 */}
-      <div className="ti-row">
+      <div style={{ display: "flex", gap: 8 }}>
         <input
-          className="ti-datetime"
-          type="datetime-local"
-          aria-label="締切"
+          type="date"
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
           required
+          style={{ padding: 8, flex: 1 }}
         />
-
-        {/* 旧「不確実性」→ w（UI表示のみ変更、保存キーは scale） */}
-        <label className="ti-field">
-          w
-          <select
-            className="ti-select"
-            value={scale}
-            onChange={(e) => setScale(+e.target.value)}
-            aria-label="w"
-          >
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </label>
-
-        {/* 旧「優先度」→ 重要度（UI表示のみ変更、保存キーは priority） */}
-        <label className="ti-field">
-          重要度
-          <select
-            className="ti-select"
-            value={priority}
-            onChange={(e) => setPriority(+e.target.value)}
-            aria-label="重要度"
-          >
-            <option value={1}>低</option>
-            <option value={2}>中</option>
-            <option value={3}>高</option>
-          </select>
-        </label>
-
-        <label className="ti-field">
-          ラベル
-          <select
-            className="ti-select"
-            value={selectedLabelId}
-            onChange={(e) => setSelectedLabelId(e.target.value)}
-            aria-label="ラベル"
-          >
-            <option value="">（ラベルなし）</option>
-            {labels.map((lb) => (
-              <option key={lb.id} value={lb.id}>{lb.name}</option>
-            ))}
-          </select>
-        </label>
-
-        <label className="ti-field">
-          M（分）*
-          <input
-            className="ti-number"
-            type="number"
-            min={1}
-            step={1}
-            placeholder="例: 90"
-            aria-label="M（分）"
-            value={estimatedMinutes}
-            onChange={(e) => setEstimatedMinutes(e.target.value)}
-            required
-          />
-        </label>
-
-        <label className="ti-field">
-          1日あたり（分）
-          <input
-            className="ti-number"
-            type="number"
-            min={1}
-            step={1}
-            placeholder="例: 60"
-            aria-label="1日あたり取り組む時間（分）"
-            value={dailyMinutes}
-            onChange={(e) => setDailyMinutes(e.target.value)}
-          />
-        </label>
-
-        <label className="ti-field">
-          O（分）
-          <input
-            className="ti-number"
-            type="number"
-            min={1}
-            step={1}
-            placeholder="任意"
-            aria-label="O（分）"
-            value={Omin}
-            onChange={(e) => setOmin(e.target.value)}
-          />
-        </label>
-
-        <label className="ti-field">
-          P（分）
-          <input
-            className="ti-number"
-            type="number"
-            min={1}
-            step={1}
-            placeholder="任意"
-            aria-label="P（分）"
-            value={Pmin}
-            onChange={(e) => setPmin(e.target.value)}
-          />
-        </label>
-
-        <button className="ti-submit" type="submit" disabled={saving}>
-          {saving ? "追加中…" : "＋ 追加"}
-        </button>
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          required
+          style={{ padding: 8, width: 140 }}
+        />
       </div>
+      <input
+        type="number"
+        min="1"
+        step="1"
+        placeholder="E（見積分）"
+        value={estimatedMinutes}
+        onChange={(e) => setEstimatedMinutes(e.target.value)}
+        required
+        style={{ padding: 8 }}
+      />
+      <select
+        value={labelId}
+        onChange={(e) => setLabelId(e.target.value)}
+        style={{ padding: 8 }}
+      >
+        <option value="">（ラベルなし）</option>
+        {labels.map((lb) => (
+          <option key={lb.id} value={lb.id}>{lb.name}</option>
+        ))}
+      </select>
+      <button type="submit" disabled={saving} style={{ padding: 8 }}>
+        {saving ? "追加中…" : "追加"}
+      </button>
     </form>
   );
 }

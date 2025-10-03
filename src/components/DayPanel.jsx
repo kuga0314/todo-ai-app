@@ -1,149 +1,85 @@
 // src/components/DayPanel.jsx
 import { useState, useEffect, useCallback } from "react";
-import { collection, addDoc, onSnapshot, Timestamp } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
-import { useAuth } from "../hooks/useAuth";
 
 /**
- * 仕様:
- * - 画面左上（固定位置）に出るモーダル。背面に半透明のオーバーレイ。
- * - クリックで外側を押す/ESCキーで閉じる。
- * - クイック追加フォームに O/P（任意）を追加。Mは必須。
- * - selectedDate（日付セルから渡される Date）を締切日とし、時刻はフォームの time で指定。
+ * カレンダー日付から開くクイック追加モーダル（最小構成版）
+ * - 入力: タイトル, 締切時刻, E(見積分), ラベル
+ * - 作成時: actualTotalMinutes を 0 で初期化
+ * - Firestore への保存は親の onAdd に委譲
  */
-export default function DayPanel({ selectedDate, onAdded, onClose }) {
-  const { user } = useAuth();
-
-  // 送信状態
+export default function DayPanel({
+  selectedDate,
+  onAdd,     // (payload) => Promise<void>
+  onClose,
+  labels = [], // [{id, name, color}]
+}) {
   const [saving, setSaving] = useState(false);
 
-  // 入力UI（クイック追加）
+  // 入力UI
   const [qText, setQText] = useState("");
   const [qTime, setQTime] = useState("18:00");
-  const [qE, setQE] = useState("90");        // M（分）必須
-  const [qScale, setQScale] = useState(3);   // UI上は「w」表示（保存キーは scale）
-  const [qPriority, setQPriority] = useState(2); // UI上は「重要度」表示（保存キーは priority）
+  const [qE, setQE] = useState("90");            // E（見積分）
   const [qLabelId, setQLabelId] = useState("");
-  const [qDailyMinutes, setQDailyMinutes] = useState(""); // 任意 1日あたりの取り組み時間
-  const [qO, setQO] = useState("");          // 任意 O（分）
-  const [qP, setQP] = useState("");          // 任意 P（分）
 
-  // ラベル
-  const [labels, setLabels] = useState([]);
+  // ラベルが削除されていた場合の安全対処
   useEffect(() => {
-    if (!user) return;
-    const colRef = collection(db, "users", user.uid, "labels");
-    const unsub = onSnapshot(colRef, (snap) => {
-      const rows = [];
-      snap.forEach((d) => rows.push({ id: d.id, ...(d.data() ?? {}) }));
-      setLabels(rows);
-      if (rows.findIndex((r) => r.id === qLabelId) === -1) setQLabelId("");
-    });
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    if (qLabelId && !labels.find((l) => l.id === qLabelId)) {
+      setQLabelId("");
+    }
+  }, [labels, qLabelId]);
 
-  const resetQuick = () => {
+  const reset = () => {
     setQText("");
     setQTime("18:00");
     setQE("90");
-    setQScale(3);
-    setQPriority(2);
     setQLabelId("");
-    setQDailyMinutes("");
-    setQO("");
-    setQP("");
   };
 
   const handleClose = useCallback(() => {
-    if (saving) return;
-    onClose?.();
+    if (!saving) onClose?.();
   }, [onClose, saving]);
 
   // ESCで閉じる
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") handleClose();
-    };
+    const onKey = (e) => e.key === "Escape" && handleClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [handleClose]);
 
   const handleBackdropClick = (e) => {
-    // モーダル外側（オーバーレイ）クリックで閉じる（中身クリックは閉じない）
     if (e.target === e.currentTarget) handleClose();
   };
 
-  const handleQuickAdd = async (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    if (!user?.uid || !selectedDate || !qText.trim() || saving) return;
+    if (!selectedDate || !qText.trim() || !onAdd || saving) return;
 
-    // M 必須
-    const M = Number(qE);
-    if (!Number.isFinite(M) || M <= 0) {
-      alert("M（分）は正の数で入力してください。");
-      return;
-    }
-
-    // 1日あたり取り組む時間（任意）
-    const daily =
-      qDailyMinutes === "" ? null : Math.round(Number(qDailyMinutes));
-    if (daily != null && (!Number.isFinite(daily) || daily <= 0)) {
-      alert("1日あたり取り組む時間は正の数（分）で入力してください。");
+    // 必須: E
+    const E = Math.round(Number(qE));
+    if (!Number.isFinite(E) || E <= 0) {
+      alert("E（見積分）は正の数で入力してください。");
       return;
     }
 
-    // O/P 任意・妥当性チェック
-    let O = qO === "" ? null : Math.round(Number(qO));
-    let P = qP === "" ? null : Math.round(Number(qP));
-    if (O != null && (!Number.isFinite(O) || O <= 0)) {
-      alert("O（分）は正の数で入力してください。");
-      return;
-    }
-    if (P != null && (!Number.isFinite(P) || P <= 0)) {
-      alert("P（分）は正の数で入力してください。");
-      return;
-    }
-    if (O != null && P != null && P <= O) {
-      alert("P は O より大きい必要があります。");
-      return;
-    }
+    // 締切日時 = selectedDate + qTime
+    const [hh, mm] = (qTime || "00:00").split(":").map((s) => parseInt(s, 10) || 0);
+    const deadline = new Date(
+      selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(),
+      hh, mm, 0, 0
+    );
+
+    const payload = {
+      text: qText.trim(),
+      deadline,
+      estimatedMinutes: E,         // 見積所要時間E
+      labelId: qLabelId || null,   // 任意
+      actualTotalMinutes: 0,       // 実績は後から入力
+    };
 
     try {
       setSaving(true);
-      // selectedDate + qTime → 締切日時
-      const [hh, mm] = (qTime || "00:00").split(":").map((s) => parseInt(s, 10) || 0);
-      const dl = new Date(
-        selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(),
-        hh, mm, 0, 0
-      );
-
-      await addDoc(collection(db, "todos"), {
-        userId: user.uid,
-        text: qText.trim(),
-        completed: false,
-        deadline: Timestamp.fromDate(dl),
-        scale: Number(qScale),        // ← DB上は従来どおり scale
-        priority: Number(qPriority),  // ← DB上は従来どおり priority
-        labelId: qLabelId || null,
-        estimatedMinutes: Math.round(M), // M
-        dailyMinutes: daily,
-        O: O ?? null,                    // 任意
-        P: P ?? null,                    // 任意
-        notified: false,
-        createdAt: Timestamp.now(),
-        dailyAssignments: [],
-        dailyPlanGeneratedAt: null,
-        dailyProgress: {},
-        assignedMinutes: null,
-        unallocatedMinutes: null,
-        morningSummaryNotified: false,
-        morningSummaryNotifiedAt: null,
-        morningSummaryLastDate: null,
-      });
-
-      resetQuick();
-      onAdded?.();
+      await onAdd(payload); // 親（App/TodoCalendar）に委譲
+      reset();
       handleClose();
     } catch (err) {
       console.error("quick add failed:", err);
@@ -153,7 +89,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
     }
   };
 
-  // UIスタイル（モーダル左上）
+  // ───── UIスタイル ─────
   const overlayStyle = {
     position: "fixed",
     inset: 0,
@@ -165,8 +101,8 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
   };
   const modalStyle = {
     position: "relative",
-    marginTop: 16,        // 画面上からの距離（以前の“左上”感）
-    marginLeft: 16,       // 画面左からの距離
+    marginTop: 16,
+    marginLeft: 16,
     width: "min(720px, calc(100vw - 32px))",
     background: "#fff",
     borderRadius: 12,
@@ -179,12 +115,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
     gap: 12,
     marginBottom: 10,
   };
-  const titleStyle = {
-    fontSize: "1rem",
-    fontWeight: 700,
-    margin: 0,
-    lineHeight: 1.2,
-  };
+  const titleStyle = { fontSize: "1rem", fontWeight: 700, margin: 0, lineHeight: 1.2 };
   const closeBtnStyle = {
     marginLeft: "auto",
     padding: "6px 10px",
@@ -209,7 +140,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
         <div style={headerStyle}>
           <h3 style={titleStyle}>
             {selectedDate
-              ? `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 のタスク`
+              ? `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日が締め切りのタスク`
               : "タスク追加"}
           </h3>
           <button type="button" onClick={handleClose} style={closeBtnStyle}>
@@ -218,7 +149,7 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
         </div>
 
         {/* フォーム */}
-        <form onSubmit={handleQuickAdd}>
+        <form onSubmit={handleSubmit}>
           {/* 1行目：テキスト & 時刻 */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 10 }}>
             <input
@@ -238,10 +169,10 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
             />
           </div>
 
-          {/* 2行目：M・w・重要度 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
+          {/* 2行目：E・ラベル */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
             <div>
-              <label style={labelStyle}>M（分）*</label>
+              <label style={labelStyle}>E（見積分） *</label>
               <input
                 type="number"
                 min="1"
@@ -254,86 +185,18 @@ export default function DayPanel({ selectedDate, onAdded, onClose }) {
               />
             </div>
             <div>
-              <label style={labelStyle}>w</label>
+              <label style={labelStyle}>ラベル</label>
               <select
-                value={qScale}
-                onChange={(e) => setQScale(Number(e.target.value))}
+                value={qLabelId}
+                onChange={(e) => setQLabelId(e.target.value)}
                 style={inputStyle}
-                aria-label="w"
               >
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n}</option>
+                <option value="">（ラベルなし）</option>
+                {labels.map((lb) => (
+                  <option key={lb.id} value={lb.id}>{lb.name}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label style={labelStyle}>重要度</label>
-              <select
-                value={qPriority}
-                onChange={(e) => setQPriority(Number(e.target.value))}
-                style={inputStyle}
-                aria-label="重要度"
-              >
-                <option value={1}>低</option>
-                <option value={2}>中</option>
-                <option value={3}>高</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 3行目：1日あたり取り組む時間・O/P 任意 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
-            <div>
-              <label style={labelStyle}>1日あたり（分）任意</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                placeholder="例: 60"
-                value={qDailyMinutes}
-                onChange={(e) => setQDailyMinutes(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>O（分）任意</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                placeholder="例: 60"
-                value={qO}
-                onChange={(e) => setQO(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>P（分）任意</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                placeholder="例: 120"
-                value={qP}
-                onChange={(e) => setQP(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          {/* 4行目：ラベル */}
-          <div style={{ marginTop: 10 }}>
-            <label style={labelStyle}>ラベル</label>
-            <select
-              value={qLabelId}
-              onChange={(e) => setQLabelId(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="">（ラベルなし）</option>
-              {labels.map((lb) => (
-                <option key={lb.id} value={lb.id}>{lb.name}</option>
-              ))}
-            </select>
           </div>
 
           {/* 送信 */}
