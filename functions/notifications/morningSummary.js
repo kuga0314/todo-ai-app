@@ -1,5 +1,4 @@
 /* eslint-env node */
-/* eslint-disable no-undef */
 
 const admin = require("firebase-admin");
 
