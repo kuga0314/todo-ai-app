@@ -1,5 +1,4 @@
 /* eslint-env node */
-/* eslint-disable no-undef */
 
 // JST/UTC
 const JST_OFF = 9 * 3600 * 1000;
