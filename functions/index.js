@@ -5,3 +5,5 @@ admin.initializeApp();
 // 第一弾：日次進捗リマインドのみ有効化
 exports.scheduleProgressReminder =
   require("./scheduleProgressReminder").scheduleProgressReminder;
+
+exports.onTodoStats = require("./updateStats").onTodoStats;
