@@ -29,7 +29,7 @@ import Settings from "./components/Settings";
 import BottomNav from "./components/BottomNav";
 import AllTasksPage from "./pages/AllTasksPage";
 import DailyPlan from "./components/DailyPlan";
-import ProgressEntry from "./pages/ProgressEntry"; // ←追加
+import ProgressEntry from "./pages/ProgressEntry";
 import "./App.css";
 
 function App() {
@@ -49,18 +49,10 @@ const HelpPage = () => {
         <section className="card" style={{ lineHeight: 1.7 }}>
           <h2>このアプリで使う考え方</h2>
           <ul>
-            <li>
-              <b>E（Estimate）</b>…タスク完了に必要な見積所要時間（分）。
-            </li>
-            <li>
-              <b>A(t)</b>…今日までの累積実績時間（分）。タスク行の「実績追加」で記録。
-            </li>
-            <li>
-              <b>R(t)</b>…残量（分）= max(0, E − A(t))。
-            </li>
-            <li>
-              <b>必要ペース</b>…R(t) を締切までの残日数で割った値（分/日）。
-            </li>
+            <li><b>E（Estimate）</b>…タスク完了に必要な見積所要時間（分）。</li>
+            <li><b>A(t)</b>…今日までの累積実績時間（分）。タスク行の「実績追加」で記録。</li>
+            <li><b>R(t)</b>…残量（分）= max(0, E − A(t))。</li>
+            <li><b>必要ペース</b>…R(t) を締切までの残日数で割った値（分/日）。</li>
           </ul>
           <p style={{ marginTop: 12 }}>
             ※ 研究では O/P/W/重要度は使用しません。E と実績ログから進捗やペースを評価します。
@@ -223,10 +215,7 @@ const AppWithRouter = ({ logout, user }) => {
           />
 
           {/* 進捗入力 */}
-          <Route
-            path="progress"
-            element={<ProgressEntry todos={todosWithId} />}
-          />
+          <Route path="progress" element={<ProgressEntry todos={todosWithId} />} />
 
           {/* すべてのタスク */}
           <Route
@@ -237,26 +226,6 @@ const AppWithRouter = ({ logout, user }) => {
                 notificationMode={notificationMode}
                 onToggleDailyProgress={toggleDailyProgress}
               />
-            }
-          />
-
-          {/* プラン一覧 */}
-          <Route
-            path="plan"
-            element={
-              <main className="app-main">
-                <div className="container">
-                  <section className="card" style={{ padding: "20px" }}>
-                    <DailyPlan
-                      plans={dailyPlans}
-                      todos={todosWithId}
-                      onToggleDailyProgress={toggleDailyProgress}
-                      headline="日次プラン一覧"
-                      showUpcoming
-                    />
-                  </section>
-                </div>
-              </main>
             }
           />
 
@@ -273,6 +242,9 @@ const AppWithRouter = ({ logout, user }) => {
               </main>
             }
           />
+
+          {/* 旧 /plan へのアクセスはホームへリダイレクト */}
+          <Route path="/plan" element={<Navigate to="/" replace />} />
 
           {/* ヘルプ */}
           <Route path="help" element={<HelpPage />} />

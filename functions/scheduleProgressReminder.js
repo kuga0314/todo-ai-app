@@ -1,5 +1,6 @@
 /* eslint-env node */
-/* global Intl */
+/* global Intl */ // ← これを追加（ESLintにIntlがグローバルだと知らせる）
+
 const admin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
@@ -15,22 +16,20 @@ function nowHHmmTokyo() {
     minute: "2-digit",
     hour12: false,
   });
-  // "HH:mm" 形式を得る
   const parts = fmt.formatToParts(new Date());
-  const hh = parts.find(p => p.type === "hour")?.value ?? "00";
-  const mm = parts.find(p => p.type === "minute")?.value ?? "00";
+  const hh = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const mm = parts.find((p) => p.type === "minute")?.value ?? "00";
   return `${hh}:${mm}`;
 }
 
 /** Asia/Tokyo の今日を YYYY-MM-DD */
 function todayKeyTokyo() {
-  const fmt = new Intl.DateTimeFormat("sv-SE", { // ISO風 "YYYY-MM-DD"
+  const fmt = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
-  // "YYYY-MM-DD" 形式
   return fmt.format(new Date());
 }
 
@@ -41,7 +40,7 @@ async function buildTodaySummary(uid, dateKey) {
   let minutesToday = 0;
   let minutesTotal = 0;
 
-  snap.forEach(d => {
+  snap.forEach((d) => {
     const t = d.data() || {};
     const logs = t.actualLogs || {};
     const today = Number(logs[dateKey]) || 0;
@@ -50,7 +49,6 @@ async function buildTodaySummary(uid, dateKey) {
     minutesTotal += Number(t.actualTotalMinutes || 0);
   });
 
-  // 文面
   let body;
   if (minutesToday > 0) {
     body = `今日の実績: ${tasksWithToday}件 ${minutesToday}分（累計 ${minutesTotal}分）。進捗を確認しましょう。`;
@@ -63,7 +61,8 @@ async function buildTodaySummary(uid, dateKey) {
 /**
  * 日次進捗リマインド
  * - 1分ごとに起動して Asia/Tokyo の "HH:mm" と一致ユーザーへ配信
- * - /progress への導線付き
+ * - 配信先：topic(uid) → token（users/{uid}.fcmToken）に変更
+ * - 通知タップで /progress を開く data.link を維持
  */
 exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
   const hhmm = nowHHmmTokyo();
@@ -74,32 +73,42 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
 
   for (const userDoc of usersSnap.docs) {
     const uid = userDoc.id;
-    const settingsRef = db.doc(`users/${uid}/settings/notification`);
-    const sSnap = await settingsRef.get();
+
+    // 通知設定
+    const sSnap = await db.doc(`users/${uid}/settings/notification`).get();
     if (!sSnap.exists) continue;
-
     const s = sSnap.data() || {};
-    if (!s.progressReminderTime) continue;
+    if (!s.progressReminderTime || s.progressReminderTime !== hhmm) continue;
 
-    if (s.progressReminderTime === hhmm) {
-      // サマリーを作って送信
-      const summary = await buildTodaySummary(uid, dateKey);
-      const payload = {
-        notification: {
-          title: "日次進捗リマインド",
-          body: summary.body,
-        },
-        data: {
-          link: "/progress",
-          type: "progress_reminder",
-          dateKey,
-        },
-        topic: uid, // FCM: ユーザーIDで購読している想定
-      };
-      sendOps.push(msg.send(payload).catch(err => {
-        console.error("FCM send failed", uid, err);
-      }));
+    // ★ token取得（なければスキップ）
+    const token = (userDoc.data() || {}).fcmToken;
+    if (!token) {
+      console.warn("No fcmToken; skip progress reminder.", { uid, hhmm });
+      continue;
     }
+
+    // 本文生成
+    const summary = await buildTodaySummary(uid, dateKey);
+
+    // ★ token直送
+    const payload = {
+      token,
+      notification: {
+        title: "日次進捗リマインド",
+        body: summary.body,
+      },
+      data: {
+        link: "/progress",
+        type: "progress_reminder",
+        dateKey,
+      },
+    };
+
+    sendOps.push(
+      msg.send(payload).catch((err) => {
+        console.error("FCM send failed", uid, err);
+      })
+    );
   }
 
   await Promise.all(sendOps);
