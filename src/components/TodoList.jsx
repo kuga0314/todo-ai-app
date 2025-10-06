@@ -1,12 +1,23 @@
 // src/components/TodoList.jsx
 import { useState } from "react";
-import { doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import { format } from "date-fns";
 import "./TodoList.css";
 
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
+
+// JSTの YYYY-MM-DD キー
+const jstDateKey = () => {
+  const f = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return f.format(new Date());
+};
 
 function percent(n) {
   if (!Number.isFinite(n)) return "—";
@@ -25,19 +36,19 @@ export default function TodoList({
     setInputs((m) => ({ ...m, [id]: v }));
   };
 
+  // 合計＆当日日別ログを同時に加算（pace7dに効く）
   const addActual = async (todo) => {
     if (!user) return;
     const raw = inputs[todo.id];
     const addMin = Math.round(Number(raw));
     if (!Number.isFinite(addMin) || addMin <= 0) return;
 
-    const current = Number.isFinite(Number(todo.actualTotalMinutes))
-      ? Number(todo.actualTotalMinutes)
-      : 0;
+    const todayKey = jstDateKey();
 
     try {
       await updateDoc(doc(db, "todos", todo.id), {
-        actualTotalMinutes: current + addMin,
+        actualTotalMinutes: increment(addMin),              // 合計
+        [`actualLogs.${todayKey}`]: increment(addMin),      // 当日ログ
       });
       setInputs((m) => ({ ...m, [todo.id]: "" }));
     } catch (e) {
@@ -86,8 +97,27 @@ export default function TodoList({
             requiredPerDay = remaining / daysLeft;
           }
 
+          // 研究指標（Functions updateStats.js が埋める）
+          const spiNum = Number(todo.spi);
+          const spiText = Number.isFinite(spiNum) ? spiNum.toFixed(2) : "—";
+          const eacText = todo.eacDate ?? "—";
+          const risk = todo.riskLevel; // "ok" | "warn" | "late" | undefined
+
+          const borderColor =
+            risk === "late" ? "#ef4444" :  // 赤
+            risk === "warn" ? "#f59e0b" :  // 黄
+            risk === "ok"   ? "#10b981" :  // 緑
+            "#cbd5e1";                     // グレー
+
           return (
-            <li key={todo.id} className="todo-item">
+            <li
+              key={todo.id}
+              className="todo-item"
+              style={{
+                borderLeft: "6px solid",
+                borderLeftColor: borderColor,
+              }}
+            >
               {/* タイトル & 完了チェック */}
               <div className="todo-content">
                 <label className="todo-main">
@@ -136,13 +166,34 @@ export default function TodoList({
                   <div className="meta-line">
                     <span className="meta-label">必要ペース:</span>
                     <span className="meta-value">
-                      {requiredPerDay != null
-                        ? `${Math.ceil(requiredPerDay)} 分/日`
+                      {requiredPerDay != null ? `${Math.ceil(requiredPerDay)} 分/日` : "—"}
+                    </span>
+                  </div>
+
+                  {/* 4行目：SPI / EAC / リスク */}
+                  <div className="meta-line">
+                    <span className="meta-label">SPI:</span>
+                    <span className="meta-value">{spiText}</span>
+
+                    <span className="spacer" />
+                    <span className="meta-label">EAC:</span>
+                    <span className="meta-value">{eacText}</span>
+
+                    <span className="spacer" />
+                    <span className="meta-label">リスク:</span>
+                    <span
+                      className="meta-value"
+                      title={risk ?? ""}
+                      style={{ fontWeight: 600 }}
+                    >
+                      {risk === "late" ? "🔴 遅延"
+                        : risk === "warn" ? "🟡 注意"
+                        : risk === "ok"   ? "🟢 良好"
                         : "—"}
                     </span>
                   </div>
 
-                  {/* 4行目：実績追加フォーム */}
+                  {/* 5行目：実績追加フォーム */}
                   <div className="meta-line">
                     <label className="meta-label" htmlFor={`act-${todo.id}`}>
                       実績追加:
