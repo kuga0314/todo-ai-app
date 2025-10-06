@@ -1,4 +1,3 @@
-// src/components/BottomNav.jsx
 import { NavLink } from "react-router-dom";
 import "./BottomNav.css";
 
@@ -20,14 +19,6 @@ export default function BottomNav() {
       >
         <span role="img" aria-label="progress">⏱️</span>
         <span className="tab-label">進捗</span>
-      </NavLink>
-
-      <NavLink
-        to="/plan"
-        className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
-      >
-        <span role="img" aria-label="plan">🗓️</span>
-        <span className="tab-label">プラン</span>
       </NavLink>
 
       <NavLink
