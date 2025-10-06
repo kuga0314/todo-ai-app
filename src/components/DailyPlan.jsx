@@ -1,168 +1,194 @@
-// src/components/DailyPlan.jsx
-import { useMemo } from "react";
-import { format } from "date-fns";
+import { useEffect, useMemo, useState } from "react";
+import { collection, getDocs, doc, getDoc, query, where } from "firebase/firestore";
+import { db } from "../firebase/firebaseConfig";
+import { useAuth } from "../hooks/useAuth";
 
-/**
- * 日次プラン一覧（最小構成）
- * - props:
- *   - plans: [{ id, date: 'YYYY-MM-DD', items: [{ todoId, minutes }] }]
- *   - todos: [{ id, text, estimatedMinutes, actualTotalMinutes, deadline, dailyProgress? }]
- *   - onToggleDailyProgress: (todoId: string, dateKey: string, checked: boolean) => void
- *   - headline?: string
- *   - showUpcoming?: boolean  // true: すべての日付, false: 今日のみ
- *
- * - 表示:
- *   日付ごとに、その日に割り当てられたタスク一覧を表示。
- *   各行にチェックボックス（完了フラグ）と分数（minutes）を表示。
- *   priority / w / O / P 等は一切表示しない。
- */
-
-function ymd(date = new Date()) {
-  const yyyy = date.getFullYear();
-  const mm = `${date.getMonth() + 1}`.padStart(2, "0");
-  const dd = `${date.getDate()}`.padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+/** JSTのYYYY-MM-DD */
+function todayKeyTokyo() {
+  const f = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return f.format(new Date());
 }
 
-export default function DailyPlan({
-  plans = [],
-  todos = [],
-  onToggleDailyProgress,
-  headline = "今日のプラン",
-  showUpcoming = false,
-}) {
-  const todayKey = ymd(new Date());
+/** “遅れベース＋キャパ連動”で今日のプランを選定 */
+function selectTodayPlan(todos, appSettings) {
+  const capDefault = 120;
+  const cap = Number.isFinite(Number(appSettings?.dailyCap))
+    ? Number(appSettings.dailyCap)
+    : capDefault;
 
-  const todosMap = useMemo(() => {
-    const m = new Map();
-    for (const t of todos) m.set(t.id, t);
-    return m;
-  }, [todos]);
+  const today = new Date();
 
-  // 表示対象のプランを抽出
-  const visiblePlans = useMemo(() => {
-    const rows = (plans || []).filter((p) => p && typeof p.date === "string");
-    if (!showUpcoming) {
-      return rows.filter((p) => p.date === todayKey);
-    }
-    return rows;
-  }, [plans, showUpcoming, todayKey]);
+  // 候補抽出：遅れているタスク（actual < ideal）
+  const candidates = [];
+  for (const t of todos) {
+    const E = Number(t.estimatedMinutes) || 0;
+    const A = Number(t.actualTotalMinutes) || 0;
+    if (E <= 0 || A >= E) continue;
 
-  const titleText = showUpcoming ? (headline || "日次プラン一覧") : (headline || "今日のプラン");
+    const R = Math.max(0, E - A);
+    const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0) || 0;
+
+    // 期限・開始日時
+    const deadline =
+      t.deadline?.toDate?.() ??
+      (t.deadline?.seconds ? new Date(t.deadline.seconds * 1000) : null);
+    if (!deadline) continue;
+
+    const createdAt =
+      t.createdAt?.toDate?.() ??
+      (t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000) : null) ??
+      today;
+
+    // 理想進捗 vs 実進捗
+    const totalDays = Math.max(1, Math.ceil((deadline - createdAt) / 86400000));
+    const elapsed = Math.max(0, Math.ceil((today - createdAt) / 86400000));
+    const ideal = Math.min(1, elapsed / totalDays);
+    const actual = Math.min(1, A / E);
+    const lag = ideal - actual; // 正なら遅れ
+
+    if (lag <= 0) continue;
+
+    candidates.push({
+      id: t.id,
+      text: t.text || "（無題）",
+      R,
+      required,
+      lag,
+      deadlineTs: deadline.getTime(),
+      labelColor: t.labelColor,
+    });
+  }
+
+  // 並べ替え：遅れ度 → 必要ペース → 締切近さ
+  candidates.sort(
+    (a, b) =>
+      b.lag - a.lag ||
+      b.required - a.required ||
+      a.deadlineTs - b.deadlineTs
+  );
+
+  // キャパで詰める（最大3件）
+  let used = 0;
+  const plan = [];
+  for (const c of candidates) {
+    const need = Math.min(Math.max(0, c.required), c.R, cap - used);
+    if (need <= 0) continue;
+    plan.push({ ...c, todayMinutes: Math.round(need) });
+    used += need;
+    if (used >= cap || plan.length >= 3) break;
+  }
+
+  // fallback：遅れ候補ゼロなら、締切＋必要ペースで上位3件
+  if (plan.length === 0) {
+    const pending = todos
+      .map((t) => {
+        const E = Number(t.estimatedMinutes) || 0;
+        const A = Number(t.actualTotalMinutes) || 0;
+        if (E <= 0 || A >= E) return null;
+        const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0) || 0;
+        const deadline =
+          t.deadline?.toDate?.() ??
+          (t.deadline?.seconds ? new Date(t.deadline.seconds * 1000) : null);
+        if (!deadline) return null;
+        return {
+          id: t.id,
+          text: t.text || "（無題）",
+          required,
+          deadlineTs: deadline.getTime(),
+          labelColor: t.labelColor,
+        };
+      })
+      .filter(Boolean);
+    pending.sort((a, b) => a.deadlineTs - b.deadlineTs || b.required - a.required);
+    return { items: pending.slice(0, 3).map((x) => ({ ...x, todayMinutes: Math.round(x.required) })), cap, used: Math.round(pending.slice(0, 3).reduce((s, x) => s + x.required, 0)) };
+  }
+
+  return { items: plan, cap, used: Math.round(used) };
+}
+
+export default function DailyPlan() {
+  const { user } = useAuth();
+  const [todos, setTodos] = useState([]);
+  const [appSettings, setAppSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const dateKey = useMemo(() => todayKeyTokyo(), []);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    (async () => {
+      setLoading(true);
+      // todos
+      const snap = await getDocs(query(collection(db, "todos"), where("userId", "==", user.uid)));
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setTodos(list);
+
+      // app settings（dailyCap 等）
+      const appSnap = await getDoc(doc(db, `users/${user.uid}/settings/app`));
+      setAppSettings(appSnap.exists() ? appSnap.data() : null);
+
+      setLoading(false);
+    })();
+  }, [user?.uid]);
+
+  const plan = useMemo(() => selectTodayPlan(todos, appSettings), [todos, appSettings]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h3 style={{ margin: 0, fontSize: "1.05rem" }}>{titleText}</h3>
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card-header">
+        <h3 style={{ margin: 0 }}>今日のプラン</h3>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>{dateKey}</div>
+      </div>
 
-      {visiblePlans.length === 0 && (
-        <p style={{ margin: 0, color: "#666" }}>
-          {showUpcoming ? "予定された日次プランはありません。" : "今日は予定された日次プランがありません。"}
-        </p>
-      )}
-
-      {visiblePlans.map((plan) => {
-        const dateObj = safeDateFromKey(plan.date);
-        const title = dateObj ? format(dateObj, "yyyy/M/d (EEE)") : plan.date;
-        const items = Array.isArray(plan.items) ? plan.items : [];
-
-        return (
-          <section
-            key={plan.id || plan.date}
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              border: "1px solid #eee",
-              padding: 12,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <div style={{ fontWeight: 700 }}>{title}</div>
-              <div style={{ fontSize: ".85rem", color: "#666" }}>
-                {items.length} 件
-              </div>
+      <div className="card-content">
+        {loading ? (
+          <div>読み込み中…</div>
+        ) : !plan.items || plan.items.length === 0 ? (
+          <div>今日は予定された日次プランがありません。</div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              合計 <b>{plan.used}</b> 分
+              {Number.isFinite(plan.cap) && (
+                <span style={{ marginLeft: 6, opacity: 0.7 }}>
+                  （上限 {plan.cap} 分）
+                </span>
+              )}
             </div>
-
-            {items.length === 0 ? (
-              <div style={{ color: "#777", fontSize: ".9rem" }}>この日の割り当てはありません。</div>
-            ) : (
-              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-                {items.map((it, idx) => {
-                  const todo = it?.todoId ? todosMap.get(it.todoId) : null;
-                  const minutes = Number.isFinite(Number(it?.minutes)) ? Math.max(0, Math.round(Number(it.minutes))) : null;
-
-                  const checked = !!(todo?.dailyProgress && todo.dailyProgress[plan.date]);
-                  const toggle = () => {
-                    if (typeof onToggleDailyProgress === "function" && todo?.id) {
-                      onToggleDailyProgress(todo.id, plan.date, !checked);
-                    }
-                  };
-
-                  return (
-                    <li
-                      key={`${plan.id || plan.date}-${it?.todoId || idx}`}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "24px 1fr max-content",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 10px",
-                        border: "1px solid #eee",
-                        borderRadius: 10,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={toggle}
-                        title={checked ? "今日の割り当てを未完にする" : "今日の割り当てを完了にする"}
-                      />
-
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {todo?.text ?? "(削除済み or 不明なタスク)"}
-                        </div>
-
-                        {/* 進捗の簡易メタ：E / 実績合計 / 残り */}
-                        {todo && (
-                          <div style={{ display: "flex", gap: 12, color: "#666", fontSize: ".85rem", marginTop: 2 }}>
-                            <span>E: {numOrDash(todo.estimatedMinutes)}分</span>
-                            <span>実績: {numOrDash(todo.actualTotalMinutes)}分</span>
-                            <span>残り: {remOrDash(todo.estimatedMinutes, todo.actualTotalMinutes)}分</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ fontVariantNumeric: "tabular-nums", color: "#333" }}>
-                        {minutes != null ? `${minutes} 分` : "—"}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        );
-      })}
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {plan.items.map((it, idx) => (
+                <li key={it.id} style={{ display: "flex", alignItems: "center", padding: "6px 0", borderTop: idx===0 ? "none":"1px solid rgba(0,0,0,0.06)" }}>
+                  {/* ラベル色の丸（あれば） */}
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: it.labelColor || "transparent",
+                      display: "inline-block",
+                      marginRight: 8,
+                      border: "1px solid rgba(0,0,0,0.1)",
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {idx + 1}. {it.text}
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>
+                      目安 {it.todayMinutes} 分
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </div>
   );
-}
-
-function numOrDash(n) {
-  const v = Number(n);
-  return Number.isFinite(v) ? Math.max(0, Math.round(v)) : "—";
-}
-
-function remOrDash(E, A) {
-  const e = Number(E);
-  const a = Number(A);
-  if (!Number.isFinite(e)) return "—";
-  const aa = Number.isFinite(a) ? a : 0;
-  return Math.max(0, Math.round(e - aa));
-}
-
-function safeDateFromKey(key) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
-  const [y, m, d] = key.split("-").map((s) => parseInt(s, 10));
-  const dt = new Date(y, m - 1, d, 0, 0, 0, 0);
-  return isNaN(dt.getTime()) ? null : dt;
 }
