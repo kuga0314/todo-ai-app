@@ -46,7 +46,7 @@ export default function TodoInput({ labels = [] }) {
         actualTotalMinutes: 0,
         completed: false,
         createdAt: serverTimestamp(),
-        uid: user.uid,
+        userId: user.uid, // ← 修正ポイント
       });
       setText("");
       setDeadline("");
