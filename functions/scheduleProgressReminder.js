@@ -1,5 +1,5 @@
 /* eslint-env node */
-/* global Intl */ // ← これを追加（ESLintにIntlがグローバルだと知らせる）
+/* global Intl */
 
 const admin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -61,8 +61,7 @@ async function buildTodaySummary(uid, dateKey) {
 /**
  * 日次進捗リマインド
  * - 1分ごとに起動して Asia/Tokyo の "HH:mm" と一致ユーザーへ配信
- * - 配信先：topic(uid) → token（users/{uid}.fcmToken）に変更
- * - 通知タップで /progress を開く data.link を維持
+ * - 通知送信後、users/{uid}/metrics/{dateKey}.notifications.sent.progressReminder を +1
  */
 exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
   const hhmm = nowHHmmTokyo();
@@ -74,13 +73,13 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
   for (const userDoc of usersSnap.docs) {
     const uid = userDoc.id;
 
-    // 通知設定
+    // 通知設定を取得
     const sSnap = await db.doc(`users/${uid}/settings/notification`).get();
     if (!sSnap.exists) continue;
     const s = sSnap.data() || {};
     if (!s.progressReminderTime || s.progressReminderTime !== hhmm) continue;
 
-    // ★ token取得（なければスキップ）
+    // トークン取得（なければスキップ）
     const token = (userDoc.data() || {}).fcmToken;
     if (!token) {
       console.warn("No fcmToken; skip progress reminder.", { uid, hhmm });
@@ -90,7 +89,7 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
     // 本文生成
     const summary = await buildTodaySummary(uid, dateKey);
 
-    // ★ token直送
+    // 通知ペイロード
     const payload = {
       token,
       notification: {
@@ -98,17 +97,31 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
         body: summary.body,
       },
       data: {
-        link: "/progress",
+        link: "/progress?src=progress", // ← App.jsx側でsrcを拾って記録する
         type: "progress_reminder",
         dateKey,
       },
     };
 
-    sendOps.push(
-      msg.send(payload).catch((err) => {
-        console.error("FCM send failed", uid, err);
+    // 通知送信 & 送信ログ記録
+    const sendPromise = msg
+      .send(payload)
+      .then(async () => {
+        const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
+        await metricsRef.set(
+          {
+            [`notifications.sent.progressReminder`]:
+              admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
       })
-    );
+      .catch((err) => {
+        console.error("FCM send failed", uid, err);
+      });
+
+    sendOps.push(sendPromise);
   }
 
   await Promise.all(sendOps);

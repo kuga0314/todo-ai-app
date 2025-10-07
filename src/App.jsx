@@ -18,6 +18,9 @@ import {
   Timestamp,
   doc,
   updateDoc,
+  setDoc,
+  increment,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase/firebaseConfig";
 
@@ -96,6 +99,25 @@ const AppWithRouter = ({ logout, user }) => {
   const [todos, setTodos] = useState([]);
   const [notificationMode, setNotificationMode] = useState("justInTime");
   const [dailyPlans, setDailyPlans] = useState([]);
+
+  // ✅ 通知リンク開封ログを記録する useEffect
+  useEffect(() => {
+    if (!user) return;
+    const src = new URLSearchParams(window.location.search).get("src");
+    if (!src) return;
+    const today = new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Tokyo",
+    });
+    const ref = doc(db, "users", user.uid, "metrics", today);
+    setDoc(
+      ref,
+      {
+        [`notifications.opened.${src}`]: increment(1),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    ).then(() => console.log(`📬 通知開封ログを記録: ${src}`));
+  }, [user]);
 
   // Firestore購読: todos
   useEffect(() => {

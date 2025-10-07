@@ -1,6 +1,6 @@
 // src/components/TaskList.jsx
 import { format } from "date-fns";
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
 import {
@@ -21,24 +21,38 @@ import {
  */
 export default function TaskList({ tasks, mode }) {
   const toggleComplete = async (todo) => {
+    const nextCompleted = !todo.completed;
     const assignments = Array.isArray(todo?.dailyAssignments)
       ? todo.dailyAssignments
       : [];
-    const nextCompleted = !todo.completed;
     const progressUpdate = {};
+
     assignments.forEach((assignment) => {
       if (!assignment?.date) return;
       progressUpdate[`dailyProgress.${assignment.date}`] = nextCompleted;
     });
+
     try {
-      await updateDoc(doc(db, "todos", todo.id), {
-        completed: nextCompleted,
-        ...progressUpdate,
-      });
+      const ref = doc(db, "todos", todo.id);
+      if (nextCompleted) {
+        // ✅ 完了にした瞬間だけ completedAt を記録
+        await updateDoc(ref, {
+          completed: true,
+          completedAt: serverTimestamp(),
+          ...progressUpdate,
+        });
+      } else {
+        // 未完了に戻す場合は completedAt は保持（上書きしない）
+        await updateDoc(ref, {
+          completed: false,
+          ...progressUpdate,
+        });
+      }
     } catch (error) {
       console.error("toggle task complete failed", error);
     }
   };
+
   const deleteTask = async (todo) => {
     await deleteDoc(doc(db, "todos", todo.id));
   };
@@ -133,6 +147,18 @@ export default function TaskList({ tasks, mode }) {
                       {format(adj.raw, "M/d HH:mm")} →{" "}
                       {format(adj.sr, "M/d HH:mm")}
                       （{Math.abs(adj.diffMin)}分 {adj.direction}）
+                    </span>
+                  </span>
+                )}
+
+                {/* ✅ 完了日時の表示 */}
+                {t.completedAt && (
+                  <span className="meta">
+                    <span className="meta-label">完了日時</span>
+                    <span className="meta-value">
+                      {t.completedAt.toDate
+                        ? format(t.completedAt.toDate(), "M/d HH:mm")
+                        : "—"}
                     </span>
                   </span>
                 )}

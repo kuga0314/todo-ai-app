@@ -48,7 +48,7 @@ async function buildMorningBody(uid) {
     const t = doc.data() || {};
     const E = Number(t.estimatedMinutes) || 0;
     const A = Number(t.actualTotalMinutes) || 0;
-    if (E <= 0 || A >= E) return; // 完了または無効
+    if (E <= 0 || A >= E) return;
 
     const R = Math.max(0, E - A);
     const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0);
@@ -57,7 +57,6 @@ async function buildMorningBody(uid) {
       (t.deadline?.seconds ? new Date(t.deadline.seconds * 1000) : null);
     if (!deadline) return;
 
-    // 経過率と理想進捗率
     const totalDays = Math.max(
       1,
       Math.ceil((deadline - (t.createdAt?.toDate?.() ?? 0)) / 86400000)
@@ -68,7 +67,7 @@ async function buildMorningBody(uid) {
     const actualProgress = Math.min(1, A / E);
     const lag = idealProgress - actualProgress;
 
-    if (lag <= 0) return; // 遅れていない
+    if (lag <= 0) return;
 
     tasks.push({
       id: doc.id,
@@ -82,7 +81,6 @@ async function buildMorningBody(uid) {
     });
   });
 
-  // 並べ替え（遅れ度→必要ペース→締切）
   tasks.sort(
     (a, b) =>
       b.lag - a.lag ||
@@ -90,7 +88,6 @@ async function buildMorningBody(uid) {
       a.deadlineTs - b.deadlineTs
   );
 
-  // キャパ上限（ユーザー設定→既定120分）
   let cap = 120;
   try {
     const s = (await db.doc(`users/${uid}/settings/app`).get()).data() || {};
@@ -109,7 +106,6 @@ async function buildMorningBody(uid) {
     if (used >= cap || plan.length >= 3) break;
   }
 
-  // 遅れがない or 空なら fallback（締切順）
   if (plan.length === 0) {
     const alt = [];
     todosSnap.forEach((doc) => {
@@ -132,7 +128,6 @@ async function buildMorningBody(uid) {
     plan.push(...alt.slice(0, 3));
   }
 
-  // 通知本文
   if (plan.length === 0)
     return { title: "朝プラン", body: "今日は特に遅れているタスクはありません。", dateKey: todayKey };
 
@@ -162,24 +157,23 @@ exports.scheduleMorningSummary = onSchedule("every 1 minutes", async () => {
     if (!token) continue;
 
     const { title, body, dateKey } = await buildMorningBody(uid);
+
+    // 通知送信
     ops.push(
       msg.send({
         token,
         notification: { title, body },
-        data: { type: "morning_summary", link: "/" },
+        data: { type: "morning_summary", link: "/?src=morning" },
       })
     );
 
-    // ログ記録（簡易）
-    const logRef = db.doc(`users/${uid}/metrics/${dateKey}`);
-    await logRef.set(
+    // ✅ 送信カウントを記録（metrics）
+    const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
+    await metricsRef.set(
       {
-        notifications: admin.firestore.FieldValue.arrayUnion({
-          kind: "morning_summary",
-          hhmm,
-          ok: true,
-          at: admin.firestore.FieldValue.serverTimestamp(),
-        }),
+        [`notifications.sent.morningSummary`]:
+          admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );

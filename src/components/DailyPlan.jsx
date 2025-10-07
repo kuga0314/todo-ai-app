@@ -1,5 +1,14 @@
+// src/components/DailyPlan.jsx
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, doc, getDoc, query, where } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  query,
+  where,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 
@@ -105,7 +114,15 @@ function selectTodayPlan(todos, appSettings) {
       })
       .filter(Boolean);
     pending.sort((a, b) => a.deadlineTs - b.deadlineTs || b.required - a.required);
-    return { items: pending.slice(0, 3).map((x) => ({ ...x, todayMinutes: Math.round(x.required) })), cap, used: Math.round(pending.slice(0, 3).reduce((s, x) => s + x.required, 0)) };
+    return {
+      items: pending
+        .slice(0, 3)
+        .map((x) => ({ ...x, todayMinutes: Math.round(x.required) })),
+      cap,
+      used: Math.round(
+        pending.slice(0, 3).reduce((s, x) => s + x.required, 0)
+      ),
+    };
   }
 
   return { items: plan, cap, used: Math.round(used) };
@@ -116,7 +133,6 @@ export default function DailyPlan() {
   const [todos, setTodos] = useState([]);
   const [appSettings, setAppSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-
   const dateKey = useMemo(() => todayKeyTokyo(), []);
 
   useEffect(() => {
@@ -124,7 +140,9 @@ export default function DailyPlan() {
     (async () => {
       setLoading(true);
       // todos
-      const snap = await getDocs(query(collection(db, "todos"), where("userId", "==", user.uid)));
+      const snap = await getDocs(
+        query(collection(db, "todos"), where("userId", "==", user.uid))
+      );
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setTodos(list);
 
@@ -137,6 +155,21 @@ export default function DailyPlan() {
   }, [user?.uid]);
 
   const plan = useMemo(() => selectTodayPlan(todos, appSettings), [todos, appSettings]);
+
+  /** ★ 今日の割当を Firestore に書き込み */
+  useEffect(() => {
+    if (!user?.uid || !plan?.items?.length) return;
+    (async () => {
+      const ops = plan.items.map((item) => {
+        const ref = doc(db, "todos", item.id);
+        return updateDoc(ref, {
+          [`assigned.${dateKey}`]: item.todayMinutes,
+        });
+      });
+      await Promise.allSettled(ops);
+      console.log("✅ 今日の割当を todos.assigned に保存しました:", dateKey);
+    })();
+  }, [user?.uid, plan, dateKey]);
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
@@ -160,10 +193,24 @@ export default function DailyPlan() {
                 </span>
               )}
             </div>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            <ul
+              style={{
+                listStyle: "none",
+                padding: 0,
+                margin: 0,
+              }}
+            >
               {plan.items.map((it, idx) => (
-                <li key={it.id} style={{ display: "flex", alignItems: "center", padding: "6px 0", borderTop: idx===0 ? "none":"1px solid rgba(0,0,0,0.06)" }}>
-                  {/* ラベル色の丸（あれば） */}
+                <li
+                  key={it.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderTop:
+                      idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
+                  }}
+                >
                   <span
                     style={{
                       width: 10,
@@ -176,7 +223,14 @@ export default function DailyPlan() {
                     }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
                       {idx + 1}. {it.text}
                     </div>
                     <div style={{ fontSize: 12, opacity: 0.7 }}>
