@@ -31,7 +31,7 @@ function dateKey(d = new Date()) {
  *  - 保存は actualTotalMinutes に加算 + その日のログ actualLogs.{YYYY-MM-DD} にも加算
  *  - さらに todos/{taskId}/sessions/{autoId} に明細イベントを1件追記（研究用）
  */
-export default function ProgressEntry({ todos = [] }) {
+export default function ProgressEntry({ todos = [], src }) {
   const today = new Date();
   const todayKey = dateKey(today);
 
@@ -99,7 +99,7 @@ export default function ProgressEntry({ todos = [] }) {
           date: todayKey,            // YYYY-MM-DD
           minutes: addMin,           // 今回追加分（分）
           source: "manual",          // UIからの入力
-          trigger: "none",           // 通知経由で来た場合は 'morningSummary' 等に変更する
+          trigger: src || "none",    // 通知経由で来た場合は 'morningSummary' 等に変更する
           createdAt: serverTimestamp(),
         });
       });

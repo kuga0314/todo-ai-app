@@ -99,12 +99,17 @@ const AppWithRouter = ({ logout, user }) => {
   const [todos, setTodos] = useState([]);
   const [notificationMode, setNotificationMode] = useState("justInTime");
   const [dailyPlans, setDailyPlans] = useState([]);
+  const [srcParam, setSrcParam] = useState(null);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialSrc = searchParams.get("src");
+    setSrcParam(initialSrc);
+  }, []);
 
   // ✅ 通知リンク開封ログを記録する useEffect
   useEffect(() => {
-    if (!user) return;
-    const src = new URLSearchParams(window.location.search).get("src");
-    if (!src) return;
+    if (!user || !srcParam) return;
     const today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Tokyo",
     });
@@ -112,12 +117,12 @@ const AppWithRouter = ({ logout, user }) => {
     setDoc(
       ref,
       {
-        [`notifications.opened.${src}`]: increment(1),
+        [`notifications.opened.${srcParam}`]: increment(1),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
-    ).then(() => console.log(`📬 通知開封ログを記録: ${src}`));
-  }, [user]);
+    ).then(() => console.log(`📬 通知開封ログを記録: ${srcParam}`));
+  }, [user, srcParam]);
 
   // Firestore購読: todos
   useEffect(() => {
@@ -237,7 +242,10 @@ const AppWithRouter = ({ logout, user }) => {
           />
 
           {/* 進捗入力 */}
-          <Route path="progress" element={<ProgressEntry todos={todosWithId} />} />
+          <Route
+            path="progress"
+            element={<ProgressEntry todos={todosWithId} src={srcParam} />}
+          />
 
           {/* すべてのタスク */}
           <Route

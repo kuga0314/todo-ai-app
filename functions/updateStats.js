@@ -4,6 +4,7 @@ const admin = require("firebase-admin");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 
 if (!admin.apps.length) admin.initializeApp();
+const db = admin.firestore();
 
 /** JSTのYYYY-MM-DD */
 function jstDateKey(d = new Date()) {
@@ -157,6 +158,29 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     eacDate: eacDate,          // "YYYY-MM-DD" or null
     riskLevel,                 // "ok" | "warn" | "late"
   };
+
+  if (userId) {
+    try {
+      const metricsRef = db.doc(`users/${userId}/metrics/${todayKey}`);
+      await metricsRef.set(
+        {
+          evm: {
+            spi: next.spi,
+            eacDate: next.eacDate,
+            riskLevel: next.riskLevel,
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (logErr) {
+      console.error("failed to update daily EVM metrics", {
+        userId,
+        date: todayKey,
+        error: logErr,
+      });
+    }
+  }
 
   // 既存値（差分更新して再発火ループを防ぐ）
   const prev = {

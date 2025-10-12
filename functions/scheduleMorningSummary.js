@@ -157,26 +157,38 @@ exports.scheduleMorningSummary = onSchedule("every 1 minutes", async () => {
     if (!token) continue;
 
     const { title, body, dateKey } = await buildMorningBody(uid);
+    const payload = {
+      token,
+      notification: { title, body },
+      data: { type: "morning_summary", link: "/?src=morning" },
+    };
 
-    // 通知送信
-    ops.push(
-      msg.send({
-        token,
-        notification: { title, body },
-        data: { type: "morning_summary", link: "/?src=morning" },
+    const sendPromise = msg
+      .send(payload)
+      .then(async () => {
+        try {
+          const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
+          await metricsRef.set(
+            {
+              [`notifications.sent.morning`]:
+                admin.firestore.FieldValue.increment(1),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (logErr) {
+          console.error("morning notification metric update failed", {
+            uid,
+            dateKey,
+            error: logErr,
+          });
+        }
       })
-    );
+      .catch((err) => {
+        console.error("FCM send failed", uid, err);
+      });
 
-    // ✅ 送信カウントを記録（metrics）
-    const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
-    await metricsRef.set(
-      {
-        [`notifications.sent.morningSummary`]:
-          admin.firestore.FieldValue.increment(1),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    ops.push(sendPromise);
   }
 
   await Promise.all(ops);
