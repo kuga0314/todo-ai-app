@@ -1,5 +1,4 @@
 /* eslint-env node */
-/* eslint-disable no-undef */
 const admin = require("firebase-admin");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 
@@ -25,6 +24,18 @@ function keyToDate(key) {
   const [y, m, d] = (key || "").split("-").map(Number);
   if (!y || !m || !d) return null;
   return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+function toJsDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === "function") return value.toDate();
+  if (typeof value.seconds === "number") return new Date(value.seconds * 1000);
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") {
+    const ts = Date.parse(value);
+    if (!Number.isNaN(ts)) return new Date(ts);
+  }
+  return null;
 }
 const EPS = 1e-6;
 const round1 = (v) => Math.round(v * 10) / 10;
@@ -98,6 +109,8 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
   let requiredPace = 0;
   let eacDate = null;
   let deadline = null;
+  let totalDays = null;
+  let elapsedDays = null;
 
   if (after.deadline) {
     deadline =
@@ -106,6 +119,7 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
         ? new Date(after.deadline.seconds * 1000)
         : new Date(after.deadline));
   }
+  const createdAt = toJsDate(after.createdAt);
 
   if (deadline) {
     const ms = deadline.getTime() - today.getTime();
@@ -115,6 +129,13 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     const denom = Math.max(EPS, pace7d);
     const daysToFinish = R > 0 ? Math.ceil(R / denom) : 0;
     eacDate = jstDateKey(addDays(today, daysToFinish));
+
+    if (createdAt) {
+      const totalMs = deadline.getTime() - createdAt.getTime();
+      const elapsedMs = today.getTime() - createdAt.getTime();
+      totalDays = Math.max(1, Math.ceil(totalMs / (1000 * 60 * 60 * 24)));
+      elapsedDays = Math.max(0, Math.ceil(elapsedMs / (1000 * 60 * 60 * 24)));
+    }
   }
 
   // SPI（従来互換：pace7d / requiredPace を spi として維持）
@@ -126,6 +147,27 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
   const relax = spi7d < spiWarnThreshold ? relaxFactor : 1.0;
   const requiredPaceAdj = requiredPace * relax;
   const spiAdj = requiredPaceAdj > EPS ? pace7d / requiredPaceAdj : (R === 0 ? 1 : 0);
+
+  let idealProgress = null;
+  if (totalDays != null && Number.isFinite(totalDays) && totalDays > 0) {
+    const ratio = elapsedDays != null ? elapsedDays / totalDays : null;
+    if (ratio != null && Number.isFinite(ratio)) {
+      idealProgress = Math.max(0, Math.min(1, ratio));
+    }
+  }
+
+  let actualProgress = null;
+  if (E > 0) {
+    const ratio = A / E;
+    if (Number.isFinite(ratio)) {
+      actualProgress = Math.max(0, Math.min(1, ratio));
+    }
+  }
+
+  const idealProgressRounded =
+    idealProgress != null ? round2(idealProgress) : null;
+  const actualProgressRounded =
+    actualProgress != null ? round2(actualProgress) : null;
 
   // 既存の riskLevel ロジック（互換維持）
   const spi = spi7d; // 既存フィールド名に合わせて採用
@@ -157,6 +199,8 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     spiAdj: round2(spiAdj),
     eacDate: eacDate,          // "YYYY-MM-DD" or null
     riskLevel,                 // "ok" | "warn" | "late"
+    idealProgress: idealProgressRounded,
+    actualProgress: actualProgressRounded,
   };
 
   if (userId) {
@@ -168,6 +212,11 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
             spi: next.spi,
             eacDate: next.eacDate,
             riskLevel: next.riskLevel,
+<<<<<<< ours
+=======
+            idealProgress: idealProgressRounded,
+            actualProgress: actualProgressRounded,
+>>>>>>> theirs
           },
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
@@ -195,6 +244,12 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     spiAdj: Number(after.spiAdj),
     eacDate: after.eacDate ?? null,
     riskLevel: after.riskLevel ?? null,
+    idealProgress: Number.isFinite(Number(after.idealProgress))
+      ? Number(after.idealProgress)
+      : after.idealProgress ?? null,
+    actualProgress: Number.isFinite(Number(after.actualProgress))
+      ? Number(after.actualProgress)
+      : after.actualProgress ?? null,
   };
 
   // 変化したフィールドだけ更新

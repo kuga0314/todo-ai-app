@@ -1,6 +1,14 @@
 // src/components/TodoList.jsx
 import { useState } from "react";
-import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
+import {
+  doc,
+  deleteDoc,
+  updateDoc,
+  increment,
+  addDoc,
+  collection,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import { format } from "date-fns";
@@ -31,6 +39,7 @@ export default function TodoList({
 }) {
   const { user } = useAuth();
   const [inputs, setInputs] = useState({}); // { [todoId]: "15" }
+  void notificationMode; // keep prop for backward compatibility
 
   const handleChange = (id, v) => {
     setInputs((m) => ({ ...m, [id]: v }));
@@ -49,6 +58,13 @@ export default function TodoList({
       await updateDoc(doc(db, "todos", todo.id), {
         actualTotalMinutes: increment(addMin),              // 合計
         [`actualLogs.${todayKey}`]: increment(addMin),      // 当日ログ
+      });
+      await addDoc(collection(db, "todos", todo.id, "sessions"), {
+        date: todayKey,
+        minutes: addMin,
+        source: "manual",
+        trigger: "list",
+        createdAt: serverTimestamp(),
       });
       setInputs((m) => ({ ...m, [todo.id]: "" }));
     } catch (e) {

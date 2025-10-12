@@ -17,7 +17,11 @@
     "react-big-calendar": "^1.19.4",
     "react-dom": "^19.1.0",
     "react-router-dom": "^6.30.1",
+<<<<<<< ours
     "recharts": "^2.15.4"
+=======
+    "recharts": "^2.12.7"
+>>>>>>> theirs
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

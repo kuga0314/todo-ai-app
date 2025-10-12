@@ -1,0 +1,9 @@
+﻿taskId,userId,text,date,minutes,source,trigger,createdAt
+9d6jmVN2gsZSQOtbzFpw,DgApBqtxpeVE5G5MnIVw9ThpyN93,test2,2025-10-13,120,manual,list,2025-10-12T15:24:26.598Z
+9d6jmVN2gsZSQOtbzFpw,DgApBqtxpeVE5G5MnIVw9ThpyN93,test2,2025-10-13,120,manual,manual,2025-10-12T15:23:36.882Z
+9d6jmVN2gsZSQOtbzFpw,DgApBqtxpeVE5G5MnIVw9ThpyN93,test2,2025-10-12,60,manual,none,2025-10-12T10:42:20.416Z
+FY7zWjyig71gaTV5pzoT,DgApBqtxpeVE5G5MnIVw9ThpyN93,ts,2025-10-12,50,manual,none,2025-10-12T10:42:20.432Z
+aSlQlO0Qt08YBl72b0li,DgApBqtxpeVE5G5MnIVw9ThpyN93,test1,2025-10-13,376,manual,manual,2025-10-12T15:24:00.872Z
+aSlQlO0Qt08YBl72b0li,DgApBqtxpeVE5G5MnIVw9ThpyN93,test1,2025-10-08,120,manual,none,2025-10-08T08:06:15.756Z
+aSlQlO0Qt08YBl72b0li,DgApBqtxpeVE5G5MnIVw9ThpyN93,test1,2025-10-08,214,manual,none,2025-10-08T08:06:36.165Z
+aSlQlO0Qt08YBl72b0li,DgApBqtxpeVE5G5MnIVw9ThpyN93,test1,2025-10-12,50,manual,none,2025-10-12T10:42:20.373Z
