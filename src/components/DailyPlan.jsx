@@ -11,6 +11,16 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
 /** JSTのYYYY-MM-DD */
 function todayKeyTokyo() {
@@ -156,6 +166,52 @@ export default function DailyPlan() {
 
   const plan = useMemo(() => selectTodayPlan(todos, appSettings), [todos, appSettings]);
 
+  const { chartData, totals: chartTotals } = useMemo(() => {
+    const rows = (todos || [])
+      .map((t) => {
+        const assigned = Number(t?.assigned?.[dateKey]) || 0;
+        const actual = Number(t?.actualLogs?.[dateKey]) || 0;
+        if (assigned <= 0 && actual <= 0) return null;
+        return {
+          id: t.id,
+          name: t.text || "（無題）",
+          planned: Math.round(assigned),
+          actual: Math.round(actual),
+        };
+      })
+      .filter(Boolean);
+
+    const plannedTotal = Math.round(
+      rows.reduce((sum, row) => sum + (Number(row.planned) || 0), 0)
+    );
+    const actualTotal = Math.round(
+      rows.reduce((sum, row) => sum + (Number(row.actual) || 0), 0)
+    );
+
+    return {
+      chartData: rows,
+      totals: {
+        planned: plannedTotal,
+        actual: actualTotal,
+        hasData: rows.length > 0,
+      },
+    };
+  }, [todos, dateKey]);
+
+  const chartDataWithSummary = useMemo(() => {
+    if (!chartTotals.hasData) return [];
+    return [
+      ...chartData,
+      {
+        id: "__summary__",
+        name: "合計",
+        planned: chartTotals.planned,
+        actual: chartTotals.actual,
+        isSummary: true,
+      },
+    ];
+  }, [chartData, chartTotals]);
+
   /** ★ 今日の割当を Firestore に書き込み */
   useEffect(() => {
     if (!user?.uid || !plan?.items?.length) return;
@@ -181,65 +237,136 @@ export default function DailyPlan() {
       <div className="card-content">
         {loading ? (
           <div>読み込み中…</div>
-        ) : !plan.items || plan.items.length === 0 ? (
-          <div>今日は予定された日次プランがありません。</div>
         ) : (
           <>
-            <div style={{ marginBottom: 8 }}>
-              合計 <b>{plan.used}</b> 分
-              {Number.isFinite(plan.cap) && (
-                <span style={{ marginLeft: 6, opacity: 0.7 }}>
-                  （上限 {plan.cap} 分）
-                </span>
-              )}
-            </div>
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-              }}
-            >
-              {plan.items.map((it, idx) => (
-                <li
-                  key={it.id}
+            {!plan.items || plan.items.length === 0 ? (
+              <div>今日は予定された日次プランがありません。</div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 8 }}>
+                  合計 <b>{plan.used}</b> 分
+                  {Number.isFinite(plan.cap) && (
+                    <span style={{ marginLeft: 6, opacity: 0.7 }}>
+                      （上限 {plan.cap} 分）
+                    </span>
+                  )}
+                </div>
+                <ul
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "6px 0",
-                    borderTop:
-                      idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
+                    listStyle: "none",
+                    padding: 0,
+                    margin: 0,
                   }}
                 >
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: "50%",
-                      background: it.labelColor || "transparent",
-                      display: "inline-block",
-                      marginRight: 8,
-                      border: "1px solid rgba(0,0,0,0.1)",
-                    }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
+                  {plan.items.map((it, idx) => (
+                    <li
+                      key={it.id}
                       style={{
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "6px 0",
+                        borderTop:
+                          idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
                       }}
                     >
-                      {idx + 1}. {it.text}
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>
-                      目安 {it.todayMinutes} 分
-                    </div>
+                      <span
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          background: it.labelColor || "transparent",
+                          display: "inline-block",
+                          marginRight: 8,
+                          border: "1px solid rgba(0,0,0,0.1)",
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {idx + 1}. {it.text}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                          目安 {it.todayMinutes} 分
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <div style={{ marginTop: 24 }}>
+              <h4 style={{ margin: "16px 0 8px" }}>Planned vs Actual</h4>
+              {!chartTotals.hasData ? (
+                <p style={{ color: "#666", fontSize: 13 }}>
+                  今日の割当と実績データはまだありません。
+                </p>
+              ) : (
+                <>
+                  <div style={{ width: "100%", height: 260 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartDataWithSummary}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="planned" name="Planned" fill="#8884d8" />
+                        <Bar dataKey="actual" name="Actual" fill="#82ca9d" />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <table
+                    style={{
+                      width: "100%",
+                      marginTop: 12,
+                      borderCollapse: "collapse",
+                      fontSize: 13,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ textAlign: "left" }}>
+                        <th style={{ padding: "6px 4px" }}>タスク</th>
+                        <th style={{ padding: "6px 4px", textAlign: "right" }}>
+                          予定 (分)
+                        </th>
+                        <th style={{ padding: "6px 4px", textAlign: "right" }}>
+                          実績 (分)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chartData.map((row) => (
+                        <tr key={row.id} style={{ borderTop: "1px solid #eee" }}>
+                          <td style={{ padding: "6px 4px" }}>{row.name}</td>
+                          <td style={{ padding: "6px 4px", textAlign: "right" }}>
+                            {row.planned}
+                          </td>
+                          <td style={{ padding: "6px 4px", textAlign: "right" }}>
+                            {row.actual}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{ borderTop: "2px solid #ccc", fontWeight: 600 }}>
+                        <td style={{ padding: "6px 4px" }}>合計</td>
+                        <td style={{ padding: "6px 4px", textAlign: "right" }}>
+                          {chartTotals.planned}
+                        </td>
+                        <td style={{ padding: "6px 4px", textAlign: "right" }}>
+                          {chartTotals.actual}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>

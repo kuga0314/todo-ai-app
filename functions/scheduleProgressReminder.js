@@ -107,15 +107,23 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
     const sendPromise = msg
       .send(payload)
       .then(async () => {
-        const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
-        await metricsRef.set(
-          {
-            [`notifications.sent.progressReminder`]:
-              admin.firestore.FieldValue.increment(1),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
+        try {
+          const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
+          await metricsRef.set(
+            {
+              [`notifications.sent.progress`]:
+                admin.firestore.FieldValue.increment(1),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (logErr) {
+          console.error("progress notification metric update failed", {
+            uid,
+            dateKey,
+            error: logErr,
+          });
+        }
       })
       .catch((err) => {
         console.error("FCM send failed", uid, err);
