@@ -78,89 +78,44 @@ async function main() {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
-  console.log("=== Firestore Export Start ===");
+  console.log("=== Firestore Sessions Export Start ===");
 
   const todosSnap = await db.collection("todos").get();
-  const taskRows = [];
-  const dailyRows = [];
+  const rows = [];
 
-  todosSnap.forEach((docSnap) => {
-    const data = docSnap.data() || {};
-    const logs = data.actualLogs || {};
-    const createdAt = toDate(data.createdAt)?.toISOString() || "";
-    const deadline = toDate(data.deadline)?.toISOString() || "";
-
-    taskRows.push({
-      taskId: docSnap.id,
-      userId: data.userId || data.uid || "",
-      text: data.text || "",
-      createdAt,
-      deadline,
-      eacDate: data.eacDate || "",
-      estimatedMinutes: numOrBlank(data.estimatedMinutes ?? 0),
-      actualTotalMinutes: numOrBlank(data.actualTotalMinutes ?? 0),
-      completed: data.completed ? "true" : "false",
-      labelId: data.labelId || "",
-      priority: data.priority ?? "",
-      paceExp: numOrBlank(data.paceExp),
-      spiAdj: numOrBlank(data.spiAdj),
-      idealProgress: numOrBlank(data.idealProgress),
-      actualProgress: numOrBlank(data.actualProgress),
-    });
-
-    for (const [date, minutes] of Object.entries(logs)) {
-      dailyRows.push({
+  for (const docSnap of todosSnap.docs) {
+    const todo = docSnap.data() || {};
+    const sessionsSnap = await docSnap.ref.collection("sessions").get();
+    sessionsSnap.forEach((sessionSnap) => {
+      const session = sessionSnap.data() || {};
+      rows.push({
         taskId: docSnap.id,
-        userId: data.userId || data.uid || "",
-        text: data.text || "",
-        date,
-        actualMinutes: numOrBlank(minutes ?? 0),
-        estimatedMinutes: numOrBlank(data.estimatedMinutes ?? 0),
-        deadline,
-        eacDate: data.eacDate || "",
-        completed: data.completed ? "true" : "false",
+        userId: todo.userId || todo.uid || "",
+        text: todo.text || "",
+        date: session.date || "",
+        minutes: numOrBlank(session.minutes),
+        source: session.source || "",
+        trigger: session.trigger || "",
+        createdAt: toDate(session.createdAt)?.toISOString() || "",
       });
-    }
-  });
+    });
+  }
 
-  const taskHeaders = [
-    "taskId",
-    "userId",
-    "text",
-    "createdAt",
-    "deadline",
-    "eacDate",
-    "estimatedMinutes",
-    "actualTotalMinutes",
-    "completed",
-    "labelId",
-    "priority",
-    "paceExp",
-    "spiAdj",
-    "idealProgress",
-    "actualProgress",
-  ];
-
-  const dailyHeaders = [
+  const headers = [
     "taskId",
     "userId",
     "text",
     "date",
-    "actualMinutes",
-    "estimatedMinutes",
-    "deadline",
-    "eacDate",
-    "completed",
+    "minutes",
+    "source",
+    "trigger",
+    "createdAt",
   ];
 
-  const csvTasks = toCsv(taskRows, taskHeaders);
-  const csvDaily = toCsv(dailyRows, dailyHeaders);
+  const csv = toCsv(rows, headers);
+  fs.writeFileSync(path.join(outDir, "sessions.csv"), csv, "utf8");
 
-  fs.writeFileSync(path.join(outDir, "tasks.csv"), csvTasks, "utf8");
-  fs.writeFileSync(path.join(outDir, "daily_progress.csv"), csvDaily, "utf8");
-
-  console.log(`✅ tasks.csv: ${taskRows.length} rows`);
-  console.log(`✅ daily_progress.csv: ${dailyRows.length} rows`);
+  console.log(`✅ sessions.csv: ${rows.length} rows`);
   console.log("=== Export Complete ===");
 }
 

@@ -99,7 +99,8 @@ export default function ProgressEntry({ todos = [], src }) {
           date: todayKey,            // YYYY-MM-DD
           minutes: addMin,           // 今回追加分（分）
           source: "manual",          // UIからの入力
-          trigger: src || "none",    // 通知経由で来た場合は 'morningSummary' 等に変更する
+
+          trigger: src || "manual",  // 通知経由で来た場合は 'morningSummary' 等に変更する
           createdAt: serverTimestamp(),
         });
       });
