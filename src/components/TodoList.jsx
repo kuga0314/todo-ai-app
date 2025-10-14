@@ -39,6 +39,13 @@ export default function TodoList({
 }) {
   const { user } = useAuth();
   const [inputs, setInputs] = useState({}); // { [todoId]: "15" }
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+  const [sortOrder, setSortOrder] = useState("deadlineAsc");
+  const [remainingMin, setRemainingMin] = useState("");
+  const [remainingMax, setRemainingMax] = useState("");
+  const [progressMin, setProgressMin] = useState("");
+  const [progressMax, setProgressMax] = useState("");
+  const [riskFilter, setRiskFilter] = useState("all");
   void notificationMode; // keep prop for backward compatibility
 
   const handleChange = (id, v) => {
@@ -83,41 +90,233 @@ export default function TodoList({
     }
   };
 
-  // 締切順（未設定は最後）
-  const sorted = [...todos].sort((a, b) => {
-    const da = toTime(a.deadline) ?? Infinity;
-    const db_ = toTime(b.deadline) ?? Infinity;
-    return da - db_;
+  const now = new Date();
+
+  const decoratedTodos = todos.map((todo) => {
+    const deadlineAt = todo.deadline?.toDate?.();
+    const estimatedMinutes = Number.isFinite(Number(todo.estimatedMinutes))
+      ? Number(todo.estimatedMinutes)
+      : null;
+    const actualMinutes = Number.isFinite(Number(todo.actualTotalMinutes))
+      ? Math.max(0, Math.round(Number(todo.actualTotalMinutes)))
+      : 0;
+    const progressRatio = estimatedMinutes
+      ? actualMinutes / estimatedMinutes
+      : null;
+    const remainingMinutes = estimatedMinutes != null
+      ? Math.max(0, estimatedMinutes - actualMinutes)
+      : null;
+
+    let requiredPerDay = null;
+    if (deadlineAt && remainingMinutes != null) {
+      const msLeft = deadlineAt.getTime() - now.getTime();
+      const daysLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+      requiredPerDay = remainingMinutes / daysLeft;
+    }
+
+    const spiNum = Number(todo.spi);
+    const spiText = Number.isFinite(spiNum) ? spiNum.toFixed(2) : "—";
+    const eacText = todo.eacDate ?? "—";
+    const riskLevel = todo.riskLevel ?? null;
+
+    return {
+      todo,
+      deadlineAt,
+      estimatedMinutes,
+      actualMinutes,
+      progressRatio,
+      remainingMinutes,
+      requiredPerDay,
+      spiText,
+      eacText,
+      riskLevel,
+    };
   });
+
+  const filteredTodos = decoratedTodos.filter((item) => {
+    if (showIncompleteOnly && item.todo.completed) return false;
+
+    if (remainingMin !== "") {
+      const min = Number(remainingMin);
+      if (Number.isFinite(min)) {
+        if (item.remainingMinutes == null || item.remainingMinutes < min) {
+          return false;
+        }
+      }
+    }
+
+    if (remainingMax !== "") {
+      const max = Number(remainingMax);
+      if (Number.isFinite(max)) {
+        if (item.remainingMinutes == null || item.remainingMinutes > max) {
+          return false;
+        }
+      }
+    }
+
+    if (progressMin !== "") {
+      const minPct = Number(progressMin);
+      if (Number.isFinite(minPct)) {
+        const threshold = minPct / 100;
+        if (item.progressRatio == null || item.progressRatio < threshold) {
+          return false;
+        }
+      }
+    }
+
+    if (progressMax !== "") {
+      const maxPct = Number(progressMax);
+      if (Number.isFinite(maxPct)) {
+        const threshold = maxPct / 100;
+        if (item.progressRatio == null || item.progressRatio > threshold) {
+          return false;
+        }
+      }
+    }
+
+    if (riskFilter === "none") {
+      if (item.riskLevel != null && item.riskLevel !== "") {
+        return false;
+      }
+    } else if (riskFilter !== "all") {
+      if (item.riskLevel !== riskFilter) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const sortedTodos = [...filteredTodos].sort((a, b) => {
+    const aDeadline = toTime(a.todo.deadline);
+    const bDeadline = toTime(b.todo.deadline);
+
+    if (sortOrder === "deadlineDesc") {
+      if (aDeadline == null && bDeadline == null) return 0;
+      if (aDeadline == null) return 1;
+      if (bDeadline == null) return -1;
+      return bDeadline - aDeadline;
+    }
+
+    // default: 締切が近い順
+    if (aDeadline == null && bDeadline == null) return 0;
+    if (aDeadline == null) return 1;
+    if (bDeadline == null) return -1;
+    return aDeadline - bDeadline;
+  });
+
+  const resetFilters = () => {
+    setShowIncompleteOnly(false);
+    setSortOrder("deadlineAsc");
+    setRemainingMin("");
+    setRemainingMax("");
+    setProgressMin("");
+    setProgressMax("");
+    setRiskFilter("all");
+  };
 
   return (
     <div>
+      <div className="list-controls">
+        <label className="switch" htmlFor="toggleIncomplete">
+          <input
+            id="toggleIncomplete"
+            type="checkbox"
+            checked={showIncompleteOnly}
+            onChange={(e) => setShowIncompleteOnly(e.target.checked)}
+          />
+          <span className="switch-track" />
+          <span className="switch-label">未完タスクのみ表示</span>
+        </label>
+
+        <div className="filter-row">
+          <div className="filter-group">
+            <label htmlFor="sortOrder">並び替え</label>
+            <select
+              id="sortOrder"
+              className="filter-select"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+            >
+              <option value="deadlineAsc">締切が近い順</option>
+              <option value="deadlineDesc">締切が遠い順</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>残り時間 (分)</label>
+            <div className="range-inputs">
+              <input
+                type="number"
+                min="0"
+                className="filter-input"
+                placeholder="最小"
+                value={remainingMin}
+                onChange={(e) => setRemainingMin(e.target.value)}
+              />
+              <span className="range-separator">〜</span>
+              <input
+                type="number"
+                min="0"
+                className="filter-input"
+                placeholder="最大"
+                value={remainingMax}
+                onChange={(e) => setRemainingMax(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="filter-group">
+            <label>進捗率 (%)</label>
+            <div className="range-inputs">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                className="filter-input"
+                placeholder="最小"
+                value={progressMin}
+                onChange={(e) => setProgressMin(e.target.value)}
+              />
+              <span className="range-separator">〜</span>
+              <input
+                type="number"
+                min="0"
+                max="300"
+                className="filter-input"
+                placeholder="最大"
+                value={progressMax}
+                onChange={(e) => setProgressMax(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="filter-group">
+            <label htmlFor="riskFilter">リスク</label>
+            <select
+              id="riskFilter"
+              className="filter-select filter-select--label"
+              value={riskFilter}
+              onChange={(e) => setRiskFilter(e.target.value)}
+            >
+              <option value="all">すべて</option>
+              <option value="ok">🟢 良好</option>
+              <option value="warn">🟡 注意</option>
+              <option value="late">🔴 遅延</option>
+              <option value="none">未判定</option>
+            </select>
+          </div>
+
+          <button className="btn-mini filter-reset" onClick={resetFilters}>
+            条件クリア
+          </button>
+        </div>
+      </div>
+
       <ul className="list">
-        {sorted.map((todo) => {
-          const deadlineAt = todo.deadline?.toDate?.();
-          const E = Number.isFinite(Number(todo.estimatedMinutes))
-            ? Number(todo.estimatedMinutes)
-            : null;
-          const actual = Number.isFinite(Number(todo.actualTotalMinutes))
-            ? Math.max(0, Math.round(Number(todo.actualTotalMinutes)))
-            : 0;
-          const progress = E ? actual / E : null;
-          const remaining = E ? Math.max(0, E - actual) : null;
-
-          // 必要ペース（分/日）
-          let requiredPerDay = null;
-          if (deadlineAt && remaining != null) {
-            const now = new Date();
-            const msLeft = deadlineAt.getTime() - now.getTime();
-            const daysLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-            requiredPerDay = remaining / daysLeft;
-          }
-
-          // 研究指標（Functions updateStats.js が埋める）
-          const spiNum = Number(todo.spi);
-          const spiText = Number.isFinite(spiNum) ? spiNum.toFixed(2) : "—";
-          const eacText = todo.eacDate ?? "—";
-          const risk = todo.riskLevel; // "ok" | "warn" | "late" | undefined
+        {sortedTodos.map((item) => {
+          const { todo, deadlineAt, estimatedMinutes, actualMinutes, progressRatio, remainingMinutes, requiredPerDay, spiText, eacText, riskLevel } = item;
+          const risk = riskLevel; // "ok" | "warn" | "late" | undefined
 
           const borderColor =
             risk === "late" ? "#ef4444" :  // 赤
@@ -157,24 +356,24 @@ export default function TodoList({
                     </span>
                     <span className="spacer" />
                     <span className="meta-label">E:</span>
-                    <span className="meta-value">{E != null ? `${E} 分` : "—"}</span>
+                    <span className="meta-value">{estimatedMinutes != null ? `${estimatedMinutes} 分` : "—"}</span>
                   </div>
 
                   {/* 2行目：実績合計・進捗率・残り */}
                   <div className="meta-line">
                     <span className="meta-label">実績:</span>
-                    <span className="meta-value">{`${actual} 分`}</span>
+                    <span className="meta-value">{`${actualMinutes} 分`}</span>
 
                     <span className="spacer" />
                     <span className="meta-label">進捗率:</span>
                     <span className="meta-value">
-                      {progress != null ? percent(progress) : "—"}
+                      {progressRatio != null ? percent(progressRatio) : "—"}
                     </span>
 
                     <span className="spacer" />
                     <span className="meta-label">残り:</span>
                     <span className="meta-value">
-                      {remaining != null ? `${remaining} 分` : "—"}
+                      {remainingMinutes != null ? `${remainingMinutes} 分` : "—"}
                     </span>
                   </div>
 
@@ -251,7 +450,7 @@ export default function TodoList({
       </ul>
 
       {/* 何もない時の簡易メッセージ */}
-      {sorted.length === 0 && (
+      {sortedTodos.length === 0 && (
         <p style={{ padding: 12, color: "#666" }}>タスクはまだありません。</p>
       )}
     </div>
