@@ -46,6 +46,7 @@ export default function TodoList({
   const [progressMin, setProgressMin] = useState("");
   const [progressMax, setProgressMax] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
+  const [riskModeFilter, setRiskModeFilter] = useState("all");
   void notificationMode; // keep prop for backward compatibility
 
   const handleChange = (id, v) => {
@@ -119,6 +120,8 @@ export default function TodoList({
     const eacText = todo.eacDate ?? "—";
     const riskLevel = todo.riskLevel ?? null;
 
+    const riskMode = todo.riskMode ?? null;
+
     return {
       todo,
       deadlineAt,
@@ -130,6 +133,7 @@ export default function TodoList({
       spiText,
       eacText,
       riskLevel,
+      riskMode,
     };
   });
 
@@ -184,18 +188,59 @@ export default function TodoList({
       }
     }
 
+    if (riskModeFilter !== "all") {
+      const mode = item.riskMode ?? "none";
+      if (riskModeFilter === "none") {
+        if (mode !== "none" && mode !== "") {
+          return false;
+        }
+      } else if (mode !== riskModeFilter) {
+        return false;
+      }
+    }
+
     return true;
   });
 
   const sortedTodos = [...filteredTodos].sort((a, b) => {
     const aDeadline = toTime(a.todo.deadline);
     const bDeadline = toTime(b.todo.deadline);
+    const aProgress = Number.isFinite(a.progressRatio) ? a.progressRatio : null;
+    const bProgress = Number.isFinite(b.progressRatio) ? b.progressRatio : null;
+    const aRemaining = Number.isFinite(a.remainingMinutes) ? a.remainingMinutes : null;
+    const bRemaining = Number.isFinite(b.remainingMinutes) ? b.remainingMinutes : null;
+    const aRequired = Number.isFinite(a.requiredPerDay) ? a.requiredPerDay : null;
+    const bRequired = Number.isFinite(b.requiredPerDay) ? b.requiredPerDay : null;
 
     if (sortOrder === "deadlineDesc") {
       if (aDeadline == null && bDeadline == null) return 0;
       if (aDeadline == null) return 1;
       if (bDeadline == null) return -1;
       return bDeadline - aDeadline;
+    }
+
+    if (sortOrder === "progressAsc" || sortOrder === "progressDesc") {
+      const direction = sortOrder === "progressAsc" ? 1 : -1;
+      if (aProgress == null && bProgress == null) return 0;
+      if (aProgress == null) return 1;
+      if (bProgress == null) return -1;
+      return direction * (aProgress - bProgress);
+    }
+
+    if (sortOrder === "remainingAsc" || sortOrder === "remainingDesc") {
+      const direction = sortOrder === "remainingAsc" ? 1 : -1;
+      if (aRemaining == null && bRemaining == null) return 0;
+      if (aRemaining == null) return 1;
+      if (bRemaining == null) return -1;
+      return direction * (aRemaining - bRemaining);
+    }
+
+    if (sortOrder === "requiredPerDayAsc" || sortOrder === "requiredPerDayDesc") {
+      const direction = sortOrder === "requiredPerDayAsc" ? 1 : -1;
+      if (aRequired == null && bRequired == null) return 0;
+      if (aRequired == null) return 1;
+      if (bRequired == null) return -1;
+      return direction * (aRequired - bRequired);
     }
 
     // default: 締切が近い順
@@ -213,6 +258,7 @@ export default function TodoList({
     setProgressMin("");
     setProgressMax("");
     setRiskFilter("all");
+    setRiskModeFilter("all");
   };
 
   return (
@@ -240,6 +286,12 @@ export default function TodoList({
             >
               <option value="deadlineAsc">締切が近い順</option>
               <option value="deadlineDesc">締切が遠い順</option>
+              <option value="progressDesc">進捗率が高い順</option>
+              <option value="progressAsc">進捗率が低い順</option>
+              <option value="remainingAsc">残り時間が少ない順</option>
+              <option value="remainingDesc">残り時間が多い順</option>
+              <option value="requiredPerDayDesc">必要ペースが高い順</option>
+              <option value="requiredPerDayAsc">必要ペースが低い順</option>
             </select>
           </div>
 
@@ -304,6 +356,22 @@ export default function TodoList({
               <option value="warn">🟡 注意</option>
               <option value="late">🔴 遅延</option>
               <option value="none">未判定</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label htmlFor="riskModeFilter">リスクモード</label>
+            <select
+              id="riskModeFilter"
+              className="filter-select"
+              value={riskModeFilter}
+              onChange={(e) => setRiskModeFilter(e.target.value)}
+            >
+              <option value="all">すべて</option>
+              <option value="safe">安全運転</option>
+              <option value="mean">標準</option>
+              <option value="challenge">チャレンジ</option>
+              <option value="none">未設定</option>
             </select>
           </div>
 
