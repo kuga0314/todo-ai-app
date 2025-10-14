@@ -12,6 +12,31 @@
 
 .filter-row { display: flex; gap: .5rem; flex-wrap: wrap; }
 
+.btn-mini {
+  padding: .35rem .75rem;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  background: #fff;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.btn-mini:hover { background: #f1f5f9; }
+.btn-mini:disabled { opacity: .55; cursor: not-allowed; }
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .78rem;
+  color: #475569;
+}
+
+.filter-group label {
+  font-weight: 600;
+}
+
 .filter-select {
   padding: .4rem .6rem;
   border-radius: 8px;
@@ -22,6 +47,38 @@
   min-width: 150px;          /* ← つぶれ防止 */
 }
 .filter-select--label { min-width: 170px; }
+
+.filter-input {
+  width: 86px;
+  padding: .35rem .5rem;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  font-size: .85rem;
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.range-separator {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.filter-reset {
+  align-self: flex-end;
+  padding: .35rem .75rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.filter-reset:hover {
+  background: #cbd5f5;
+}
 
 /* セグメントボタン */
 .segmented {
