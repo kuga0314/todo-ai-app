@@ -311,9 +311,16 @@ export default function DailyPlan() {
                 <>
                   <div style={{ width: "100%", height: 260 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartDataWithSummary}>
+                      <BarChart data={chartDataWithSummary} margin={{ bottom: 40 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
+                        <XAxis
+                          dataKey="name"
+                          interval={0}
+                          angle={-30}
+                          textAnchor="end"
+                          height={60}
+                          tick={{ fontSize: 11 }}
+                        />
                         <YAxis />
                         <Tooltip />
                         <Legend />
