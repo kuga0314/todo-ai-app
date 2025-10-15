@@ -78,10 +78,46 @@ export default function TodoList({
   };
 
   const toggleComplete = async (todo) => {
+    const ref = doc(db, "todos", todo.id);
+    const nextCompleted = !todo.completed;
+
+    if (nextCompleted) {
+      const ok = window.confirm(
+        "タスクを完了として記録し、残り時間を実績に加算します。よろしいですか？"
+      );
+      if (!ok) return;
+
+      const estimatedMinutes = Number.isFinite(Number(todo.estimatedMinutes))
+        ? Math.max(0, Number(todo.estimatedMinutes))
+        : null;
+      const actualMinutes = Number.isFinite(Number(todo.actualTotalMinutes))
+        ? Math.max(0, Number(todo.actualTotalMinutes))
+        : 0;
+      const remainingMinutes =
+        estimatedMinutes != null
+          ? Math.max(0, Math.round(estimatedMinutes - actualMinutes))
+          : 0;
+      const todayKey = jstDateKey();
+
+      const updates = {
+        completed: true,
+        completedAt: serverTimestamp(),
+      };
+      if (remainingMinutes > 0) {
+        updates.actualTotalMinutes = increment(remainingMinutes);
+        updates[`actualLogs.${todayKey}`] = increment(remainingMinutes);
+      }
+
+      try {
+        await updateDoc(ref, updates);
+      } catch (e) {
+        console.error("toggle complete failed", e);
+      }
+      return;
+    }
+
     try {
-      await updateDoc(doc(db, "todos", todo.id), {
-        completed: !todo.completed,
-      });
+      await updateDoc(ref, { completed: false });
     } catch (e) {
       console.error("toggle complete failed", e);
     }
