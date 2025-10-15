@@ -38,7 +38,7 @@ export default function TodoList({
   notificationMode = "justInTime", // 互換のため残す（未使用）
 }) {
   const { user } = useAuth();
-  const [inputs, setInputs] = useState({}); // { [todoId]: "15" }
+  const [inputs, setInputs] = useState({});
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState("deadlineAsc");
   const [remainingMin, setRemainingMin] = useState("");
@@ -47,13 +47,10 @@ export default function TodoList({
   const [progressMax, setProgressMax] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
   const [riskModeFilter, setRiskModeFilter] = useState("all");
-  void notificationMode; // keep prop for backward compatibility
+  void notificationMode;
 
-  const handleChange = (id, v) => {
-    setInputs((m) => ({ ...m, [id]: v }));
-  };
+  const handleChange = (id, v) => setInputs((m) => ({ ...m, [id]: v }));
 
-  // 合計＆当日日別ログを同時に加算（pace7dに効く）
   const addActual = async (todo) => {
     if (!user) return;
     const raw = inputs[todo.id];
@@ -61,11 +58,10 @@ export default function TodoList({
     if (!Number.isFinite(addMin) || addMin <= 0) return;
 
     const todayKey = jstDateKey();
-
     try {
       await updateDoc(doc(db, "todos", todo.id), {
-        actualTotalMinutes: increment(addMin),              // 合計
-        [`actualLogs.${todayKey}`]: increment(addMin),      // 当日ログ
+        actualTotalMinutes: increment(addMin),
+        [`actualLogs.${todayKey}`]: increment(addMin),
       });
       await addDoc(collection(db, "todos", todo.id, "sessions"), {
         date: todayKey,
@@ -104,9 +100,10 @@ export default function TodoList({
     const progressRatio = estimatedMinutes
       ? actualMinutes / estimatedMinutes
       : null;
-    const remainingMinutes = estimatedMinutes != null
-      ? Math.max(0, estimatedMinutes - actualMinutes)
-      : null;
+    const remainingMinutes =
+      estimatedMinutes != null
+        ? Math.max(0, estimatedMinutes - actualMinutes)
+        : null;
 
     let requiredPerDay = null;
     if (deadlineAt && remainingMinutes != null) {
@@ -119,7 +116,6 @@ export default function TodoList({
     const spiText = Number.isFinite(spiNum) ? spiNum.toFixed(2) : "—";
     const eacText = todo.eacDate ?? "—";
     const riskLevel = todo.riskLevel ?? null;
-
     const riskMode = todo.riskMode ?? null;
 
     return {
@@ -139,65 +135,25 @@ export default function TodoList({
 
   const filteredTodos = decoratedTodos.filter((item) => {
     if (showIncompleteOnly && item.todo.completed) return false;
+    const { remainingMinutes, progressRatio, riskLevel, riskMode } = item;
 
-    if (remainingMin !== "") {
-      const min = Number(remainingMin);
-      if (Number.isFinite(min)) {
-        if (item.remainingMinutes == null || item.remainingMinutes < min) {
-          return false;
-        }
-      }
-    }
+    if (remainingMin && remainingMinutes < Number(remainingMin)) return false;
+    if (remainingMax && remainingMinutes > Number(remainingMax)) return false;
 
-    if (remainingMax !== "") {
-      const max = Number(remainingMax);
-      if (Number.isFinite(max)) {
-        if (item.remainingMinutes == null || item.remainingMinutes > max) {
-          return false;
-        }
-      }
-    }
+    if (progressMin && progressRatio < Number(progressMin) / 100) return false;
+    if (progressMax && progressRatio > Number(progressMax) / 100) return false;
 
-    if (progressMin !== "") {
-      const minPct = Number(progressMin);
-      if (Number.isFinite(minPct)) {
-        const threshold = minPct / 100;
-        if (item.progressRatio == null || item.progressRatio < threshold) {
-          return false;
-        }
-      }
-    }
+    if (riskFilter === "none" && riskLevel) return false;
+    if (riskFilter !== "all" && riskFilter !== "none" && riskFilter !== riskLevel)
+      return false;
 
-    if (progressMax !== "") {
-      const maxPct = Number(progressMax);
-      if (Number.isFinite(maxPct)) {
-        const threshold = maxPct / 100;
-        if (item.progressRatio == null || item.progressRatio > threshold) {
-          return false;
-        }
-      }
-    }
-
-    if (riskFilter === "none") {
-      if (item.riskLevel != null && item.riskLevel !== "") {
-        return false;
-      }
-    } else if (riskFilter !== "all") {
-      if (item.riskLevel !== riskFilter) {
-        return false;
-      }
-    }
-
-    if (riskModeFilter !== "all") {
-      const mode = item.riskMode ?? "none";
-      if (riskModeFilter === "none") {
-        if (mode !== "none" && mode !== "") {
-          return false;
-        }
-      } else if (mode !== riskModeFilter) {
-        return false;
-      }
-    }
+    if (riskModeFilter === "none" && riskMode) return false;
+    if (
+      riskModeFilter !== "all" &&
+      riskModeFilter !== "none" &&
+      riskModeFilter !== riskMode
+    )
+      return false;
 
     return true;
   });
@@ -205,48 +161,20 @@ export default function TodoList({
   const sortedTodos = [...filteredTodos].sort((a, b) => {
     const aDeadline = toTime(a.todo.deadline);
     const bDeadline = toTime(b.todo.deadline);
-    const aProgress = Number.isFinite(a.progressRatio) ? a.progressRatio : null;
-    const bProgress = Number.isFinite(b.progressRatio) ? b.progressRatio : null;
-    const aRemaining = Number.isFinite(a.remainingMinutes) ? a.remainingMinutes : null;
-    const bRemaining = Number.isFinite(b.remainingMinutes) ? b.remainingMinutes : null;
-    const aRequired = Number.isFinite(a.requiredPerDay) ? a.requiredPerDay : null;
-    const bRequired = Number.isFinite(b.requiredPerDay) ? b.requiredPerDay : null;
+    const aProgress = a.progressRatio ?? 0;
+    const bProgress = b.progressRatio ?? 0;
+    const aRemaining = a.remainingMinutes ?? 0;
+    const bRemaining = b.remainingMinutes ?? 0;
+    const aRequired = a.requiredPerDay ?? 0;
+    const bRequired = b.requiredPerDay ?? 0;
 
-    if (sortOrder === "deadlineDesc") {
-      if (aDeadline == null && bDeadline == null) return 0;
-      if (aDeadline == null) return 1;
-      if (bDeadline == null) return -1;
-      return bDeadline - aDeadline;
-    }
-
-    if (sortOrder === "progressAsc" || sortOrder === "progressDesc") {
-      const direction = sortOrder === "progressAsc" ? 1 : -1;
-      if (aProgress == null && bProgress == null) return 0;
-      if (aProgress == null) return 1;
-      if (bProgress == null) return -1;
-      return direction * (aProgress - bProgress);
-    }
-
-    if (sortOrder === "remainingAsc" || sortOrder === "remainingDesc") {
-      const direction = sortOrder === "remainingAsc" ? 1 : -1;
-      if (aRemaining == null && bRemaining == null) return 0;
-      if (aRemaining == null) return 1;
-      if (bRemaining == null) return -1;
-      return direction * (aRemaining - bRemaining);
-    }
-
-    if (sortOrder === "requiredPerDayAsc" || sortOrder === "requiredPerDayDesc") {
-      const direction = sortOrder === "requiredPerDayAsc" ? 1 : -1;
-      if (aRequired == null && bRequired == null) return 0;
-      if (aRequired == null) return 1;
-      if (bRequired == null) return -1;
-      return direction * (aRequired - bRequired);
-    }
-
-    // default: 締切が近い順
-    if (aDeadline == null && bDeadline == null) return 0;
-    if (aDeadline == null) return 1;
-    if (bDeadline == null) return -1;
+    if (sortOrder === "deadlineDesc") return bDeadline - aDeadline;
+    if (sortOrder === "progressAsc") return aProgress - bProgress;
+    if (sortOrder === "progressDesc") return bProgress - aProgress;
+    if (sortOrder === "remainingAsc") return aRemaining - bRemaining;
+    if (sortOrder === "remainingDesc") return bRemaining - aRemaining;
+    if (sortOrder === "requiredPerDayAsc") return aRequired - bRequired;
+    if (sortOrder === "requiredPerDayDesc") return bRequired - aRequired;
     return aDeadline - bDeadline;
   });
 
@@ -262,135 +190,165 @@ export default function TodoList({
   };
 
   return (
-    <div>
-      <div className="list-controls">
-        <label className="switch" htmlFor="toggleIncomplete">
-          <input
-            id="toggleIncomplete"
-            type="checkbox"
-            checked={showIncompleteOnly}
-            onChange={(e) => setShowIncompleteOnly(e.target.checked)}
-          />
-          <span className="switch-track" />
-          <span className="switch-label">未完タスクのみ表示</span>
-        </label>
+    // ===== スクロール領域のルートをこの中に持たせる =====
+    <div
+      className="list-scroll"
+      style={{
+        maxHeight: "calc(100vh - 200px)",
+        overflowY: "auto",
+        paddingRight: 4,
+      }}
+    >
+      {/* ===== フィルター＆並び替えバー（固定） ===== */}
+      <div
+        className="list-toolbar"
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 5,
+          background: "#fff",
+          padding: "8px 0",
+          borderBottom: "1px solid #eee",
+        }}
+      >
+        <div className="list-controls">
+          <label className="switch" htmlFor="toggleIncomplete">
+            <input
+              id="toggleIncomplete"
+              type="checkbox"
+              checked={showIncompleteOnly}
+              onChange={(e) => setShowIncompleteOnly(e.target.checked)}
+            />
+            <span className="switch-track" />
+            <span className="switch-label">未完タスクのみ表示</span>
+          </label>
 
-        <div className="filter-row">
-          <div className="filter-group">
-            <label htmlFor="sortOrder">並び替え</label>
-            <select
-              id="sortOrder"
-              className="filter-select"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-            >
-              <option value="deadlineAsc">締切が近い順</option>
-              <option value="deadlineDesc">締切が遠い順</option>
-              <option value="progressDesc">進捗率が高い順</option>
-              <option value="progressAsc">進捗率が低い順</option>
-              <option value="remainingAsc">残り時間が少ない順</option>
-              <option value="remainingDesc">残り時間が多い順</option>
-              <option value="requiredPerDayDesc">必要ペースが高い順</option>
-              <option value="requiredPerDayAsc">必要ペースが低い順</option>
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>残り時間 (分)</label>
-            <div className="range-inputs">
-              <input
-                type="number"
-                min="0"
-                className="filter-input"
-                placeholder="最小"
-                value={remainingMin}
-                onChange={(e) => setRemainingMin(e.target.value)}
-              />
-              <span className="range-separator">〜</span>
-              <input
-                type="number"
-                min="0"
-                className="filter-input"
-                placeholder="最大"
-                value={remainingMax}
-                onChange={(e) => setRemainingMax(e.target.value)}
-              />
+          <div className="filter-row">
+            <div className="filter-group">
+              <label htmlFor="sortOrder">並び替え</label>
+              <select
+                id="sortOrder"
+                className="filter-select"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+              >
+                <option value="deadlineAsc">締切が近い順</option>
+                <option value="deadlineDesc">締切が遠い順</option>
+                <option value="progressDesc">進捗率が高い順</option>
+                <option value="progressAsc">進捗率が低い順</option>
+                <option value="remainingAsc">残り時間が少ない順</option>
+                <option value="remainingDesc">残り時間が多い順</option>
+                <option value="requiredPerDayDesc">必要ペースが高い順</option>
+                <option value="requiredPerDayAsc">必要ペースが低い順</option>
+              </select>
             </div>
-          </div>
 
-          <div className="filter-group">
-            <label>進捗率 (%)</label>
-            <div className="range-inputs">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                className="filter-input"
-                placeholder="最小"
-                value={progressMin}
-                onChange={(e) => setProgressMin(e.target.value)}
-              />
-              <span className="range-separator">〜</span>
-              <input
-                type="number"
-                min="0"
-                max="300"
-                className="filter-input"
-                placeholder="最大"
-                value={progressMax}
-                onChange={(e) => setProgressMax(e.target.value)}
-              />
+            <div className="filter-group">
+              <label>残り時間 (分)</label>
+              <div className="range-inputs">
+                <input
+                  type="number"
+                  className="filter-input"
+                  placeholder="最小"
+                  value={remainingMin}
+                  onChange={(e) => setRemainingMin(e.target.value)}
+                />
+                <span className="range-separator">〜</span>
+                <input
+                  type="number"
+                  className="filter-input"
+                  placeholder="最大"
+                  value={remainingMax}
+                  onChange={(e) => setRemainingMax(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="filter-group">
-            <label htmlFor="riskFilter">リスク</label>
-            <select
-              id="riskFilter"
-              className="filter-select filter-select--label"
-              value={riskFilter}
-              onChange={(e) => setRiskFilter(e.target.value)}
-            >
-              <option value="all">すべて</option>
-              <option value="ok">🟢 良好</option>
-              <option value="warn">🟡 注意</option>
-              <option value="late">🔴 遅延</option>
-              <option value="none">未判定</option>
-            </select>
-          </div>
+            <div className="filter-group">
+              <label>進捗率 (%)</label>
+              <div className="range-inputs">
+                <input
+                  type="number"
+                  className="filter-input"
+                  placeholder="最小"
+                  value={progressMin}
+                  onChange={(e) => setProgressMin(e.target.value)}
+                />
+                <span className="range-separator">〜</span>
+                <input
+                  type="number"
+                  className="filter-input"
+                  placeholder="最大"
+                  value={progressMax}
+                  onChange={(e) => setProgressMax(e.target.value)}
+                />
+              </div>
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="riskModeFilter">リスクモード</label>
-            <select
-              id="riskModeFilter"
-              className="filter-select"
-              value={riskModeFilter}
-              onChange={(e) => setRiskModeFilter(e.target.value)}
-            >
-              <option value="all">すべて</option>
-              <option value="safe">安全運転</option>
-              <option value="mean">標準</option>
-              <option value="challenge">チャレンジ</option>
-              <option value="none">未設定</option>
-            </select>
-          </div>
+            <div className="filter-group">
+              <label htmlFor="riskFilter">リスク</label>
+              <select
+                id="riskFilter"
+                className="filter-select"
+                value={riskFilter}
+                onChange={(e) => setRiskFilter(e.target.value)}
+              >
+                <option value="all">すべて</option>
+                <option value="ok">🟢 良好</option>
+                <option value="warn">🟡 注意</option>
+                <option value="late">🔴 遅延</option>
+                <option value="none">未判定</option>
+              </select>
+            </div>
 
-          <button className="btn-mini filter-reset" onClick={resetFilters}>
-            条件クリア
-          </button>
+            <div className="filter-group">
+              <label htmlFor="riskModeFilter">リスクモード</label>
+              <select
+                id="riskModeFilter"
+                className="filter-select"
+                value={riskModeFilter}
+                onChange={(e) => setRiskModeFilter(e.target.value)}
+              >
+                <option value="all">すべて</option>
+                <option value="safe">安全運転</option>
+                <option value="mean">標準</option>
+                <option value="challenge">チャレンジ</option>
+                <option value="none">未設定</option>
+              </select>
+            </div>
+
+            <button className="btn-mini filter-reset" onClick={resetFilters}>
+              条件クリア
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* ===== リスト本体 ===== */}
       <ul className="list">
         {sortedTodos.map((item) => {
-          const { todo, deadlineAt, estimatedMinutes, actualMinutes, progressRatio, remainingMinutes, requiredPerDay, spiText, eacText, riskLevel } = item;
-          const risk = riskLevel; // "ok" | "warn" | "late" | undefined
+          const {
+            todo,
+            deadlineAt,
+            estimatedMinutes,
+            actualMinutes,
+            progressRatio,
+            remainingMinutes,
+            requiredPerDay,
+            spiText,
+            eacText,
+            riskLevel,
+          } = item;
 
+          const risk = riskLevel;
           const borderColor =
-            risk === "late" ? "#ef4444" :  // 赤
-            risk === "warn" ? "#f59e0b" :  // 黄
-            risk === "ok"   ? "#10b981" :  // 緑
-            "#cbd5e1";                     // グレー
+            risk === "late"
+              ? "#ef4444"
+              : risk === "warn"
+              ? "#f59e0b"
+              : risk === "ok"
+              ? "#10b981"
+              : "#cbd5e1";
 
           return (
             <li
@@ -401,7 +359,6 @@ export default function TodoList({
                 borderLeftColor: borderColor,
               }}
             >
-              {/* タイトル & 完了チェック */}
               <div className="todo-content">
                 <label className="todo-main">
                   <input
@@ -409,25 +366,32 @@ export default function TodoList({
                     checked={!!todo.completed}
                     onChange={() => toggleComplete(todo)}
                   />
-                  <span className={`todo-title ${todo.completed ? "is-done" : ""}`}>
+                  <span
+                    className={`todo-title ${
+                      todo.completed ? "is-done" : ""
+                    }`}
+                  >
                     {todo.text}
                   </span>
                 </label>
 
-                {/* メタ情報 */}
                 <div className="meta-lines">
-                  {/* 1行目：締切・E */}
                   <div className="meta-line">
                     <span className="meta-label">締切:</span>
                     <span className="meta-value">
-                      {deadlineAt ? format(deadlineAt, "yyyy/M/d HH:mm") : "—"}
+                      {deadlineAt
+                        ? format(deadlineAt, "yyyy/M/d HH:mm")
+                        : "—"}
                     </span>
                     <span className="spacer" />
                     <span className="meta-label">E:</span>
-                    <span className="meta-value">{estimatedMinutes != null ? `${estimatedMinutes} 分` : "—"}</span>
+                    <span className="meta-value">
+                      {estimatedMinutes != null
+                        ? `${estimatedMinutes} 分`
+                        : "—"}
+                    </span>
                   </div>
 
-                  {/* 2行目：実績合計・進捗率・残り */}
                   <div className="meta-line">
                     <span className="meta-label">実績:</span>
                     <span className="meta-value">{`${actualMinutes} 分`}</span>
@@ -441,19 +405,21 @@ export default function TodoList({
                     <span className="spacer" />
                     <span className="meta-label">残り:</span>
                     <span className="meta-value">
-                      {remainingMinutes != null ? `${remainingMinutes} 分` : "—"}
+                      {remainingMinutes != null
+                        ? `${remainingMinutes} 分`
+                        : "—"}
                     </span>
                   </div>
 
-                  {/* 3行目：必要ペース */}
                   <div className="meta-line">
                     <span className="meta-label">必要ペース:</span>
                     <span className="meta-value">
-                      {requiredPerDay != null ? `${Math.ceil(requiredPerDay)} 分/日` : "—"}
+                      {requiredPerDay != null
+                        ? `${Math.ceil(requiredPerDay)} 分/日`
+                        : "—"}
                     </span>
                   </div>
 
-                  {/* 4行目：SPI / EAC / リスク */}
                   <div className="meta-line">
                     <span className="meta-label">SPI:</span>
                     <span className="meta-value">{spiText}</span>
@@ -466,19 +432,23 @@ export default function TodoList({
                     <span className="meta-label">リスク:</span>
                     <span
                       className="meta-value"
-                      title={risk ?? ""}
                       style={{ fontWeight: 600 }}
                     >
-                      {risk === "late" ? "🔴 遅延"
-                        : risk === "warn" ? "🟡 注意"
-                        : risk === "ok"   ? "🟢 良好"
+                      {risk === "late"
+                        ? "🔴 遅延"
+                        : risk === "warn"
+                        ? "🟡 注意"
+                        : risk === "ok"
+                        ? "🟢 良好"
                         : "—"}
                     </span>
                   </div>
 
-                  {/* 5行目：実績追加フォーム */}
                   <div className="meta-line">
-                    <label className="meta-label" htmlFor={`act-${todo.id}`}>
+                    <label
+                      className="meta-label"
+                      htmlFor={`act-${todo.id}`}
+                    >
                       実績追加:
                     </label>
                     <input
@@ -490,13 +460,14 @@ export default function TodoList({
                       className="ti-number"
                       style={{ width: 96, marginLeft: 6, marginRight: 8 }}
                       value={inputs[todo.id] ?? ""}
-                      onChange={(e) => handleChange(todo.id, e.target.value)}
+                      onChange={(e) =>
+                        handleChange(todo.id, e.target.value)
+                      }
                     />
                     <button
                       className="btn-mini"
                       onClick={() => addActual(todo)}
                       disabled={!inputs[todo.id]}
-                      title="実績(分)を加算"
                     >
                       追加
                     </button>
@@ -504,7 +475,6 @@ export default function TodoList({
                 </div>
               </div>
 
-              {/* 削除 */}
               <button
                 className="icon-btn delete-btn"
                 onClick={() => deleteDoc(doc(db, "todos", todo.id))}
@@ -517,7 +487,6 @@ export default function TodoList({
         })}
       </ul>
 
-      {/* 何もない時の簡易メッセージ */}
       {sortedTodos.length === 0 && (
         <p style={{ padding: 12, color: "#666" }}>タスクはまだありません。</p>
       )}
