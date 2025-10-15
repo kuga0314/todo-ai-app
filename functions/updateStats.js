@@ -1,4 +1,5 @@
 /* eslint-env node */
+/* global Intl */
 const admin = require("firebase-admin");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 
@@ -212,11 +213,8 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
             spi: next.spi,
             eacDate: next.eacDate,
             riskLevel: next.riskLevel,
-<<<<<<< ours
-=======
             idealProgress: idealProgressRounded,
             actualProgress: actualProgressRounded,
->>>>>>> theirs
           },
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
