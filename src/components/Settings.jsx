@@ -20,6 +20,7 @@ import { useAuth } from "../hooks/useAuth";
 export default function Settings() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [appMsg, setAppMsg] = useState("");
 
   /* ───── 通知設定 ───── */
   const [progressReminderTime, setProgressReminderTime] = useState("21:00");
@@ -28,6 +29,9 @@ export default function Settings() {
   const [riskNotifyEnabled, setRiskNotifyEnabled] = useState(true);
   const [countdownEnabled, setCountdownEnabled] = useState(true);
   const [inactiveNudgeEnabled, setInactiveNudgeEnabled] = useState(true);
+
+  /* ───── アプリ設定 ───── */
+  const [dailyCap, setDailyCap] = useState("");
 
   /* ───── ラベル管理 ───── */
   const [labels, setLabels] = useState([]);
@@ -67,6 +71,60 @@ export default function Settings() {
       { merge: true }
     );
     alert("通知設定を保存しました");
+  };
+
+  /* アプリ設定読込 */
+  useEffect(() => {
+    if (!user?.uid) return;
+    const ref = doc(db, "users", user.uid, "settings", "app");
+    getDoc(ref).then((snap) => {
+      if (!snap.exists()) {
+        setDailyCap("");
+        return;
+      }
+      const data = snap.data();
+      const value = data?.dailyCap;
+      if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+        setDailyCap(String(Math.round(value)));
+      } else {
+        setDailyCap("");
+      }
+    });
+  }, [user?.uid]);
+
+  const saveAppSettings = async () => {
+    if (!user?.uid) return;
+    setAppMsg("");
+    const ref = doc(db, "users", user.uid, "settings", "app");
+    const trimmed = dailyCap.trim();
+
+    if (!trimmed) {
+      try {
+        await setDoc(ref, { dailyCap: null }, { merge: true });
+        setAppMsg("保存しました");
+      } catch (e) {
+        console.error("save app settings failed", e);
+        setAppMsg("保存に失敗しました");
+      }
+      return;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0 || !/^\d+$/.test(trimmed)) {
+      setAppMsg("正の整数を入力してください");
+      return;
+    }
+
+    const rounded = Math.round(parsed);
+
+    try {
+      await setDoc(ref, { dailyCap: rounded }, { merge: true });
+      setDailyCap(String(rounded));
+      setAppMsg("保存しました");
+    } catch (e) {
+      console.error("save app settings failed", e);
+      setAppMsg("保存に失敗しました");
+    }
   };
 
   /* ラベル購読 */
@@ -174,6 +232,37 @@ export default function Settings() {
         >
           保存
         </button>
+      </section>
+
+      {/* 日次キャパ */}
+      <section className="card" style={{ marginBottom: 20 }}>
+        <h3>日次キャパ（上限分数）</h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+          <label>
+            <input
+              type="number"
+              min="1"
+              placeholder="未設定（120分）"
+              value={dailyCap}
+              onChange={(e) => setDailyCap(e.target.value)}
+              style={{ marginRight: 8 }}
+            />
+            分
+          </label>
+          <button onClick={saveAppSettings} style={{ alignSelf: "flex-start", padding: "8px 16px" }}>
+            保存
+          </button>
+          {appMsg && (
+            <p
+              style={{
+                color: appMsg === "保存しました" ? "#2e7d32" : "#d32f2f",
+                margin: 0,
+              }}
+            >
+              {appMsg}
+            </p>
+          )}
+        </div>
       </section>
 
       {/* ラベル管理 */}
