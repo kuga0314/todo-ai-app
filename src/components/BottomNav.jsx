@@ -30,6 +30,14 @@ export default function BottomNav() {
       </NavLink>
 
       <NavLink
+        to="/analytics"
+        className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
+      >
+        <span role="img" aria-label="analytics">📊</span>
+        <span className="tab-label">分析</span>
+      </NavLink>
+
+      <NavLink
         to="/settings"
         className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
       >
