@@ -143,7 +143,16 @@ export default function DailyPlan() {
   const [todos, setTodos] = useState([]);
   const [appSettings, setAppSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("dailyPlan.collapsed") === "true";
+  });
   const dateKey = useMemo(() => todayKeyTokyo(), []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("dailyPlan.collapsed", collapsed ? "true" : "false");
+  }, [collapsed]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -229,17 +238,42 @@ export default function DailyPlan() {
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div className="card-header">
-        <h3 style={{ margin: 0 }}>今日のプラン</h3>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>{dateKey}</div>
+      <div
+        className="card-header"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0 }}>今日のプラン</h3>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{dateKey}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed((prev) => !prev)}
+          style={{
+            background: "#fff",
+            border: "1px solid #d0d0d0",
+            borderRadius: 4,
+            padding: "4px 10px",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          {collapsed ? "表示 ▼" : "非表示 ▲"}
+        </button>
       </div>
 
-      <div className="card-content">
-        {loading ? (
-          <div>読み込み中…</div>
-        ) : (
-          <>
-            {!plan.items || plan.items.length === 0 ? (
+      {!collapsed && (
+        <div className="card-content">
+          {loading ? (
+            <div>読み込み中…</div>
+          ) : (
+            <>
+              {!plan.items || plan.items.length === 0 ? (
               <div>今日は予定された日次プランがありません。</div>
             ) : (
               <>
@@ -375,8 +409,9 @@ export default function DailyPlan() {
               )}
             </div>
           </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
