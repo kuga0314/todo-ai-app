@@ -3,7 +3,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { buildDateRange, sanitizeLogs } from "../utils/analytics";
 
-export function useAnalyticsData(userId) {
+export function useAnalyticsData(userId, reloadSignal = 0) {
   const [loading, setLoading] = useState(true);
   const [noData, setNoData] = useState(false);
   const [todos, setTodos] = useState([]);
@@ -112,7 +112,7 @@ export function useAnalyticsData(userId) {
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, reloadSignal]);
 
   return {
     loading,

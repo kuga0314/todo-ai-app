@@ -28,6 +28,7 @@ import "./Analytics.css";
 
 export default function Analytics() {
   const { user } = useAuth();
+  const [refreshTick, setRefreshTick] = useState(0);
   const {
     loading,
     noData,
@@ -35,13 +36,12 @@ export default function Analytics() {
     labels,
     dateRange,
     totalSeries,
-  } = useAnalyticsData(user?.uid);
+  } = useAnalyticsData(user?.uid, refreshTick);
   const [searchTerm, setSearchTerm] = useState("");
   const [labelFilter, setLabelFilter] = useState("all");
   const [expandedIds, setExpandedIds] = useState([]);
   const [seriesCache, setSeriesCache] = useState({});
   const seriesCacheRef = useRef({});
-  const [refreshTick, setRefreshTick] = useState(0);
   const [logEditorState, setLogEditorState] = useState({
     open: false,
     todo: null,
