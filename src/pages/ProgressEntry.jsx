@@ -1,6 +1,6 @@
 // src/pages/ProgressEntry.jsx
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import {
   doc,
   updateDoc,
@@ -9,6 +9,8 @@ import {
   collection,
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
+import LogEditorModal from "../components/LogEditorModal";
+import { applyLogDiff, jstDateKey } from "../utils/logUpdates";
 
 const toDate = (v) => v?.toDate?.() ?? (v instanceof Date ? v : null);
 
@@ -18,12 +20,243 @@ function percent(n) {
   return `${p.toFixed(0)}%`;
 }
 
-function dateKey(d = new Date()) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
+const parseDateKey = (key) => {
+  if (!key) return null;
+  const [y, m, d] = key.split("-").map((part) => Number(part));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  return new Date(y, m - 1, d);
+};
+
+const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [minutes, setMinutes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const candidates = useMemo(() => {
+    if (!open) return [];
+    const key = dateKey;
+    const sanitized = (todos || []).filter((t) => {
+      const val = Math.max(0, Math.round(Number(t?.actualLogs?.[key]) || 0));
+      return val <= 0;
+    });
+    if (!search.trim()) return sanitized;
+    const q = search.trim().toLowerCase();
+    return sanitized.filter((t) => t.text?.toLowerCase?.().includes(q));
+  }, [todos, dateKey, search, open]);
+
+  const reset = () => {
+    setSearch("");
+    setSelectedId("");
+    setMinutes("");
+    setError("");
+  };
+
+  const handleClose = () => {
+    if (saving) return;
+    reset();
+    onClose?.();
+  };
+
+  const handleSubmit = async (e) => {
+    e?.preventDefault?.();
+    if (saving) return;
+    if (!selectedId) {
+      setError("タスクを選択してください。");
+      return;
+    }
+    const minutesValue = Math.round(Number(minutes));
+    if (!Number.isFinite(minutesValue) || minutesValue <= 0) {
+      setError("分数は1以上を入力してください。");
+      return;
+    }
+    const target = todos.find((t) => t.id === selectedId);
+    if (!target) {
+      setError("選択したタスクが見つかりません。");
+      return;
+    }
+    const oldValue = Math.max(0, Math.round(Number(target?.actualLogs?.[dateKey]) || 0));
+    const newValue = oldValue + minutesValue;
+    const total = Math.round(Number(target?.actualTotalMinutes) || 0);
+    if (total + (newValue - oldValue) < 0) {
+      setError("累積実績が負になるため追加できません。");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      await applyLogDiff({
+        todoId: target.id,
+        dateKey,
+        newValue,
+        oldValue,
+        actualTotalMinutes: target.actualTotalMinutes,
+        source: "manual",
+        trigger: "progress-entry/add-missing",
+      });
+      alert("保存しました");
+      reset();
+      onClose?.();
+    } catch (err) {
+      console.error("add missing log failed", err);
+      setError(err?.message || "保存に失敗しました。");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) return null;
+
+  const overlayStyle = {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15, 23, 42, 0.45)",
+    zIndex: 1050,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  };
+
+  const modalStyle = {
+    width: "min(480px, 100%)",
+    background: "#fff",
+    borderRadius: 12,
+    boxShadow: "0 20px 40px rgba(15,23,42,0.18)",
+    padding: 20,
+    color: "#0f172a",
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid #cbd5f5",
+    fontSize: 15,
+    boxSizing: "border-box",
+  };
+
+  return (
+    <div style={overlayStyle} onMouseDown={handleClose}>
+      <div
+        style={modalStyle}
+        onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>未作業タスクを追加</h3>
+          <button
+            type="button"
+            onClick={handleClose}
+            style={{
+              border: "1px solid #cbd5f5",
+              background: "#f8fafc",
+              borderRadius: 8,
+              padding: "6px 10px",
+              cursor: "pointer",
+            }}
+          >
+            閉じる
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ marginTop: 16, display: "grid", gap: 14 }}>
+          <div>
+            <label htmlFor="add-missing-search" style={{ display: "block", fontSize: 13, color: "#475569", marginBottom: 6 }}>
+              タスクを検索
+            </label>
+            <input
+              id="add-missing-search"
+              type="search"
+              placeholder="タスク名で検索"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="add-missing-select" style={{ display: "block", fontSize: 13, color: "#475569", marginBottom: 6 }}>
+              対象タスク
+            </label>
+            <select
+              id="add-missing-select"
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              style={{ ...inputStyle, paddingRight: 32 }}
+            >
+              <option value="">選択してください</option>
+              {candidates.map((todo) => (
+                <option key={todo.id} value={todo.id}>
+                  {todo.text}
+                </option>
+              ))}
+            </select>
+            <p style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
+              この日に未記録のタスクから選択します。
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="add-missing-minutes" style={{ display: "block", fontSize: 13, color: "#475569", marginBottom: 6 }}>
+              追加する分数
+            </label>
+            <input
+              id="add-missing-minutes"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="例: 45"
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          {error ? (
+            <p style={{ margin: 0, color: "#dc2626", fontSize: 13 }}>{error}</p>
+          ) : null}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleClose}
+              style={{
+                border: "1px solid #cbd5f5",
+                background: "#f8fafc",
+                color: "#1e293b",
+                borderRadius: 10,
+                padding: "8px 16px",
+                cursor: saving ? "default" : "pointer",
+              }}
+              disabled={saving}
+            >
+              キャンセル
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                border: "none",
+                background: "#2563eb",
+                color: "#fff",
+                borderRadius: 10,
+                padding: "10px 18px",
+                cursor: saving ? "default" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {saving ? "保存中…" : "追加"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 /**
  * 進捗入力ページ：
@@ -33,7 +266,7 @@ function dateKey(d = new Date()) {
  */
 export default function ProgressEntry({ todos = [], src }) {
   const today = new Date();
-  const todayKey = dateKey(today);
+  const todayKey = jstDateKey(today);
 
   // 表示対象：未完了 && 残り>0 を基本に、締切昇順で並べる（締切なしは最後）
   const rows = useMemo(() => {
@@ -96,11 +329,11 @@ export default function ProgressEntry({ todos = [], src }) {
 
         // ② 実績イベントを sessions に1件追記（研究用の明細）
         await addDoc(collection(db, "todos", t.id, "sessions"), {
-          date: todayKey,            // YYYY-MM-DD
-          minutes: addMin,           // 今回追加分（分）
-          source: "manual",          // UIからの入力
+          date: todayKey, // YYYY-MM-DD
+          minutes: addMin, // 今回追加分（分）
+          source: "manual", // UIからの入力
 
-          trigger: src || "manual",  // 通知経由で来た場合は 'morningSummary' 等に変更する
+          trigger: src || "manual", // 通知経由で来た場合は 'morningSummary' 等に変更する
           createdAt: serverTimestamp(),
         });
       });
@@ -116,9 +349,42 @@ export default function ProgressEntry({ todos = [], src }) {
     }
   };
 
+  const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
+
+  const workedTodos = useMemo(() => {
+    const list = (todos || []).map((t) => {
+      const minutes = Math.max(
+        0,
+        Math.round(Number(t?.actualLogs?.[selectedDateKey]) || 0)
+      );
+      return { ...t, minutes };
+    });
+    return list
+      .filter((t) => t.minutes > 0)
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [todos, selectedDateKey]);
+
+  const [editorState, setEditorState] = useState({ open: false, todo: null, date: null });
+  const [missingModalOpen, setMissingModalOpen] = useState(false);
+
+  const openEditor = (todo, dateKey) => {
+    if (!todo) return;
+    setEditorState({ open: true, todo, date: dateKey });
+  };
+
+  const closeEditor = () => {
+    setEditorState({ open: false, todo: null, date: null });
+  };
+
+  const moveSelectedDate = (offset) => {
+    const base = parseDateKey(selectedDateKey) ?? new Date();
+    const next = addDays(base, offset);
+    setSelectedDateKey(jstDateKey(next));
+  };
+
   return (
     <main className="app-main">
-      <div className="container">
+      <div className="container" style={{ display: "grid", gap: 20 }}>
         <section className="card" style={{ padding: 16 }}>
           <header style={{ marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: 20 }}>進捗入力</h2>
@@ -245,7 +511,155 @@ export default function ProgressEntry({ todos = [], src }) {
             </button>
           </div>
         </section>
+
+        <section className="card" style={{ padding: 16 }}>
+          <header style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 20 }}>日別ログ編集</h2>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => moveSelectedDate(-1)}
+                style={{
+                  border: "1px solid #cbd5f5",
+                  background: "#f8fafc",
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                ← 前日
+              </button>
+              <input
+                type="date"
+                value={selectedDateKey}
+                onChange={(e) => setSelectedDateKey(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5f5",
+                  fontSize: 15,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => moveSelectedDate(1)}
+                style={{
+                  border: "1px solid #cbd5f5",
+                  background: "#f8fafc",
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                翌日 →
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDateKey(todayKey)}
+                style={{
+                  border: "none",
+                  background: "#2563eb",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                今日に戻る
+              </button>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+              選択した日付の実績ログを編集・削除できます。ログのないタスクを追加することもできます。
+            </p>
+          </header>
+
+          <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+            {workedTodos.length === 0 ? (
+              <p style={{ color: "#64748b", margin: 0 }}>
+                この日はまだログがありません。下の「未作業タスクを検索して追加」から登録できます。
+              </p>
+            ) : (
+              workedTodos.map((todo) => {
+                const deadline = toDate(todo.deadline);
+                return (
+                  <div
+                    key={todo.id}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 12,
+                      padding: 14,
+                      background: "#fff",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>{todo.text}</div>
+                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                          この日の実績: {todo.minutes} 分
+                          {deadline ? ` ｜ 締切: ${format(deadline, "yyyy/MM/dd HH:mm")}` : ""}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openEditor(todo, selectedDateKey)}
+                        style={{
+                          border: "none",
+                          background: "#2563eb",
+                          color: "#fff",
+                          borderRadius: 8,
+                          padding: "8px 14px",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        編集
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <button
+              type="button"
+              onClick={() => setMissingModalOpen(true)}
+              style={{
+                border: "1px solid #2563eb",
+                background: "#fff",
+                color: "#2563eb",
+                borderRadius: 10,
+                padding: "10px 18px",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              未作業タスクを検索して追加
+            </button>
+          </div>
+        </section>
       </div>
+
+      <LogEditorModal
+        open={editorState.open}
+        onClose={closeEditor}
+        todo={editorState.todo}
+        defaultDate={editorState.date}
+      />
+
+      <AddMissingLogModal
+        open={missingModalOpen}
+        onClose={() => setMissingModalOpen(false)}
+        todos={todos}
+        dateKey={selectedDateKey}
+      />
     </main>
   );
 }

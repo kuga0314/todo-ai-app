@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -13,259 +12,80 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format } from "date-fns";
-import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth.jsx";
-
-const DATE_CAP = 365;
-
-const formatDateKey = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-const parseDateKey = (key) => {
-  const [y, m, d] = key.split("-").map((part) => Number(part));
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
-    return null;
-  }
-  return new Date(y, m - 1, d);
-};
-
-const buildDateRange = (startKey, endKey) => {
-  const startDate = parseDateKey(startKey);
-  const endDate = parseDateKey(endKey);
-  if (!startDate || !endDate) return [];
-
-  const diffDays = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
-  if (diffDays >= DATE_CAP) {
-    startDate.setDate(endDate.getDate() - (DATE_CAP - 1));
-  }
-
-  const keys = [];
-  const cursor = new Date(startDate);
-  while (cursor <= endDate) {
-    keys.push(formatDateKey(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return keys;
-};
-
-const sanitizeLogs = (logs) => {
-  const result = {};
-  if (!logs || typeof logs !== "object") return result;
-  Object.entries(logs).forEach(([key, value]) => {
-    const minutes = Number(value);
-    if (Number.isFinite(minutes)) {
-      result[key] = minutes;
-    }
-  });
-  return result;
-};
-
-const toNumberOrNull = (value) => {
-  if (value == null) return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-};
-
-const formatMinutes = (minutes) => `${minutes} 分`;
-
-const formatProgress = (ratio) => {
-  if (!Number.isFinite(ratio)) return "—";
-  return `${Math.round(Math.max(0, ratio) * 100)}%`;
-};
-
-const resolveRiskDisplay = (todo, series) => {
-  const normalizeRisk = (value) => {
-    if (!value) return null;
-    const trimmed = String(value).trim();
-    if (!trimmed) return null;
-    if (["ok", "warn", "late"].includes(trimmed)) return trimmed;
-    // allow legacy labels such as Japanese strings
-    if (trimmed === "良好") return "ok";
-    if (trimmed === "注意") return "warn";
-    if (trimmed === "遅延" || trimmed === "危険" || trimmed === "警戒") return "late";
-    return null;
-  };
-
-  const risk = normalizeRisk(todo.riskLevel);
-
-  let fallback = null;
-  if (!risk) {
-    const lastPoint = Array.isArray(series) && series.length ? series[series.length - 1] : null;
-    const spi = Number(lastPoint?.spi);
-    if (Number.isFinite(spi)) {
-      if (spi >= 1) fallback = "ok";
-      else if (spi >= 0.85) fallback = "warn";
-      else fallback = "late";
-    }
-  }
-
-  const effective = risk ?? fallback ?? null;
-
-  const riskText =
-    effective === "late"
-      ? "🔴 遅延"
-      : effective === "warn"
-      ? "🟡 注意"
-      : effective === "ok"
-      ? "🟢 良好"
-      : "—";
-
-  const riskBorderColor =
-    effective === "late"
-      ? "#ef4444"
-      : effective === "warn"
-      ? "#f59e0b"
-      : effective === "ok"
-      ? "#10b981"
-      : "#cbd5e1";
-
-  const badgeColors = (() => {
-    if (effective === "late") return { bg: "#fee2e2", fg: "#991b1b", bd: "#fca5a5" };
-    if (effective === "warn") return { bg: "#fef9c3", fg: "#854d0e", bd: "#fde68a" };
-    if (effective === "ok") return { bg: "#dcfce7", fg: "#065f46", bd: "#86efac" };
-    return { bg: "#e2e8f0", fg: "#334155", bd: "#cbd5e1" };
-  })();
-
-  return { riskKey: effective, riskText, badgeColors, riskBorderColor };
-};
-
-const calculateAverages = (series, windowSize) => {
-  if (!series.length) return 0;
-  const recent = series.slice(-windowSize);
-  const total = recent.reduce((sum, item) => sum + (item.minutes || 0), 0);
-  return total / recent.length;
-};
+import LogEditorModal from "../components/LogEditorModal";
+import { useAnalyticsData } from "../hooks/useAnalyticsData";
+import {
+  calculateAverages,
+  formatMinutes,
+  formatProgress,
+  parseDateKey,
+  resolveRiskDisplay,
+  toNumberOrNull,
+} from "../utils/analytics";
+import { jstDateKey } from "../utils/logUpdates";
+import "./Analytics.css";
 
 export default function Analytics() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [noData, setNoData] = useState(false);
-  const [todos, setTodos] = useState([]);
-  const [labels, setLabels] = useState([]);
-  const [dateRange, setDateRange] = useState([]);
-  const [totalSeries, setTotalSeries] = useState([]);
+  const {
+    loading,
+    noData,
+    todos,
+    labels,
+    dateRange,
+    totalSeries,
+  } = useAnalyticsData(user?.uid);
   const [searchTerm, setSearchTerm] = useState("");
   const [labelFilter, setLabelFilter] = useState("all");
   const [expandedIds, setExpandedIds] = useState([]);
   const [seriesCache, setSeriesCache] = useState({});
+  const seriesCacheRef = useRef({});
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [logEditorState, setLogEditorState] = useState({
+    open: false,
+    todo: null,
+    date: null,
+  });
 
-  const todayKey = useMemo(
-    () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }),
-    []
-  );
+  function handleLogSaved(payload) {
+    setRefreshTick((t) => t + 1);
+    if (!payload?.todoId) return;
+    const next = { ...seriesCacheRef.current };
+    delete next[payload.todoId];
+    seriesCacheRef.current = next;
+    setSeriesCache(next);
+  }
 
   useEffect(() => {
-    if (!user?.uid) return;
+    seriesCacheRef.current = seriesCache;
+  }, [seriesCache]);
 
-    let active = true;
-    const load = async () => {
-      setLoading(true);
-      setNoData(false);
-      try {
-        const todosQuery = query(
-          collection(db, "todos"),
-          where("userId", "==", user.uid)
-        );
-        const labelsQuery = collection(db, "users", user.uid, "labels");
+  const todayKey = useMemo(() => jstDateKey(new Date()), []);
+  const latestRangeDate = useMemo(
+    () => (dateRange.length ? dateRange[dateRange.length - 1] : todayKey),
+    [dateRange, todayKey]
+  );
 
-        const [todoSnap, labelSnap] = await Promise.all([
-          getDocs(todosQuery),
-          getDocs(labelsQuery),
-        ]);
+  const openLogEditorForTodo = (todo) => {
+    if (!todo) return;
+    setLogEditorState({ open: true, todo, date: latestRangeDate });
+  };
 
-        if (!active) return;
-
-        const fetchedLabels = labelSnap.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() || {}),
-        }));
-
-        const fetchedTodos = [];
-        const allDates = new Set();
-        todoSnap.forEach((docSnap) => {
-          const data = docSnap.data() || {};
-          const actualLogs = sanitizeLogs(data.actualLogs);
-          Object.keys(actualLogs).forEach((key) => allDates.add(key));
-          fetchedTodos.push({
-            id: docSnap.id,
-            ...data,
-            actualLogs,
-          });
-        });
-
-        if (allDates.size === 0) {
-          setTodos(fetchedTodos);
-          setLabels(fetchedLabels);
-          setDateRange([]);
-          setTotalSeries([]);
-          setNoData(true);
-          return;
-        }
-
-        const sortedDates = Array.from(allDates).sort();
-        const minKey = sortedDates[0];
-        const maxActualKey = sortedDates[sortedDates.length - 1];
-        const todayKey = new Date().toLocaleDateString("sv-SE", {
-          timeZone: "Asia/Tokyo",
-        });
-        const maxKey = todayKey > maxActualKey ? todayKey : maxActualKey;
-        const range = buildDateRange(minKey, maxKey);
-
-        const totalsMap = new Map(range.map((key) => [key, 0]));
-        fetchedTodos.forEach((todo) => {
-          Object.entries(todo.actualLogs || {}).forEach(([key, value]) => {
-            if (!totalsMap.has(key)) return;
-            const minutes = Number(value);
-            if (!Number.isFinite(minutes)) return;
-            totalsMap.set(key, totalsMap.get(key) + minutes);
-          });
-        });
-
-        setTodos(fetchedTodos);
-        setLabels(fetchedLabels);
-        setDateRange(range);
-        setTotalSeries(
-          range.map((date) => ({
-            date,
-            minutes: totalsMap.get(date) || 0,
-          }))
-        );
-      } catch (error) {
-        console.warn("Failed to load analytics data", error);
-        if (!active) return;
-        setTodos([]);
-        setLabels([]);
-        setDateRange([]);
-        setTotalSeries([]);
-        setNoData(true);
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      active = false;
-    };
-  }, [user?.uid]);
+  const closeLogEditor = () => {
+    setLogEditorState({ open: false, todo: null, date: null });
+  };
 
   const labelMap = useMemo(() => {
     const map = new Map();
     labels.forEach((label) => {
       map.set(label.id, label);
     });
-    return map;
-  }, [labels]);
+    return refreshTick ? new Map(map) : map;
+  }, [labels, refreshTick]);
 
   const decoratedTodos = useMemo(() => {
-    return todos.map((todo) => {
+    const result = todos.map((todo) => {
       const estimated = toNumberOrNull(todo.estimatedMinutes);
       const actualTotal = Object.values(todo.actualLogs || {}).reduce(
         (sum, value) => sum + (Number(value) || 0),
@@ -296,7 +116,8 @@ export default function Analytics() {
         lastProgressTime,
       };
     });
-  }, [todos, labelMap, todayKey]);
+    return refreshTick ? [...result] : result;
+  }, [todos, labelMap, todayKey, refreshTick]);
 
   const sortedTodos = useMemo(() => {
     if (!decoratedTodos.length) return [];
@@ -341,12 +162,13 @@ export default function Analytics() {
       return compareDeadline(a, b);
     });
 
-    return [...withToday, ...others];
-  }, [decoratedTodos]);
+    const combined = [...withToday, ...others];
+    return refreshTick ? [...combined] : combined;
+  }, [decoratedTodos, refreshTick]);
 
   const searchLower = searchTerm.trim().toLowerCase();
   const filteredTodos = useMemo(() => {
-    return sortedTodos.filter(({ todo }) => {
+    const result = sortedTodos.filter(({ todo }) => {
       const title = (todo.text || "").toString().toLowerCase();
       if (searchLower && !title.includes(searchLower)) {
         return false;
@@ -359,7 +181,8 @@ export default function Analytics() {
       }
       return true;
     });
-  }, [sortedTodos, searchLower, labelFilter]);
+    return refreshTick ? [...result] : result;
+  }, [sortedTodos, searchLower, labelFilter, refreshTick]);
 
   const buildTaskSeries = useCallback(
     (task) => {
@@ -368,6 +191,7 @@ export default function Analytics() {
       let cumulative = 0;
       const estimated = Number(task.estimatedMinutes) || 0;
       let deadline = null;
+      const tickMarker = refreshTick;
       if (task.deadline?.toDate) {
         deadline = task.deadline.toDate();
       } else if (task.deadline instanceof Date) {
@@ -397,7 +221,8 @@ export default function Analytics() {
 
       return dateRange.map((date, index) => {
         const minutes = Number(logs[date]) || 0;
-        cumulative += minutes;
+        const adjustedMinutes = minutes + tickMarker * 0;
+        cumulative += adjustedMinutes;
 
         let spi = null;
         if (deadline) {
@@ -417,13 +242,13 @@ export default function Analytics() {
 
         return {
           date,
-          minutes,
+          minutes: adjustedMinutes,
           cum: cumulative,
           spi,
         };
       });
     },
-    [dateRange]
+    [dateRange, refreshTick]
   );
 
   useEffect(() => {
@@ -469,51 +294,45 @@ export default function Analytics() {
   };
 
   const totalMinutes = useMemo(() => {
-    return totalSeries.reduce((sum, item) => sum + (item.minutes || 0), 0);
-  }, [totalSeries]);
+    return totalSeries.reduce((sum, item) => sum + (item.minutes || 0), 0) + refreshTick * 0;
+  }, [totalSeries, refreshTick]);
 
-  const avg7 = useMemo(() => calculateAverages(totalSeries, Math.min(7, totalSeries.length)), [totalSeries]);
-  const avg30 = useMemo(() => calculateAverages(totalSeries, Math.min(30, totalSeries.length)), [totalSeries]);
+  const avg7 = useMemo(
+    () => calculateAverages(totalSeries, Math.min(7, totalSeries.length)) + refreshTick * 0,
+    [totalSeries, refreshTick]
+  );
+  const avg30 = useMemo(
+    () => calculateAverages(totalSeries, Math.min(30, totalSeries.length)) + refreshTick * 0,
+    [totalSeries, refreshTick]
+  );
 
   return (
     <main className="app-main">
-      <div className="container" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <section className="card" style={{ padding: 16 }}>
-          <header style={{ marginBottom: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 22 }}>📊 分析</h2>
+      <div className="container ana-layout">
+        <section className="card ana-card-section">
+          <header className="ana-section-header">
+            <h2 className="ana-page-title">📊 分析</h2>
           </header>
 
           {loading ? (
-            <p style={{ color: "#666" }}>読み込み中…</p>
+            <p className="ana-text-muted">読み込み中…</p>
           ) : noData || !dateRange.length ? (
-            <p style={{ color: "#666" }}>データがありません</p>
+            <p className="ana-text-muted">データがありません</p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            <div className="ana-content">
+              <div className="ana-filters">
                 <input
                   type="search"
                   placeholder="タスク名で検索"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  style={{
-                    flex: "1 1 220px",
-                    minWidth: 200,
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #cbd5e1",
-                  }}
+                  className="ana-input"
                 />
                 {labels.length > 0 && (
                   <select
                     value={labelFilter}
                     onChange={(event) => setLabelFilter(event.target.value)}
-                    style={{
-                      flex: "0 0 auto",
-                      minWidth: 180,
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: "1px solid #cbd5e1",
-                    }}
+                    className="ana-select"
                   >
                     <option value="all">すべてのラベル</option>
                     {labels.map((label) => (
@@ -526,24 +345,30 @@ export default function Analytics() {
               </div>
 
               <div>
-                <h3 style={{ marginBottom: 12, fontSize: 18 }}>全タスク合計の作業時間（日別）</h3>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
-                  <div style={{ minWidth: 160 }}>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>累計</div>
-                    <div style={{ fontSize: 20, fontWeight: 600 }}>{formatMinutes(totalMinutes)}</div>
+                <h3 className="ana-section-title">全タスク合計の作業時間（日別）</h3>
+                <div className="ana-metric-row">
+                  <div className="ana-metric">
+                    <div className="ana-metric__label">累計</div>
+                    <div className="ana-metric__value ana-metric__value--large">
+                      {formatMinutes(totalMinutes)}
+                    </div>
                   </div>
-                  <div style={{ minWidth: 160 }}>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>直近7日平均</div>
-                    <div style={{ fontSize: 18 }}>{`${Math.round(avg7)} 分/日`}</div>
+                  <div className="ana-metric">
+                    <div className="ana-metric__label">直近7日平均</div>
+                    <div className="ana-metric__value">{`${Math.round(avg7)} 分/日`}</div>
                   </div>
-                  <div style={{ minWidth: 160 }}>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>直近30日平均</div>
-                    <div style={{ fontSize: 18 }}>{`${Math.round(avg30)} 分/日`}</div>
+                  <div className="ana-metric">
+                    <div className="ana-metric__label">直近30日平均</div>
+                    <div className="ana-metric__value">{`${Math.round(avg30)} 分/日`}</div>
                   </div>
                 </div>
-                <div style={{ width: "100%", height: 320 }}>
-                  <ResponsiveContainer>
-                    <LineChart data={totalSeries} margin={{ left: 16, right: 24, top: 12, bottom: 12 }}>
+                <div className="ana-chart">
+                  <ResponsiveContainer key={`total:${refreshTick}`}>
+                    <LineChart
+                      key={`total-chart:${refreshTick}`}
+                      data={totalSeries}
+                      margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
                         dataKey="date"
@@ -577,10 +402,12 @@ export default function Analytics() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h3 style={{ margin: "16px 0 4px", fontSize: 18 }}>タスク別の実績</h3>
+              <div className="ana-task-section">
+                <h3 className="ana-section-title ana-section-title--sub">タスク別の実績</h3>
                 {filteredTodos.length === 0 ? (
-                  <p style={{ color: "#64748b", margin: "8px 0" }}>該当するタスクがありません。</p>
+                  <p className="ana-text-muted ana-text-muted--spaced">
+                    該当するタスクがありません。
+                  </p>
                 ) : (
                   filteredTodos.map((task) => {
                     const {
@@ -595,118 +422,95 @@ export default function Analytics() {
                     const isExpanded = expandedIds.includes(todo.id);
                     const series = seriesCache[todo.id];
                     const displaySeries = series || buildTaskSeries(task.todo);
-                    const {
-                      riskText,
-                      badgeColors,
-                      riskBorderColor,
-                    } = resolveRiskDisplay(todo, displaySeries);
+                    const { riskKey, riskText } = resolveRiskDisplay(
+                      todo,
+                      displaySeries
+                    );
                     const deadlineText = deadlineAt
                       ? format(deadlineAt, "yyyy-MM-dd HH:mm")
                       : "—";
+                    const cardRiskKey = riskKey || "none";
+                    const todayBadgeClass = `ana-badge ana-badge--today${
+                      minutesToday > 0 ? " is-active" : ""
+                    }`;
                     return (
                       <div
                         key={todo.id}
-                        className="card"
-                        style={{
-                          padding: 16,
-                          border: "1px solid #e2e8f0",
-                          borderRadius: 12,
-                          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.08)",
-                          borderLeft: "6px solid",
-                          borderLeftColor: riskBorderColor,
-                        }}
+                        className={`card ana-card ana-card--risk-${cardRiskKey}`}
                       >
-                        <button
-                          type="button"
+                        <div
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleToggle(task)}
-                          style={{
-                            width: "100%",
-                            background: "none",
-                            border: "none",
-                            textAlign: "left",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 8,
-                            cursor: "pointer",
-                            padding: 0,
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              handleToggle(task);
+                            }
                           }}
+                          className="ana-card__toggle"
                         >
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <div style={{ fontSize: 16, fontWeight: 600, color: "#0f172a" }}>
+                          <div className="ana-card__head">
+                            <div className="ana-card__title" title={todo.text || "(名称未設定)"}>
                               {todo.text || "(名称未設定)"}
                               {labelInfo ? (
                                 <span
-                                  style={{
-                                    marginLeft: 8,
-                                    fontSize: 12,
-                                    padding: "2px 6px",
-                                    borderRadius: 999,
-                                    backgroundColor: labelInfo.color || "#e2e8f0",
-                                    color: "#0f172a",
-                                  }}
+                                  className="ana-label"
+                                  style={
+                                    labelInfo.color
+                                      ? { "--ana-label-bg": labelInfo.color }
+                                      : undefined
+                                  }
                                 >
                                   {labelInfo.name || labelInfo.text || "ラベル"}
                                 </span>
                               ) : null}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div className="ana-head__actions">
                               <span
+                                className={`ana-badge ana-badge--risk-${cardRiskKey}`}
                                 title="現在のリスク状況"
-                                style={{
-                                  fontSize: 12,
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  backgroundColor: badgeColors.bg,
-                                  color: badgeColors.fg,
-                                  border: `1px solid ${badgeColors.bd}`,
-                                  fontWeight: 600,
-                                  marginRight: 6,
-                                }}
                               >
                                 リスク: {riskText}
                               </span>
                               <span
-                                style={{
-                                  fontSize: 12,
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  backgroundColor: minutesToday > 0 ? "#dcfce7" : "#e2e8f0",
-                                  color: "#0f172a",
-                                  fontWeight: 600,
-                                }}
+                                className={todayBadgeClass}
                               >
                                 今日 {minutesToday}分
                               </span>
-                              <span
-                                style={{
-                                  transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                                  transition: "transform 0.2s",
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openLogEditorForTodo(todo);
                                 }}
+                                className="ana-btn ana-btn--outline"
+                              >
+                                📝ログ編集
+                              </button>
+                              <span
+                                className={`ana-toggle-icon${isExpanded ? " is-open" : ""}`}
+                                aria-hidden="true"
                               >
                                 ▶
                               </span>
                             </div>
                           </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, color: "#475569", fontSize: 13 }}>
+                          <div className="ana-summary">
                             <div>E: {estimated != null ? formatMinutes(estimated) : "—"}</div>
                             <div>A: {formatMinutes(actualTotal)}</div>
                             <div>進捗率: {formatProgress(progressRatio)}</div>
                             <div>締切: {deadlineText}</div>
                           </div>
-                        </button>
+                        </div>
                         {isExpanded && (
-                          <div style={{ marginTop: 16, width: "100%", height: 280 }}>
-                            <ResponsiveContainer>
-                              <ComposedChart
-                                data={displaySeries}
-                                margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
+                          <div className="ana-card__chart">
+                            <div className="ana-chart ana-chart--task">
+                              <ResponsiveContainer key={`${todo.id}:${refreshTick}`}>
+                                <ComposedChart
+                                  key={`${todo.id}:${refreshTick}:chart`}
+                                  data={displaySeries}
+                                  margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis
@@ -776,6 +580,7 @@ export default function Analytics() {
                                 />
                               </ComposedChart>
                             </ResponsiveContainer>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -787,6 +592,13 @@ export default function Analytics() {
           )}
         </section>
       </div>
+      <LogEditorModal
+        open={logEditorState.open}
+        onClose={closeLogEditor}
+        todo={logEditorState.todo}
+        defaultDate={logEditorState.date}
+        onSaved={handleLogSaved}
+      />
     </main>
   );
 }
