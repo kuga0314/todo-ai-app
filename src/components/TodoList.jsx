@@ -13,19 +13,10 @@ import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import { format } from "date-fns";
 import "./TodoList.css";
+import LogEditorModal from "./LogEditorModal";
+import { jstDateKey } from "../utils/logUpdates";
 
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
-
-// JSTの YYYY-MM-DD キー
-const jstDateKey = () => {
-  const f = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return f.format(new Date());
-};
 
 function percent(n) {
   if (!Number.isFinite(n)) return "—";
@@ -47,6 +38,7 @@ export default function TodoList({
   const [progressMax, setProgressMax] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
   const [riskModeFilter, setRiskModeFilter] = useState("all");
+  const [editorState, setEditorState] = useState({ open: false, todo: null, date: null });
   void notificationMode;
 
   const handleChange = (id, v) => setInputs((m) => ({ ...m, [id]: v }));
@@ -75,6 +67,15 @@ export default function TodoList({
       console.error("add actual minutes failed", e);
       alert("実績の保存に失敗しました。通信環境を確認してください。");
     }
+  };
+
+  const openLogEditor = (todo, dateKey = jstDateKey()) => {
+    if (!todo) return;
+    setEditorState({ open: true, todo, date: dateKey });
+  };
+
+  const closeLogEditor = () => {
+    setEditorState({ open: false, todo: null, date: null });
   };
 
   const toggleComplete = async (todo) => {
@@ -507,6 +508,14 @@ export default function TodoList({
                     >
                       追加
                     </button>
+                    <button
+                      type="button"
+                      className="btn-mini"
+                      style={{ marginLeft: 6 }}
+                      onClick={() => openLogEditor(todo)}
+                    >
+                      📝ログ編集
+                    </button>
                   </div>
                 </div>
               </div>
@@ -526,6 +535,13 @@ export default function TodoList({
       {sortedTodos.length === 0 && (
         <p style={{ padding: 12, color: "#666" }}>タスクはまだありません。</p>
       )}
+
+      <LogEditorModal
+        open={editorState.open}
+        onClose={closeLogEditor}
+        todo={editorState.todo}
+        defaultDate={editorState.date}
+      />
     </div>
   );
 }
