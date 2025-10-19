@@ -31,6 +31,7 @@ import TodoCalendar from "./components/TodoCalendar";
 import Settings from "./components/Settings";
 import BottomNav from "./components/BottomNav";
 import AllTasksPage from "./pages/AllTasksPage";
+import Analytics from "./pages/Analytics";
 import DailyPlan from "./components/DailyPlan";
 import ProgressEntry from "./pages/ProgressEntry";
 import "./App.css";
@@ -258,6 +259,9 @@ const AppWithRouter = ({ logout, user }) => {
               />
             }
           />
+
+          {/* 分析 */}
+          <Route path="analytics" element={<Analytics />} />
 
           {/* 設定 */}
           <Route
