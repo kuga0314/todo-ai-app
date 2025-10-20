@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
+import VersionInfo from "./VersionInfo";
 
 /**
  * 設定ページ
@@ -317,6 +318,8 @@ export default function Settings() {
           </ul>
         )}
       </section>
+
+      <VersionInfo />
     </div>
   );
 }

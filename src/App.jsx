@@ -34,6 +34,8 @@ import AllTasksPage from "./pages/AllTasksPage";
 import Analytics from "./pages/Analytics";
 import DailyPlan from "./components/DailyPlan";
 import ProgressEntry from "./pages/ProgressEntry";
+import VersionBadge from "./components/VersionBadge";
+import ChangelogModal from "./components/ChangelogModal";
 import "./App.css";
 
 function App() {
@@ -68,32 +70,38 @@ const HelpPage = () => {
 };
 
 /* 共通レイアウト */
-const Layout = ({ logout }) => (
-  <>
-    <header className="app-header">
-      <div className="container hdr-inner">
-        <h1 className="brand">ToDoリスト</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Link
-            to="/help"
-            className="btn btn-ghost"
-            title="進捗指標の説明"
-            aria-label="ヘルプ"
-            style={{ fontSize: "18px" }}
-          >
-            ❓
-          </Link>
-          <button onClick={logout} className="btn btn-outline">
-            ログアウト
-          </button>
-        </div>
-      </div>
-    </header>
+const Layout = ({ logout }) => {
+  const [showChangelog, setShowChangelog] = useState(false);
 
-    <Outlet />
-    <BottomNav />
-  </>
-);
+  return (
+    <>
+      <header className="app-header">
+        <div className="container hdr-inner">
+          <h1 className="brand">ToDoリスト</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Link
+              to="/help"
+              className="btn btn-ghost"
+              title="進捗指標の説明"
+              aria-label="ヘルプ"
+              style={{ fontSize: "18px" }}
+            >
+              ❓
+            </Link>
+            <VersionBadge onClick={() => setShowChangelog(true)} />
+            <button onClick={logout} className="btn btn-outline">
+              ログアウト
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <Outlet />
+      <BottomNav />
+      <ChangelogModal open={showChangelog} onClose={() => setShowChangelog(false)} />
+    </>
+  );
+};
 
 const AppWithRouter = ({ logout, user }) => {
   useFcm();
