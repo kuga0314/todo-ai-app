@@ -8,7 +8,10 @@
     "prebuild": "node scripts/write-build-meta.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "export:logins": "node firestore-export/export-logins.js --out ./_out",
+    "export:logins:user": "node firestore-export/export-logins.js --user YOUR_UID --out ./_out",
+    "export:logins:month": "node firestore-export/export-logins.js --from 2025-10-01 --to 2025-10-31 --out ./_out"
   },
   "dependencies": {
     "date-fns": "^4.1.0",
