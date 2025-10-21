@@ -1,6 +1,6 @@
 const CHANGELOG = [
   {
-    version: "1.1.0",
+    version: "1.1.1",
     date: "2025-10-21",
     title: "バージョン管理UIの導入",
     items: [
@@ -17,3 +17,10 @@ const CHANGELOG = [
 ];
 
 export default CHANGELOG;
+//バージョンを変える場合の手順
+//このファイルにバージョンの履歴を追記
+//git status
+//git add
+//git commit -m "ver x.x.x 変更内容"
+//git push origin main
+//git tag -a ver1.1.0 -m "feat(analytics): 内容　verのあとに空白を入れない"
