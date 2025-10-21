@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,9 +26,30 @@ function runGitCommand(command) {
   }
 }
 
-function buildMetadata() {
+async function readLatestChangelogVersion() {
+  const changelogPath = path.join(rootDir, "src", "changelog.js");
+
+  try {
+    const changelogModule = await import(pathToFileURL(changelogPath).href);
+    const changelog = changelogModule?.default;
+
+    if (Array.isArray(changelog) && changelog.length > 0) {
+      const latestEntry = changelog[0];
+      if (latestEntry?.version) {
+        return latestEntry.version;
+      }
+    }
+  } catch (error) {
+    console.warn("[build-meta] failed to load changelog version", error);
+  }
+
+  return null;
+}
+
+async function buildMetadata() {
   const pkg = readPackageJson();
-  const version = pkg?.version || "dev";
+  const changelogVersion = await readLatestChangelogVersion();
+  const version = changelogVersion || pkg?.version || "dev";
   const commit = runGitCommand("git rev-parse --short HEAD");
   const branch = runGitCommand("git rev-parse --abbrev-ref HEAD");
   const builtAt = new Date().toISOString();
@@ -54,9 +75,14 @@ function writeMetadataFile(meta) {
   console.log(`ℹ️  build-meta.json generated at ${outputPath}`);
 }
 
-function main() {
-  const meta = buildMetadata();
+async function main() {
+  const meta = await buildMetadata();
   writeMetadataFile(meta);
 }
 
-main();
+try {
+  await main();
+} catch (error) {
+  console.error("❌ Failed to generate build metadata", error);
+  process.exit(1);
+}

@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
+import CHANGELOG from "../changelog";
+
+const fallbackVersion =
+  Array.isArray(CHANGELOG) && CHANGELOG.length > 0
+    ? CHANGELOG[0]?.version || "dev"
+    : "dev";
 
 const createDefaultMeta = () => ({
-  version: "dev",
+  version: fallbackVersion,
   commit: "dev",
   branch: "dev",
   builtAt: new Date().toISOString(),
@@ -23,7 +29,7 @@ export default function useBuildMeta() {
         const data = await res.json();
         if (!cancelled && data) {
           setMeta({
-            version: data.version || "dev",
+            version: data.version || fallbackVersion,
             commit: data.commit || "dev",
             branch: data.branch || "dev",
             builtAt: data.builtAt || new Date().toISOString(),
