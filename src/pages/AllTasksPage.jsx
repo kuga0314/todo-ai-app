@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import TodoList from "../components/TodoList";
 
 export default function AllTasksPage({
@@ -6,24 +6,24 @@ export default function AllTasksPage({
   notificationMode = "justInTime",
   onToggleDailyProgress,
 }) {
-  // 未完了のみフィルター（ローカル保存）
   const [incompleteOnly, setIncompleteOnly] = useState(() => {
-    return localStorage.getItem("tasks_filter_incomplete") === "1";
+    const stored = localStorage.getItem("showIncompleteOnly");
+    return stored === null ? true : stored === "true";
   });
+
   useEffect(() => {
-    localStorage.setItem("tasks_filter_incomplete", incompleteOnly ? "1" : "0");
+    localStorage.setItem("showIncompleteOnly", String(incompleteOnly));
   }, [incompleteOnly]);
 
-  // 表示用にフィルタリングしてから TodoList へ渡す
-  const displayed = useMemo(() => {
+  const { visibleTodos, totalCount, incompleteCount } = useMemo(() => {
     const list = Array.isArray(todos) ? todos : [];
-    return incompleteOnly ? list.filter((t) => !t?.completed) : list;
+    const incomplete = list.filter((item) => !item?.completed);
+    return {
+      visibleTodos: incompleteOnly ? incomplete : list,
+      totalCount: list.length,
+      incompleteCount: incomplete.length,
+    };
   }, [todos, incompleteOnly]);
-
-  const total = Array.isArray(todos) ? todos.length : 0;
-  const remaining = Array.isArray(todos)
-    ? todos.filter((t) => !t?.completed).length
-    : 0;
 
   return (
     <main className="app-main">
@@ -53,35 +53,37 @@ export default function AllTasksPage({
                 追加はホーム（カレンダー画面）の「＋」から行ってください。
               </p>
             </div>
+          </header>
 
-            {/* ← 未完了のみトグル */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              margin: "0 0 12px",
+            }}
+          >
             <label
-              title="完了していないタスクだけを表示"
               style={{
-                userSelect: "none",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 8,
                 fontSize: 14,
-                border: "1px solid #e5e7eb",
-                padding: "6px 10px",
-                borderRadius: 10,
-                background: "#fff",
-                whiteSpace: "nowrap",
+                userSelect: "none",
               }}
             >
               <input
                 type="checkbox"
                 checked={incompleteOnly}
-                onChange={(e) => setIncompleteOnly(e.target.checked)}
+                onChange={(event) => setIncompleteOnly(event.target.checked)}
               />
-              未完了のみ（{remaining}/{total}）
+              未完タスクのみ表示（{incompleteCount}/{totalCount}）
             </label>
-          </header>
+          </div>
 
           {/* ===== スクロール対象を TodoList 側に移動 ===== */}
           <TodoList
-            todos={displayed}
+            todos={visibleTodos}
             mode="all"
             notificationMode={notificationMode}
             onToggleDailyProgress={onToggleDailyProgress}

@@ -29,14 +29,10 @@ import "./Analytics.css";
 export default function Analytics() {
   const { user } = useAuth();
   const [refreshTick, setRefreshTick] = useState(0);
-  const {
-    loading,
-    noData,
-    todos,
-    labels,
-    dateRange,
-    totalSeries,
-  } = useAnalyticsData(user?.uid, refreshTick);
+  const { loading, noData, todos: rawTodos, labels, dateRange } = useAnalyticsData(
+    user?.uid,
+    refreshTick
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [labelFilter, setLabelFilter] = useState("all");
   const [expandedIds, setExpandedIds] = useState([]);
@@ -47,6 +43,14 @@ export default function Analytics() {
     todo: null,
     date: null,
   });
+  const [incompleteOnly, setIncompleteOnly] = useState(() => {
+    const stored = localStorage.getItem("showIncompleteOnly");
+    return stored === null ? true : stored === "true";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("showIncompleteOnly", String(incompleteOnly));
+  }, [incompleteOnly]);
 
   function handleLogSaved(payload) {
     setRefreshTick((t) => t + 1);
@@ -84,8 +88,32 @@ export default function Analytics() {
     return refreshTick ? new Map(map) : map;
   }, [labels, refreshTick]);
 
+  const baseTodos = useMemo(() => {
+    const list = Array.isArray(rawTodos) ? rawTodos : [];
+    return incompleteOnly ? list.filter((todo) => !todo?.completed) : list;
+  }, [rawTodos, incompleteOnly]);
+
+  const totalSeries = useMemo(() => {
+    if (!dateRange.length) return [];
+    const totalsMap = new Map(dateRange.map((date) => [date, 0]));
+
+    baseTodos.forEach((todo) => {
+      Object.entries(todo.actualLogs || {}).forEach(([key, value]) => {
+        if (!totalsMap.has(key)) return;
+        const minutes = Number(value);
+        if (!Number.isFinite(minutes)) return;
+        totalsMap.set(key, (totalsMap.get(key) || 0) + minutes);
+      });
+    });
+
+    return dateRange.map((date) => ({
+      date,
+      minutes: totalsMap.get(date) || 0,
+    }));
+  }, [baseTodos, dateRange]);
+
   const decoratedTodos = useMemo(() => {
-    const result = todos.map((todo) => {
+    const result = baseTodos.map((todo) => {
       const estimated = toNumberOrNull(todo.estimatedMinutes);
       const actualTotal = Object.values(todo.actualLogs || {}).reduce(
         (sum, value) => sum + (Number(value) || 0),
@@ -117,7 +145,7 @@ export default function Analytics() {
       };
     });
     return refreshTick ? [...result] : result;
-  }, [todos, labelMap, todayKey, refreshTick]);
+  }, [baseTodos, labelMap, todayKey, refreshTick]);
 
   const sortedTodos = useMemo(() => {
     if (!decoratedTodos.length) return [];
@@ -319,20 +347,36 @@ export default function Analytics() {
           ) : noData || !dateRange.length ? (
             <p className="ana-text-muted">データがありません</p>
           ) : (
-            <div className="ana-content">
-              <div className="ana-filters">
-                <input
-                  type="search"
-                  placeholder="タスク名で検索"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  className="ana-input"
-                />
-                {labels.length > 0 && (
-                  <select
-                    value={labelFilter}
-                    onChange={(event) => setLabelFilter(event.target.value)}
-                    className="ana-select"
+              <div className="ana-content">
+                <div className="ana-filters">
+                  <input
+                    type="search"
+                    placeholder="タスク名で検索"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="ana-input"
+                  />
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 14,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={incompleteOnly}
+                      onChange={(event) => setIncompleteOnly(event.target.checked)}
+                    />
+                    未完タスクのみ表示
+                  </label>
+                  {labels.length > 0 && (
+                    <select
+                      value={labelFilter}
+                      onChange={(event) => setLabelFilter(event.target.value)}
+                      className="ana-select"
                   >
                     <option value="all">すべてのラベル</option>
                     {labels.map((label) => (
