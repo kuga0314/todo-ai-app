@@ -30,7 +30,6 @@ export default function TodoList({
 }) {
   const { user } = useAuth();
   const [inputs, setInputs] = useState({});
-  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState("deadlineAsc");
   const [remainingMin, setRemainingMin] = useState("");
   const [remainingMax, setRemainingMax] = useState("");
@@ -171,7 +170,6 @@ export default function TodoList({
   });
 
   const filteredTodos = decoratedTodos.filter((item) => {
-    if (showIncompleteOnly && item.todo.completed) return false;
     const { remainingMinutes, progressRatio, riskLevel, riskMode } = item;
 
     if (remainingMin && remainingMinutes < Number(remainingMin)) return false;
@@ -216,7 +214,6 @@ export default function TodoList({
   });
 
   const resetFilters = () => {
-    setShowIncompleteOnly(false);
     setSortOrder("deadlineAsc");
     setRemainingMin("");
     setRemainingMax("");
@@ -249,17 +246,6 @@ export default function TodoList({
         }}
       >
         <div className="list-controls">
-          <label className="switch" htmlFor="toggleIncomplete">
-            <input
-              id="toggleIncomplete"
-              type="checkbox"
-              checked={showIncompleteOnly}
-              onChange={(e) => setShowIncompleteOnly(e.target.checked)}
-            />
-            <span className="switch-track" />
-            <span className="switch-label">未完タスクのみ表示</span>
-          </label>
-
           <div className="filter-row">
             <div className="filter-group">
               <label htmlFor="sortOrder">並び替え</label>

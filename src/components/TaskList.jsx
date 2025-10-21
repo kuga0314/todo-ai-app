@@ -42,10 +42,11 @@ export default function TodoList({
 
   // ▼ 未完了フィルター：ローカル保存して復元
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(() => {
-    return localStorage.getItem("tasks_filter_incomplete") === "1";
+    const stored = localStorage.getItem("showIncompleteOnly");
+    return stored === null ? true : stored === "true";
   });
   useEffect(() => {
-    localStorage.setItem("tasks_filter_incomplete", showIncompleteOnly ? "1" : "0");
+    localStorage.setItem("showIncompleteOnly", String(showIncompleteOnly));
   }, [showIncompleteOnly]);
 
   const [sortOrder, setSortOrder] = useState("deadlineAsc");
@@ -258,7 +259,7 @@ export default function TodoList({
   });
 
   const resetFilters = () => {
-    setShowIncompleteOnly(false);
+    setShowIncompleteOnly(true);
     setSortOrder("deadlineAsc");
     setRemainingMin("");
     setRemainingMax("");
