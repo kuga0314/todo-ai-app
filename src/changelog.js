@@ -1,6 +1,6 @@
 const CHANGELOG = [
   {
-    version: "1.1.1",
+    version: "1.1.2",
     date: "2025-10-21",
     title: "バージョン管理UIの導入",
     items: [

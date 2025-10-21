@@ -70,7 +70,7 @@ const HelpPage = () => {
 };
 
 /* 共通レイアウト */
-const Layout = ({ logout }) => {
+const Layout = ({ logout, loginCount }) => {
   const [showChangelog, setShowChangelog] = useState(false);
 
   return (
@@ -79,6 +79,21 @@ const Layout = ({ logout }) => {
         <div className="container hdr-inner">
           <h1 className="brand">ToDoリスト</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {typeof loginCount === "number" && (
+              <span
+                title="累計ログイン回数"
+                style={{
+                  backgroundColor: "#eef2ff",
+                  color: "#1e40af",
+                  padding: "4px 10px",
+                  borderRadius: "999px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                ログイン {loginCount}回
+              </span>
+            )}
             <Link
               to="/help"
               className="btn btn-ghost"
@@ -109,12 +124,84 @@ const AppWithRouter = ({ logout, user }) => {
   const [notificationMode, setNotificationMode] = useState("justInTime");
   const [dailyPlans, setDailyPlans] = useState([]);
   const [srcParam, setSrcParam] = useState(null);
+  const [loginCount, setLoginCount] = useState(null);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const initialSrc = searchParams.get("src");
     setSrcParam(initialSrc);
   }, []);
+
+  // ✅ ログイン回数の加算とログ記録
+  useEffect(() => {
+    if (!user?.uid) {
+      return;
+    }
+
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    const guardKey = `loginIncGuard:${user.uid}`;
+    const now = Date.now();
+
+    if (storage) {
+      const lastRaw = storage.getItem(guardKey);
+      const last = Number(lastRaw);
+      if (Number.isFinite(last) && now - last < 10 * 60 * 1000) {
+        return;
+      }
+    }
+
+    const record = async () => {
+      try {
+        if (storage) {
+          storage.setItem(guardKey, String(now));
+        }
+
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(
+          userRef,
+          {
+            loginCount: increment(1),
+            lastLoginAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        await addDoc(collection(db, "users", user.uid, "logins"), {
+          createdAt: serverTimestamp(),
+          agent: typeof window !== "undefined" ? window.navigator?.userAgent || "" : "",
+          source: "web",
+        });
+      } catch (error) {
+        console.error("failed to record login event", error);
+        if (storage) {
+          storage.removeItem(guardKey);
+        }
+      }
+    };
+
+    record();
+  }, [user?.uid]);
+
+  // ✅ ログイン回数の購読
+  useEffect(() => {
+    if (!user?.uid) {
+      setLoginCount(null);
+      return;
+    }
+
+    const ref = doc(db, "users", user.uid);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) {
+        setLoginCount(null);
+        return;
+      }
+
+      const value = snap.data()?.loginCount;
+      setLoginCount(typeof value === "number" ? value : null);
+    });
+
+    return () => unsub();
+  }, [user?.uid]);
 
   // ✅ 通知リンク開封ログを記録する useEffect
   useEffect(() => {
@@ -222,7 +309,7 @@ const AppWithRouter = ({ logout, user }) => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout logout={logout} />}>
+        <Route element={<Layout logout={logout} loginCount={loginCount} />}>
           {/* ホーム */}
           <Route
             index
