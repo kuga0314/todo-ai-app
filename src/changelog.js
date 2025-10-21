@@ -20,6 +20,7 @@ const CHANGELOG = [
 export default CHANGELOG;
 //バージョンを変える場合の手順
 //このファイルにバージョンの履歴を追記
+//package.jsonのバージョンを最新に変更
 //git status
 //git add
 //git commit -m "ver x.x.x 変更内容"
