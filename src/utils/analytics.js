@@ -59,6 +59,22 @@ export const formatProgress = (ratio) => {
   return `${Math.round(Math.max(0, ratio) * 100)}%`;
 };
 
+const toDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value.toDate === "function") {
+    const converted = value.toDate();
+    return converted instanceof Date && !Number.isNaN(converted.getTime())
+      ? converted
+      : null;
+  }
+  if (typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export const resolveRiskDisplay = (todo, series) => {
   const normalizeRisk = (value) => {
     if (!value) return null;
@@ -73,6 +89,11 @@ export const resolveRiskDisplay = (todo, series) => {
 
   const risk = normalizeRisk(todo.riskLevel);
 
+  const deadline = toDate(todo.deadline);
+  const now = new Date();
+  const deadlinePassed =
+    !!deadline && !todo?.completed && now.getTime() > deadline.getTime();
+
   let fallback = null;
   if (!risk) {
     const lastPoint = Array.isArray(series) && series.length ? series[series.length - 1] : null;
@@ -84,7 +105,7 @@ export const resolveRiskDisplay = (todo, series) => {
     }
   }
 
-  const effective = risk ?? fallback ?? null;
+  const effective = deadlinePassed ? "late" : risk ?? fallback ?? null;
 
   const riskKey = effective ?? "none";
 
