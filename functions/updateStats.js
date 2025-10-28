@@ -170,20 +170,27 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
   const actualProgressRounded =
     actualProgress != null ? round2(actualProgress) : null;
 
-  // 既存の riskLevel ロジック（互換維持）
+  // 既存の riskLevel ロジック（締切超過を最優先で late）
   const spi = spi7d; // 既存フィールド名に合わせて採用
   let riskLevel = "ok";
   if (R > 0 && deadline) {
+    const now = new Date();
+    const deadlinePassed = now.getTime() > deadline.getTime();
     const eacDt = eacDate ? keyToDate(eacDate) : null;
-    const isLate = eacDt && eacDt.getTime() > deadline.getTime();
+    const isLateByEac = eacDt && eacDt.getTime() > deadline.getTime();
 
-    if (workedDays < 3) {
-      // ウォームアップ中：late は出さず warn に留める
-      riskLevel = spi < 0.9 || isLate ? "warn" : "ok";
+    if (deadlinePassed) {
+      // ⬅︎ 締切を越えているなら問答無用で遅延
+      riskLevel = "late";
+    } else if (isLateByEac) {
+      riskLevel = "late";
     } else {
-      if (isLate) riskLevel = "late";
-      else if (spi < 0.9) riskLevel = "warn";
-      else riskLevel = "ok";
+      // 既存のSPIしきい値ロジック（ウォームアップ緩和は維持）
+      if (workedDays < 3) {
+        riskLevel = spi < 0.9 ? "warn" : "ok";
+      } else {
+        riskLevel = spi < 0.9 ? "warn" : "ok";
+      }
     }
   }
 
