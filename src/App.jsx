@@ -77,7 +77,7 @@ const Layout = ({ logout, loginCount }) => {
     <>
       <header className="app-header">
         <div className="container hdr-inner">
-          <h1 className="brand">ToDoリスト</h1>
+          <h1 className="brand">進捗マネジメントアプリ</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {typeof loginCount === "number" && (
               <span
