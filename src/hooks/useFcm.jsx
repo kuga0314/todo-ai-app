@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { arrayUnion, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, messagingPromise } from "../firebase/firebaseConfig";
 import { getToken } from "firebase/messaging";
 import { useAuth } from "./useAuth";
@@ -47,7 +47,7 @@ export const useFcm = () => {
         if (localStorage.getItem(LS) !== token) {
           await setDoc(
             doc(db, "users", user.uid),
-            { fcmToken: token, fcmUpdatedAt: serverTimestamp() },
+            { fcmTokens: arrayUnion(token), fcmUpdatedAt: serverTimestamp() },
             { merge: true }
           );
           localStorage.setItem(LS, token);

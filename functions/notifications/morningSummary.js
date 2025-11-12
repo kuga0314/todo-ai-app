@@ -1,6 +1,7 @@
 /* eslint-env node */
 
 const admin = require("firebase-admin");
+const { extractFcmTokens, isInvalidFcmTokenError, removeFcmToken } = require("../fcmTokens");
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
@@ -50,8 +51,8 @@ async function dispatchMorningSummaries() {
   for (const doc of usersSnap.docs) {
     const uid = doc.id;
     const data = doc.data() || {};
-    const token = data.fcmToken;
-    if (!token) continue;
+    const tokens = extractFcmTokens(data);
+    if (!tokens.length) continue;
 
     const notifSnap = await db.doc(`users/${uid}/settings/notification`).get();
     if (!notifSnap.exists) continue;
@@ -74,41 +75,57 @@ async function dispatchMorningSummaries() {
     const body = buildSummaryBody(assignments, plan.totalMinutes || 0);
     const title = "今日の学習プラン";
 
-    try {
-      await messaging.send({
-        token,
-        notification: {
-          title,
-          body,
-        },
-        data: {
-          type: "morningSummary",
-          date: todayKey,
-          totalMinutes: String(plan.totalMinutes || 0),
-        },
-      });
+    let delivered = false;
+    const payloadBase = {
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        type: "morningSummary",
+        date: todayKey,
+        totalMinutes: String(plan.totalMinutes || 0),
+      },
+    };
 
-      await planRef.set({
-        lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastSentDate: todayKey,
-      }, { merge: true });
-
-      // 通知に含まれた todo へフラグ反映
-      const todoIds = [...new Set(assignments.map((a) => a.todoId).filter(Boolean))];
-      if (todoIds.length) {
-        const batch = db.batch();
-        const sentAt = admin.firestore.FieldValue.serverTimestamp();
-        todoIds.forEach((todoId) => {
-          batch.set(db.doc(`todos/${todoId}`), {
-            morningSummaryNotified: true,
-            morningSummaryLastDate: todayKey,
-            morningSummaryNotifiedAt: sentAt,
-          }, { merge: true });
-        });
-        await batch.commit();
+    for (const token of tokens) {
+      try {
+        await messaging.send({ ...payloadBase, token });
+        delivered = true;
+      } catch (error) {
+        console.error("morning summary send failed", uid, error);
+        if (isInvalidFcmTokenError(error)) {
+          await removeFcmToken({
+            db,
+            FieldValue: admin.firestore.FieldValue,
+            uid,
+            token,
+            removeLegacy: data.fcmToken === token,
+          });
+        }
       }
-    } catch (error) {
-      console.error("morning summary send failed", uid, error);
+    }
+
+    if (!delivered) continue;
+
+    await planRef.set({
+      lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSentDate: todayKey,
+    }, { merge: true });
+
+    // 通知に含まれた todo へフラグ反映
+    const todoIds = [...new Set(assignments.map((a) => a.todoId).filter(Boolean))];
+    if (todoIds.length) {
+      const batch = db.batch();
+      const sentAt = admin.firestore.FieldValue.serverTimestamp();
+      todoIds.forEach((todoId) => {
+        batch.set(db.doc(`todos/${todoId}`), {
+          morningSummaryNotified: true,
+          morningSummaryLastDate: todayKey,
+          morningSummaryNotifiedAt: sentAt,
+        }, { merge: true });
+      });
+      await batch.commit();
     }
   }
 }

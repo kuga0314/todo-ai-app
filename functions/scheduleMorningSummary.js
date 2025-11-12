@@ -2,6 +2,7 @@
 /* global Intl */
 const admin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { extractFcmTokens, isInvalidFcmTokenError, removeFcmToken } = require("./fcmTokens");
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
@@ -148,24 +149,42 @@ exports.scheduleMorningSummary = onSchedule("every 1 minutes", async () => {
 
   for (const u of users.docs) {
     const uid = u.id;
+    const data = u.data() || {};
     const sSnap = await db.doc(`users/${uid}/settings/notification`).get();
     if (!sSnap.exists) continue;
     const s = sSnap.data() || {};
     if (!s.morningSummaryTime || s.morningSummaryTime !== hhmm) continue;
 
-    const token = (u.data() || {}).fcmToken;
-    if (!token) continue;
+    const tokens = extractFcmTokens(data);
+    if (!tokens.length) continue;
 
     const { title, body, dateKey } = await buildMorningBody(uid);
-    const payload = {
-      token,
-      notification: { title, body },
-      data: { type: "morning_summary", link: "/?src=morning" },
-    };
+    const sendPromise = (async () => {
+      let delivered = false;
+      const payloadBase = {
+        notification: { title, body },
+        data: { type: "morning_summary", link: "/?src=morning" },
+      };
 
-    const sendPromise = msg
-      .send(payload)
-      .then(async () => {
+      for (const token of tokens) {
+        try {
+          await msg.send({ ...payloadBase, token });
+          delivered = true;
+        } catch (err) {
+          console.error("FCM send failed", uid, err);
+          if (isInvalidFcmTokenError(err)) {
+            await removeFcmToken({
+              db,
+              FieldValue: admin.firestore.FieldValue,
+              uid,
+              token,
+              removeLegacy: data.fcmToken === token,
+            });
+          }
+        }
+      }
+
+      if (delivered) {
         try {
           const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
           await metricsRef.set(
@@ -183,10 +202,8 @@ exports.scheduleMorningSummary = onSchedule("every 1 minutes", async () => {
             error: logErr,
           });
         }
-      })
-      .catch((err) => {
-        console.error("FCM send failed", uid, err);
-      });
+      }
+    })();
 
     ops.push(sendPromise);
   }

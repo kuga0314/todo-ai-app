@@ -3,6 +3,7 @@
 
 const admin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { extractFcmTokens, isInvalidFcmTokenError, removeFcmToken } = require("./fcmTokens");
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
@@ -72,6 +73,7 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
 
   for (const userDoc of usersSnap.docs) {
     const uid = userDoc.id;
+    const data = userDoc.data() || {};
 
     // 通知設定を取得
     const sSnap = await db.doc(`users/${uid}/settings/notification`).get();
@@ -80,9 +82,9 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
     if (!s.progressReminderTime || s.progressReminderTime !== hhmm) continue;
 
     // トークン取得（なければスキップ）
-    const token = (userDoc.data() || {}).fcmToken;
-    if (!token) {
-      console.warn("No fcmToken; skip progress reminder.", { uid, hhmm });
+    const tokens = extractFcmTokens(data);
+    if (!tokens.length) {
+      console.warn("No FCM tokens; skip progress reminder.", { uid, hhmm });
       continue;
     }
 
@@ -90,23 +92,39 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
     const summary = await buildTodaySummary(uid, dateKey);
 
     // 通知ペイロード
-    const payload = {
-      token,
-      notification: {
-        title: "日次進捗リマインド",
-        body: summary.body,
-      },
-      data: {
-        link: "/progress?src=progress", // ← App.jsx側でsrcを拾って記録する
-        type: "progress_reminder",
-        dateKey,
-      },
-    };
+    const sendPromise = (async () => {
+      let delivered = false;
+      const payloadBase = {
+        notification: {
+          title: "日次進捗リマインド",
+          body: summary.body,
+        },
+        data: {
+          link: "/progress?src=progress", // ← App.jsx側でsrcを拾って記録する
+          type: "progress_reminder",
+          dateKey,
+        },
+      };
 
-    // 通知送信 & 送信ログ記録
-    const sendPromise = msg
-      .send(payload)
-      .then(async () => {
+      for (const token of tokens) {
+        try {
+          await msg.send({ ...payloadBase, token });
+          delivered = true;
+        } catch (err) {
+          console.error("FCM send failed", uid, err);
+          if (isInvalidFcmTokenError(err)) {
+            await removeFcmToken({
+              db,
+              FieldValue: admin.firestore.FieldValue,
+              uid,
+              token,
+              removeLegacy: data.fcmToken === token,
+            });
+          }
+        }
+      }
+
+      if (delivered) {
         try {
           const metricsRef = db.doc(`users/${uid}/metrics/${dateKey}`);
           await metricsRef.set(
@@ -124,10 +142,8 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
             error: logErr,
           });
         }
-      })
-      .catch((err) => {
-        console.error("FCM send failed", uid, err);
-      });
+      }
+    })();
 
     sendOps.push(sendPromise);
   }
