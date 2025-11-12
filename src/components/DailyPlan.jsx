@@ -175,16 +175,29 @@ export default function DailyPlan() {
 
   const plan = useMemo(() => selectTodayPlan(todos, appSettings), [todos, appSettings]);
 
+  const planTodayMinutesMap = useMemo(() => {
+    const map = new Map();
+    (plan?.items || []).forEach((item) => {
+      const minutes = Number(item.todayMinutes) || 0;
+      if (minutes > 0) {
+        map.set(item.id, Math.round(minutes));
+      }
+    });
+    return map;
+  }, [plan?.items]);
+
   const { chartData, totals: chartTotals } = useMemo(() => {
     const rows = (todos || [])
       .map((t) => {
         const assigned = Number(t?.assigned?.[dateKey]) || 0;
+        const fallbackAssigned = planTodayMinutesMap.get(t.id) || 0;
+        const plannedMinutes = assigned > 0 ? assigned : fallbackAssigned;
         const actual = Number(t?.actualLogs?.[dateKey]) || 0;
-        if (assigned <= 0 && actual <= 0) return null;
+        if (plannedMinutes <= 0 && actual <= 0) return null;
         return {
           id: t.id,
           name: t.text || "（無題）",
-          planned: Math.round(assigned),
+          planned: Math.round(plannedMinutes),
           actual: Math.round(actual),
         };
       })
@@ -205,7 +218,7 @@ export default function DailyPlan() {
         hasData: rows.length > 0,
       },
     };
-  }, [todos, dateKey]);
+  }, [todos, dateKey, planTodayMinutesMap]);
 
   const chartDataWithSummary = useMemo(() => {
     if (!chartTotals.hasData) return [];
