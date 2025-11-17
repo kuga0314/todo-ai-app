@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import "./TodoList.css";
 import LogEditorModal from "./LogEditorModal";
 import { jstDateKey } from "../utils/logUpdates";
+import { resolveRiskDisplay } from "../utils/analytics";
 
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
 
@@ -151,8 +152,8 @@ export default function TodoList({
     const spiNum = Number(todo.spi);
     const spiText = Number.isFinite(spiNum) ? spiNum.toFixed(2) : "—";
     const eacText = todo.eacDate ?? "—";
-    const riskLevel = todo.riskLevel ?? null;
     const riskMode = todo.riskMode ?? null;
+    const { riskKey, riskText } = resolveRiskDisplay(todo);
 
     return {
       todo,
@@ -164,13 +165,14 @@ export default function TodoList({
       requiredPerDay,
       spiText,
       eacText,
-      riskLevel,
+      riskKey,
+      riskText,
       riskMode,
     };
   });
 
   const filteredTodos = decoratedTodos.filter((item) => {
-    const { remainingMinutes, progressRatio, riskLevel, riskMode } = item;
+    const { remainingMinutes, progressRatio, riskKey, riskMode } = item;
 
     if (remainingMin && remainingMinutes < Number(remainingMin)) return false;
     if (remainingMax && remainingMinutes > Number(remainingMax)) return false;
@@ -178,9 +180,7 @@ export default function TodoList({
     if (progressMin && progressRatio < Number(progressMin) / 100) return false;
     if (progressMax && progressRatio > Number(progressMax) / 100) return false;
 
-    if (riskFilter === "none" && riskLevel) return false;
-    if (riskFilter !== "all" && riskFilter !== "none" && riskFilter !== riskLevel)
-      return false;
+    if (riskFilter !== "all" && riskFilter !== (riskKey ?? "none")) return false;
 
     if (riskModeFilter === "none" && riskMode) return false;
     if (
@@ -360,16 +360,16 @@ export default function TodoList({
             requiredPerDay,
             spiText,
             eacText,
-            riskLevel,
+            riskKey,
+            riskText,
           } = item;
 
-          const risk = riskLevel;
           const borderColor =
-            risk === "late"
+            riskKey === "late"
               ? "#ef4444"
-              : risk === "warn"
+              : riskKey === "warn"
               ? "#f59e0b"
-              : risk === "ok"
+              : riskKey === "ok"
               ? "#10b981"
               : "#cbd5e1";
 
@@ -453,17 +453,8 @@ export default function TodoList({
 
                     <span className="spacer" />
                     <span className="meta-label">リスク:</span>
-                    <span
-                      className="meta-value"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {risk === "late"
-                        ? "🔴 遅延"
-                        : risk === "warn"
-                        ? "🟡 注意"
-                        : risk === "ok"
-                        ? "🟢 良好"
-                        : "—"}
+                    <span className="meta-value" style={{ fontWeight: 600 }}>
+                      {riskText}
                     </span>
                   </div>
 
