@@ -19,7 +19,7 @@ export default function LogEditorModal({
   onSaved,
 }) {
   const [dateKey, setDateKey] = useState(defaultDate || jstDateKey());
-  const [existingInput, setExistingInput] = useState("0");
+  const [existingInput, setExistingInput] = useState("");
   const [additionInput, setAdditionInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -42,7 +42,7 @@ export default function LogEditorModal({
       0,
       Math.round(Number(actualLogs?.[dateKey]) || 0)
     );
-    setExistingInput(String(nextExisting));
+    setExistingInput(nextExisting > 0 ? String(nextExisting) : "");
     setAdditionInput("");
     setError("");
   }, [open, dateKey, todo]);
@@ -57,6 +57,14 @@ export default function LogEditorModal({
   const sanitizeMinutes = (value) => {
     const num = Math.round(Number(value));
     return Number.isFinite(num) && num > 0 ? num : 0;
+  };
+
+  const hasLeadingZero = (value) => {
+    if (typeof value !== "string") return false;
+    const trimmed = value.trim();
+    if (trimmed.length <= 1) return false;
+    if (!/^\d+$/.test(trimmed)) return false;
+    return trimmed.startsWith("0");
   };
 
   const sanitizedExisting = sanitizeMinutes(existingInput);
@@ -74,6 +82,10 @@ export default function LogEditorModal({
     if (saving) return;
     if (!dateKey) {
       setError("日付を選択してください。");
+      return;
+    }
+    if (hasLeadingZero(existingInput) || hasLeadingZero(additionInput)) {
+      setError("分数は先頭に0を付けずに入力してください。");
       return;
     }
     if (sanitizedExisting < 0 || sanitizedAddition < 0) {
