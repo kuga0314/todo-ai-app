@@ -3,7 +3,6 @@ import {
   addDoc,
   collection,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   where,
@@ -79,15 +78,22 @@ const FeedbackModal = ({ open, onClose, user }) => {
   useEffect(() => {
     if (!open || !user?.uid) return undefined;
 
-    const q = query(
-      collection(db, "feedbacks"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
+    const q = query(collection(db, "feedbacks"), where("userId", "==", user.uid));
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() ?? {}) }));
+        const getMillis = (value) => {
+          if (!value) return 0;
+          if (typeof value.toMillis === "function") return value.toMillis();
+          if (value instanceof Date) return value.getTime();
+          if (typeof value === "number") return value;
+          const parsed = Date.parse(value);
+          return Number.isNaN(parsed) ? 0 : parsed;
+        };
+
+        const rows = snap.docs
+          .map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() ?? {}) }))
+          .sort((a, b) => getMillis(b?.createdAt) - getMillis(a?.createdAt));
         setFeedbacks(rows);
         setError(null);
       },
