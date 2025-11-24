@@ -242,9 +242,11 @@ const AppWithRouter = ({ logout, user }) => {
       where("userId", "==", user.uid),
       orderBy("createdAt", "desc")
     );
-    const unsub = onSnapshot(q, (snap) =>
-      setTodos(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
+    const unsub = onSnapshot(q, (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const visible = rows.filter((t) => t.deleted !== true);
+      setTodos(visible);
+    });
     return () => unsub();
   }, [user?.uid]);
 
