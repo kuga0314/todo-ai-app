@@ -80,7 +80,7 @@ const Layout = ({ logout, loginCount, user }) => {
       <header className="app-header">
         <div className="container hdr-inner">
           <h1 className="brand">進捗マネジメントアプリ</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="hdr-actions">
             <button
               className="btn btn-outline"
               style={{ whiteSpace: "nowrap" }}
@@ -89,17 +89,7 @@ const Layout = ({ logout, loginCount, user }) => {
               意見を送る
             </button>
             {typeof loginCount === "number" && (
-              <span
-                title="累計ログイン回数"
-                style={{
-                  backgroundColor: "#eef2ff",
-                  color: "#1e40af",
-                  padding: "4px 10px",
-                  borderRadius: "999px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                }}
-              >
+              <span title="累計ログイン回数" className="login-chip">
                 ログイン {loginCount}回
               </span>
             )}
