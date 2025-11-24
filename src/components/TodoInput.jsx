@@ -10,6 +10,7 @@ export default function TodoInput({ labels = [] }) {
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
   const [time, setTime] = useState("18:00");
+  const [plannedStart, setPlannedStart] = useState("");
   const [estimatedMinutes, setEstimatedMinutes] = useState("90");
   const [labelId, setLabelId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -36,11 +37,14 @@ export default function TodoInput({ labels = [] }) {
     const d = new Date(deadline);
     d.setHours(hh, mm, 0, 0);
 
+    const plannedStartDate = plannedStart ? new Date(plannedStart) : null;
+
     try {
       setSaving(true);
       await addDoc(collection(db, "todos"), {
         text: text.trim(),
         deadline: d,
+        plannedStart: plannedStartDate,
         estimatedMinutes: E,
         labelId: labelId || null,
         actualTotalMinutes: 0,
@@ -51,6 +55,7 @@ export default function TodoInput({ labels = [] }) {
       setText("");
       setDeadline("");
       setTime("18:00");
+      setPlannedStart("");
       setEstimatedMinutes("90");
       setLabelId("");
     } catch (err) {
@@ -87,6 +92,13 @@ export default function TodoInput({ labels = [] }) {
           style={{ padding: 8, width: 140 }}
         />
       </div>
+      <input
+        type="date"
+        placeholder="開始予定日 (任意)"
+        value={plannedStart}
+        onChange={(e) => setPlannedStart(e.target.value)}
+        style={{ padding: 8 }}
+      />
       <input
         type="number"
         min="1"

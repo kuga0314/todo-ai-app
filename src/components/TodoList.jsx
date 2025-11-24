@@ -17,6 +17,14 @@ import { jstDateKey } from "../utils/logUpdates";
 import { resolveRiskDisplay } from "../utils/analytics";
 
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
+const toDateValue = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if (typeof v.toDate === "function") return v.toDate();
+  if (typeof v.seconds === "number") return new Date(v.seconds * 1000);
+  const parsed = new Date(v);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 function percent(n) {
   if (!Number.isFinite(n)) return "—";
@@ -142,6 +150,7 @@ export default function TodoList({
 
   const decoratedTodos = todos.map((todo) => {
     const deadlineAt = todo.deadline?.toDate?.();
+    const plannedStartAt = toDateValue(todo.plannedStart);
     const estimatedMinutes = Number.isFinite(Number(todo.estimatedMinutes))
       ? Number(todo.estimatedMinutes)
       : null;
@@ -163,15 +172,23 @@ export default function TodoList({
       requiredPerDay = remainingMinutes / daysLeft;
     }
 
+    const nowTs = now.getTime();
+    const isBeforeStart = plannedStartAt ? plannedStartAt.getTime() > nowTs : false;
+
     const spiNum = Number(todo.spi);
-    const spiText = Number.isFinite(spiNum) ? spiNum.toFixed(2) : "—";
-    const eacText = todo.eacDate ?? "—";
+    const spiText = Number.isFinite(spiNum) && !isBeforeStart ? spiNum.toFixed(2) : "—";
+    const eacText = !isBeforeStart && actualMinutes > 0 && todo.eacDate
+      ? todo.eacDate
+      : "—";
     const riskMode = todo.riskMode ?? null;
-    const { riskKey, riskText } = resolveRiskDisplay(todo);
+    const { riskKey, riskText } = isBeforeStart
+      ? { riskKey: "none", riskText: "⏳ 開始前" }
+      : resolveRiskDisplay(todo);
 
     return {
       todo,
       deadlineAt,
+      plannedStartAt,
       estimatedMinutes,
       actualMinutes,
       progressRatio,
@@ -182,6 +199,7 @@ export default function TodoList({
       riskKey,
       riskText,
       riskMode,
+      isBeforeStart,
     };
   });
 
@@ -367,6 +385,7 @@ export default function TodoList({
           const {
             todo,
             deadlineAt,
+            plannedStartAt,
             estimatedMinutes,
             actualMinutes,
             progressRatio,
@@ -376,6 +395,7 @@ export default function TodoList({
             eacText,
             riskKey,
             riskText,
+            isBeforeStart,
           } = item;
 
           const borderColor =
@@ -387,6 +407,8 @@ export default function TodoList({
               ? "#10b981"
               : "#cbd5e1";
 
+          const displayRiskText = isBeforeStart ? "⏳ 開始前" : riskText;
+
           return (
             <li
               key={todo.id}
@@ -394,6 +416,8 @@ export default function TodoList({
               style={{
                 borderLeft: "6px solid",
                 borderLeftColor: borderColor,
+                opacity: isBeforeStart ? 0.7 : 1,
+                filter: isBeforeStart ? "grayscale(0.3)" : "none",
               }}
             >
               <div className="todo-content">
@@ -425,6 +449,15 @@ export default function TodoList({
                     <span className="meta-value">
                       {estimatedMinutes != null
                         ? `${estimatedMinutes} 分`
+                        : "—"}
+                    </span>
+                  </div>
+
+                  <div className="meta-line">
+                    <span className="meta-label">開始予定:</span>
+                    <span className="meta-value">
+                      {plannedStartAt
+                        ? format(plannedStartAt, "yyyy/M/d")
                         : "—"}
                     </span>
                   </div>
@@ -468,7 +501,7 @@ export default function TodoList({
                     <span className="spacer" />
                     <span className="meta-label">リスク:</span>
                     <span className="meta-value" style={{ fontWeight: 600 }}>
-                      {riskText}
+                      {displayRiskText}
                     </span>
                   </div>
 

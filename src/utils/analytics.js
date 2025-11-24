@@ -90,7 +90,11 @@ export const resolveRiskDisplay = (todo, series) => {
   const risk = normalizeRisk(todo.riskLevel);
 
   const deadline = toDate(todo.deadline);
+  const plannedStart = toDate(todo.plannedStart);
   const now = new Date();
+  if (plannedStart && now.getTime() < plannedStart.getTime()) {
+    return { riskKey: "none", riskText: "—", isBeforeStart: true };
+  }
   const deadlinePassed =
     !!deadline && !todo?.completed && now.getTime() > deadline.getTime();
 

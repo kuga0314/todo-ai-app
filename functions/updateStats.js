@@ -41,6 +41,7 @@ function toJsDate(value) {
 const EPS = 1e-6;
 const round1 = (v) => Math.round(v * 10) / 10;
 const round2 = (v) => Math.round(v * 100) / 100;
+const safeRound2 = (v) => (v == null ? null : round2(v));
 
 /**
  * todos/{id} 書き込み時に進捗統計を更新
@@ -59,6 +60,7 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
   const E = Number(after.estimatedMinutes) || 0;
   const logs = after.actualLogs || {}; // { "YYYY-MM-DD": minutes }
   const userId = after.userId;
+  const plannedStart = toJsDate(after.plannedStart);
 
   // ユーザー設定（なければ既定値）
   let alpha = 0.3;             // 指数平滑の係数 (0..1)
@@ -87,6 +89,8 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
   // ・作業日数<3 の間は「作業した日数」で割る
   // ・3日以上は通常どおり7で割る
   const today = new Date();
+  const startReached =
+    !plannedStart || today.getTime() >= plannedStart.getTime();
   const last7 = [];
   for (let i = 0; i < 7; i++) {
     const key = jstDateKey(addDays(today, -i));
@@ -127,9 +131,11 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     const D = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24))); // 最低1日
     requiredPace = R > 0 ? R / D : 0;
 
-    const denom = Math.max(EPS, pace7d);
-    const daysToFinish = R > 0 ? Math.ceil(R / denom) : 0;
-    eacDate = jstDateKey(addDays(today, daysToFinish));
+    if (startReached && pace7d > EPS) {
+      const denom = pace7d;
+      const daysToFinish = R > 0 ? Math.ceil(R / denom) : 0;
+      eacDate = jstDateKey(addDays(today, daysToFinish));
+    }
 
     if (createdAt) {
       const totalMs = deadline.getTime() - createdAt.getTime();
@@ -140,14 +146,20 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
   }
 
   // SPI（従来互換：pace7d / requiredPace を spi として維持）
-  const spi7d = requiredPace > EPS ? pace7d / requiredPace : (R === 0 ? 1 : 0);
-  const spiExp = requiredPace > EPS ? paceExp / requiredPace : (R === 0 ? 1 : 0);
+  const spi7d = startReached && requiredPace > EPS
+    ? pace7d / requiredPace
+    : (R === 0 ? 1 : null);
+  const spiExp = startReached && requiredPace > EPS
+    ? paceExp / requiredPace
+    : (R === 0 ? 1 : null);
 
   // 動的バッファ（簡易版）
   // spi7d（=従来のspi相当）が閾値未満なら、必要ペースを緩和して再評価
-  const relax = spi7d < spiWarnThreshold ? relaxFactor : 1.0;
+  const relax = spi7d != null && spi7d < spiWarnThreshold ? relaxFactor : 1.0;
   const requiredPaceAdj = requiredPace * relax;
-  const spiAdj = requiredPaceAdj > EPS ? pace7d / requiredPaceAdj : (R === 0 ? 1 : 0);
+  const spiAdj = startReached && requiredPaceAdj > EPS
+    ? pace7d / requiredPaceAdj
+    : (R === 0 ? 1 : null);
 
   let idealProgress = null;
   if (totalDays != null && Number.isFinite(totalDays) && totalDays > 0) {
@@ -172,8 +184,8 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
 
   // 既存の riskLevel ロジック（締切超過を最優先で late）
   const spi = spi7d; // 既存フィールド名に合わせて採用
-  let riskLevel = "ok";
-  if (R > 0 && deadline) {
+  let riskLevel = null;
+  if (startReached && R > 0 && deadline) {
     const now = new Date();
     const deadlinePassed = now.getTime() > deadline.getTime();
     const eacDt = eacDate ? keyToDate(eacDate) : null;
@@ -201,10 +213,10 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     paceExp: round1(paceExp),
     requiredPace: round1(requiredPace),
     requiredPaceAdj: round1(requiredPaceAdj),
-    spi: round2(spi),          // 従来互換（= spi7d）
-    spi7d: round2(spi7d),      // 明示的に保存
-    spiExp: round2(spiExp),
-    spiAdj: round2(spiAdj),
+    spi: safeRound2(spi),          // 従来互換（= spi7d）
+    spi7d: safeRound2(spi7d),      // 明示的に保存
+    spiExp: safeRound2(spiExp),
+    spiAdj: safeRound2(spiAdj),
     eacDate: eacDate,          // "YYYY-MM-DD" or null
     riskLevel,                 // "ok" | "warn" | "late"
     idealProgress: idealProgressRounded,
@@ -243,10 +255,10 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     paceExp: Number(after.paceExp) || 0,
     requiredPace: Number(after.requiredPace) || 0,
     requiredPaceAdj: Number(after.requiredPaceAdj) || 0,
-    spi: Number(after.spi),
-    spi7d: Number(after.spi7d),
-    spiExp: Number(after.spiExp),
-    spiAdj: Number(after.spiAdj),
+    spi: after.spi == null ? null : Number(after.spi),
+    spi7d: after.spi7d == null ? null : Number(after.spi7d),
+    spiExp: after.spiExp == null ? null : Number(after.spiExp),
+    spiAdj: after.spiAdj == null ? null : Number(after.spiAdj),
     eacDate: after.eacDate ?? null,
     riskLevel: after.riskLevel ?? null,
     idealProgress: Number.isFinite(Number(after.idealProgress))

@@ -14,6 +14,14 @@ import { format } from "date-fns";
 import "./TodoList.css";
 
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
+const toDateValue = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if (typeof v.toDate === "function") return v.toDate();
+  if (typeof v.seconds === "number") return new Date(v.seconds * 1000);
+  const parsed = new Date(v);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 // JSTの YYYY-MM-DD キー
 const jstDateKey = () => {
@@ -118,6 +126,7 @@ export default function TodoList({
 
   const decoratedTodos = todos.map((todo) => {
     const deadlineAt = todo.deadline?.toDate?.();
+    const plannedStartAt = toDateValue(todo.plannedStart);
     const estimatedMinutes = Number.isFinite(Number(todo.estimatedMinutes))
       ? Number(todo.estimatedMinutes)
       : null;
@@ -138,15 +147,21 @@ export default function TodoList({
       requiredPerDay = remainingMinutes / daysLeft;
     }
 
+    const nowTs = now.getTime();
+    const isBeforeStart = plannedStartAt ? plannedStartAt.getTime() > nowTs : false;
+
     const spiNum = Number(todo.spi);
-    const spiText = Number.isFinite(spiNum) ? spiNum.toFixed(2) : "—";
-    const eacText = todo.eacDate ?? "—";
+    const spiText = Number.isFinite(spiNum) && !isBeforeStart ? spiNum.toFixed(2) : "—";
+    const eacText = !isBeforeStart && actualMinutes > 0 && todo.eacDate
+      ? todo.eacDate
+      : "—";
     const riskLevel = todo.riskLevel ?? null;
     const riskMode = todo.riskMode ?? null;
 
     return {
       todo,
       deadlineAt,
+      plannedStartAt,
       estimatedMinutes,
       actualMinutes,
       progressRatio,
@@ -156,6 +171,7 @@ export default function TodoList({
       eacText,
       riskLevel,
       riskMode,
+      isBeforeStart,
     };
   });
 
@@ -413,6 +429,7 @@ export default function TodoList({
           const {
             todo,
             deadlineAt,
+            plannedStartAt,
             estimatedMinutes,
             actualMinutes,
             progressRatio,
@@ -421,14 +438,22 @@ export default function TodoList({
             spiText,
             eacText,
             riskLevel,
+            isBeforeStart,
           } = item;
-          const risk = riskLevel; // "ok" | "warn" | "late" | undefined
+          const risk = isBeforeStart ? null : riskLevel; // "ok" | "warn" | "late" | undefined
 
           const borderColor =
             risk === "late" ? "#ef4444" : // 赤
             risk === "warn" ? "#f59e0b" : // 黄
             risk === "ok"   ? "#10b981" : // 緑
             "#cbd5e1";                    // グレー
+
+          const riskText = isBeforeStart
+            ? "⏳ 開始前"
+            : risk === "late" ? "🔴 遅延"
+              : risk === "warn" ? "🟡 注意"
+              : risk === "ok"   ? "🟢 良好"
+              : "—";
 
           return (
             <li
@@ -437,6 +462,8 @@ export default function TodoList({
               style={{
                 borderLeft: "6px solid",
                 borderLeftColor: borderColor,
+                opacity: isBeforeStart ? 0.7 : 1,
+                filter: isBeforeStart ? "grayscale(0.3)" : "none",
               }}
             >
               {/* タイトル & 完了チェック */}
@@ -464,6 +491,13 @@ export default function TodoList({
                     <span className="meta-label">E:</span>
                     <span className="meta-value">
                       {estimatedMinutes != null ? `${estimatedMinutes} 分` : "—"}
+                    </span>
+                  </div>
+
+                  <div className="meta-line">
+                    <span className="meta-label">開始予定:</span>
+                    <span className="meta-value">
+                      {plannedStartAt ? format(plannedStartAt, "yyyy/M/d") : "—"}
                     </span>
                   </div>
 
@@ -509,10 +543,7 @@ export default function TodoList({
                       title={risk ?? ""}
                       style={{ fontWeight: 600 }}
                     >
-                      {risk === "late" ? "🔴 遅延"
-                        : risk === "warn" ? "🟡 注意"
-                        : risk === "ok"   ? "🟢 良好"
-                        : "—"}
+                      {riskText}
                     </span>
                   </div>
 
