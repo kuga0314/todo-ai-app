@@ -301,10 +301,15 @@ const AppWithRouter = ({ logout, user }) => {
     const toNum = (v, fb = null) =>
       Number.isFinite(Number(v)) ? Number(v) : fb;
 
+    const plannedStart = payload.plannedStart
+      ? Timestamp.fromDate(new Date(payload.plannedStart))
+      : null;
+
     const body = {
       userId: user.uid,
       text: payload.text.trim(),
       deadline: Timestamp.fromDate(new Date(payload.deadline)),
+      plannedStart,
       estimatedMinutes: toNum(payload.estimatedMinutes, null),
       labelId: payload.labelId || null,
       actualTotalMinutes: 0,

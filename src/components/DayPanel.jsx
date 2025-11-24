@@ -20,6 +20,7 @@ export default function DayPanel({
   const [qTime, setQTime] = useState("18:00");
   const [qE, setQE] = useState("90");            // E（見積分）
   const [qLabelId, setQLabelId] = useState("");
+  const [qPlannedStart, setQPlannedStart] = useState("");
 
   // ラベルが削除されていた場合の安全対処
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function DayPanel({
     setQTime("18:00");
     setQE("90");
     setQLabelId("");
+    setQPlannedStart("");
   };
 
   const handleClose = useCallback(() => {
@@ -68,9 +70,12 @@ export default function DayPanel({
       hh, mm, 0, 0
     );
 
+    const plannedStart = qPlannedStart ? new Date(qPlannedStart) : null;
+
     const payload = {
       text: qText.trim(),
       deadline,
+      plannedStart,
       estimatedMinutes: E,         // 見積所要時間E
       labelId: qLabelId || null,   // 任意
       actualTotalMinutes: 0,       // 実績は後から入力
@@ -170,7 +175,14 @@ export default function DayPanel({
           </div>
 
           {/* 2行目：E・ラベル */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              gap: 10,
+              marginTop: 10,
+            }}
+          >
             <div>
               <label style={labelStyle}>E（見積分） *</label>
               <input
@@ -182,6 +194,15 @@ export default function DayPanel({
                 onChange={(e) => setQE(e.target.value)}
                 style={inputStyle}
                 required
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>開始予定日（任意）</label>
+              <input
+                type="date"
+                value={qPlannedStart}
+                onChange={(e) => setQPlannedStart(e.target.value)}
+                style={inputStyle}
               />
             </div>
             <div>
