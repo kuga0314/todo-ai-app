@@ -163,7 +163,8 @@ export default function DailyPlan() {
         query(collection(db, "todos"), where("userId", "==", user.uid))
       );
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setTodos(list);
+      const visible = list.filter((t) => t.deleted !== true);
+      setTodos(visible);
 
       // app settings（dailyCap 等）
       const appSnap = await getDoc(doc(db, `users/${user.uid}/settings/app`));

@@ -2,7 +2,6 @@
 import { useState } from "react";
 import {
   doc,
-  deleteDoc,
   updateDoc,
   increment,
   addDoc,
@@ -121,6 +120,18 @@ export default function TodoList({
       await updateDoc(ref, { completed: false });
     } catch (e) {
       console.error("toggle complete failed", e);
+    }
+  };
+
+  const softDelete = async (todo) => {
+    try {
+      await updateDoc(doc(db, "todos", todo.id), {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("soft delete failed", e);
+      alert("タスクの削除に失敗しました。通信環境を確認してください。");
     }
   };
 
@@ -499,7 +510,7 @@ export default function TodoList({
 
               <button
                 className="icon-btn delete-btn"
-                onClick={() => deleteDoc(doc(db, "todos", todo.id))}
+                onClick={() => softDelete(todo)}
                 title="削除"
               >
                 🗑️
