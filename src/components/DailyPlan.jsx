@@ -1,14 +1,6 @@
 // src/components/DailyPlan.jsx
 import { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-  query,
-  where,
-  updateDoc,
-} from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -138,9 +130,11 @@ function selectTodayPlan(todos, appSettings) {
   return { items: plan, cap, used: Math.round(used) };
 }
 
-export default function DailyPlan() {
+export default function DailyPlan({ todos: propTodos = [] }) {
   const { user } = useAuth();
-  const [todos, setTodos] = useState([]);
+  const [todos, setTodos] = useState(() =>
+    (propTodos || []).filter((t) => t.deleted !== true)
+  );
   const [appSettings, setAppSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(() => {
@@ -155,23 +149,36 @@ export default function DailyPlan() {
   }, [collapsed]);
 
   useEffect(() => {
-    if (!user?.uid) return;
-    (async () => {
-      setLoading(true);
-      // todos
-      const snap = await getDocs(
-        query(collection(db, "todos"), where("userId", "==", user.uid))
-      );
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const visible = list.filter((t) => t.deleted !== true);
-      setTodos(visible);
+    const visible = (propTodos || []).filter((t) => t.deleted !== true);
+    setTodos(visible);
+  }, [propTodos]);
 
-      // app settings（dailyCap 等）
-      const appSnap = await getDoc(doc(db, `users/${user.uid}/settings/app`));
-      setAppSettings(appSnap.exists() ? appSnap.data() : null);
-
+  useEffect(() => {
+    if (!user?.uid) {
+      setAppSettings(null);
       setLoading(false);
+      return;
+    }
+
+    let canceled = false;
+    setLoading(true);
+
+    (async () => {
+      try {
+        const appSnap = await getDoc(doc(db, `users/${user.uid}/settings/app`));
+        if (!canceled) {
+          setAppSettings(appSnap.exists() ? appSnap.data() : null);
+        }
+      } finally {
+        if (!canceled) {
+          setLoading(false);
+        }
+      }
     })();
+
+    return () => {
+      canceled = true;
+    };
   }, [user?.uid]);
 
   const incompleteTodos = useMemo(
