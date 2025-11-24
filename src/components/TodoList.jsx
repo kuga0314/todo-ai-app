@@ -46,6 +46,7 @@ export default function TodoList({
   const [riskFilter, setRiskFilter] = useState("all");
   const [riskModeFilter, setRiskModeFilter] = useState("all");
   const [editorState, setEditorState] = useState({ open: false, todo: null, date: null });
+  const [editStates, setEditStates] = useState({});
   void notificationMode;
 
   const handleChange = (id, v) => setInputs((m) => ({ ...m, [id]: v }));
@@ -146,6 +147,69 @@ export default function TodoList({
     }
   };
 
+  const startEdit = (todo) => {
+    const deadlineAt = toDateValue(todo.deadline);
+    setEditStates((prev) => ({
+      ...prev,
+      [todo.id]: {
+        title: todo.text ?? "",
+        deadline: deadlineAt ? format(deadlineAt, "yyyy-MM-dd'T'HH:mm") : "",
+      },
+    }));
+  };
+
+  const updateEditState = (id, key, value) => {
+    setEditStates((prev) => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || { title: "", deadline: "" }),
+        [key]: value,
+      },
+    }));
+  };
+
+  const cancelEdit = (id) => {
+    setEditStates((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const saveEdit = async (todo) => {
+    const state = editStates[todo.id];
+    if (!state) return;
+
+    const updates = {};
+    const nextTitle = state.title?.trim();
+    if (nextTitle && nextTitle !== todo.text) {
+      updates.text = nextTitle;
+    }
+
+    const deadlineInput = state.deadline?.trim();
+    if (deadlineInput) {
+      const parsed = new Date(deadlineInput);
+      if (!Number.isNaN(parsed.getTime())) {
+        updates.deadline = parsed;
+      }
+    } else if (todo.deadline) {
+      updates.deadline = null;
+    }
+
+    if (!Object.keys(updates).length) {
+      cancelEdit(todo.id);
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "todos", todo.id), updates);
+      cancelEdit(todo.id);
+    } catch (e) {
+      console.error("update todo failed", e);
+      alert("タスクの更新に失敗しました。通信環境を確認してください。");
+    }
+  };
+
   const now = new Date();
 
   const decoratedTodos = todos.map((todo) => {
@@ -184,6 +248,7 @@ export default function TodoList({
     const { riskKey, riskText } = isBeforeStart
       ? { riskKey: "none", riskText: "⏳ 開始前" }
       : resolveRiskDisplay(todo);
+    const createdAt = toDateValue(todo.createdAt);
 
     return {
       todo,
@@ -200,6 +265,7 @@ export default function TodoList({
       riskText,
       riskMode,
       isBeforeStart,
+      createdAt,
     };
   });
 
@@ -396,6 +462,7 @@ export default function TodoList({
             riskKey,
             riskText,
             isBeforeStart,
+            createdAt,
           } = item;
 
           const borderColor =
@@ -408,6 +475,7 @@ export default function TodoList({
               : "#cbd5e1";
 
           const displayRiskText = isBeforeStart ? "⏳ 開始前" : riskText;
+          const editingState = editStates[todo.id];
 
           return (
             <li
@@ -463,6 +531,13 @@ export default function TodoList({
                   </div>
 
                   <div className="meta-line">
+                    <span className="meta-label">登録日:</span>
+                    <span className="meta-value">
+                      {createdAt ? format(createdAt, "yyyy/M/d HH:mm") : "—"}
+                    </span>
+                  </div>
+
+                  <div className="meta-line">
                     <span className="meta-label">実績:</span>
                     <span className="meta-value">{`${actualMinutes} 分`}</span>
 
@@ -504,6 +579,62 @@ export default function TodoList({
                       {displayRiskText}
                     </span>
                   </div>
+
+                  {editingState ? (
+                    <div className="meta-line meta-line--edit">
+                      <label className="meta-label" htmlFor={`edit-title-${todo.id}`}>
+                        タイトル
+                      </label>
+                      <input
+                        id={`edit-title-${todo.id}`}
+                        type="text"
+                        className="edit-input"
+                        value={editingState.title}
+                        onChange={(event) =>
+                          updateEditState(todo.id, "title", event.target.value)
+                        }
+                        placeholder="タスク名を入力"
+                      />
+
+                      <label className="meta-label" htmlFor={`edit-deadline-${todo.id}`}>
+                        締切
+                      </label>
+                      <input
+                        id={`edit-deadline-${todo.id}`}
+                        type="datetime-local"
+                        className="edit-input"
+                        value={editingState.deadline}
+                        onChange={(event) =>
+                          updateEditState(todo.id, "deadline", event.target.value)
+                        }
+                      />
+
+                      <button
+                        type="button"
+                        className="btn-mini"
+                        onClick={() => saveEdit(todo)}
+                      >
+                        保存
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-mini btn-ghost"
+                        onClick={() => cancelEdit(todo.id)}
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="meta-line">
+                      <button
+                        type="button"
+                        className="btn-mini"
+                        onClick={() => startEdit(todo)}
+                      >
+                        ✏️ タイトル・締切を編集
+                      </button>
+                    </div>
+                  )}
 
                   <div className="meta-line">
                     <label

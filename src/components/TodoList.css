@@ -24,6 +24,8 @@
 }
 .btn-mini:hover { background: #f1f5f9; }
 .btn-mini:disabled { opacity: .55; cursor: not-allowed; }
+.btn-ghost { background: #f8fafc; }
+.btn-ghost:hover { background: #e2e8f0; }
 
 .filter-group {
   display: flex;
@@ -155,6 +157,13 @@
 .meta-line {
   display:flex; align-items:center; gap:.5rem;
   font-size:.88rem; color:#1f2a37; flex-wrap:wrap;
+}
+.meta-line--edit { gap:.65rem; align-items:flex-start; }
+.edit-input {
+  padding: .35rem .5rem;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  font-size: .9rem;
 }
 .meta-line--plan {
   background:#f8fafc;

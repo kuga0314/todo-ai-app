@@ -466,14 +466,14 @@ export default function Analytics() {
                     const isExpanded = expandedIds.includes(todo.id);
                     const series = seriesCache[todo.id];
                     const displaySeries = series || buildTaskSeries(task.todo);
-                    const { riskKey, riskText } = resolveRiskDisplay(
-                      todo,
-                      displaySeries
+                    const { riskKey, riskText, isBeforeStart } = resolveRiskDisplay(
+                      todo
                     );
+                    const displayRisk = isBeforeStart ? "⏳ 開始前" : riskText;
+                    const cardRiskKey = isBeforeStart ? "none" : riskKey || "none";
                     const deadlineText = deadlineAt
                       ? format(deadlineAt, "yyyy-MM-dd HH:mm")
                       : "—";
-                    const cardRiskKey = riskKey || "none";
                     const todayBadgeClass = `ana-badge ana-badge--today${
                       minutesToday > 0 ? " is-active" : ""
                     }`;
@@ -515,7 +515,7 @@ export default function Analytics() {
                                 className={`ana-badge ana-badge--risk-${cardRiskKey}`}
                                 title="現在のリスク状況"
                               >
-                                リスク: {riskText}
+                                リスク: {displayRisk}
                               </span>
                               <span
                                 className={todayBadgeClass}
