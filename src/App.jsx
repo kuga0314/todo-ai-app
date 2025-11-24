@@ -330,15 +330,13 @@ const AppWithRouter = ({ logout, user }) => {
             element={
               <main className="app-main">
                 <div className="container">
-                  {notificationMode === "morningSummary" && (
-                    <section className="card" style={{ marginBottom: 16 }}>
-                      <DailyPlan
-                        plans={dailyPlans}
-                        todos={todosWithId}
-                        onToggleDailyProgress={toggleDailyProgress}
-                      />
-                    </section>
-                  )}
+                  <section className="card" style={{ marginBottom: 16 }}>
+                    <DailyPlan
+                      plans={dailyPlans}
+                      todos={todosWithId}
+                      onToggleDailyProgress={toggleDailyProgress}
+                    />
+                  </section>
                   <section className="home-cal">
                     <TodoCalendar
                       todos={todosWithId}

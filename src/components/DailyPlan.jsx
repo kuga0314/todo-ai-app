@@ -173,7 +173,15 @@ export default function DailyPlan() {
     })();
   }, [user?.uid]);
 
-  const plan = useMemo(() => selectTodayPlan(todos, appSettings), [todos, appSettings]);
+  const incompleteTodos = useMemo(
+    () => (todos || []).filter((t) => !t.completed),
+    [todos]
+  );
+
+  const plan = useMemo(
+    () => selectTodayPlan(incompleteTodos, appSettings),
+    [incompleteTodos, appSettings]
+  );
 
   const planTodayMinutesMap = useMemo(() => {
     const map = new Map();
@@ -187,7 +195,7 @@ export default function DailyPlan() {
   }, [plan?.items]);
 
   const { chartData, totals: chartTotals } = useMemo(() => {
-    const rows = (todos || [])
+    const rows = (incompleteTodos || [])
       .map((t) => {
         const assigned = Number(t?.assigned?.[dateKey]) || 0;
         const fallbackAssigned = planTodayMinutesMap.get(t.id) || 0;
@@ -218,7 +226,7 @@ export default function DailyPlan() {
         hasData: rows.length > 0,
       },
     };
-  }, [todos, dateKey, planTodayMinutesMap]);
+  }, [incompleteTodos, dateKey, planTodayMinutesMap]);
 
   const chartDataWithSummary = useMemo(() => {
     if (!chartTotals.hasData) return [];
