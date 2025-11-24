@@ -124,6 +124,9 @@ export default function TodoList({
   };
 
   const softDelete = async (todo) => {
+    const ok = window.confirm("このタスクを削除します。よろしいですか？");
+    if (!ok) return;
+
     try {
       await updateDoc(doc(db, "todos", todo.id), {
         deleted: true,

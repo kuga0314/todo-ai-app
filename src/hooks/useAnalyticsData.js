@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { buildDateRange, sanitizeLogs } from "../utils/analytics";
 
@@ -22,95 +22,103 @@ export function useAnalyticsData(userId, reloadSignal = 0) {
       return;
     }
 
-    let active = true;
-    const load = async () => {
-      setLoading(true);
-      setNoData(false);
-      try {
-        const todosQuery = query(collection(db, "todos"), where("userId", "==", userId));
-        const labelsQuery = collection(db, "users", userId, "labels");
+    setLoading(true);
+    setNoData(false);
 
-        const [todoSnap, labelSnap] = await Promise.all([
-          getDocs(todosQuery),
-          getDocs(labelsQuery),
-        ]);
+    let canceled = false;
 
-        if (!active) return;
+    const todosQuery = query(collection(db, "todos"), where("userId", "==", userId));
+    const labelsQuery = collection(db, "users", userId, "labels");
 
-        const fetchedLabels = labelSnap.docs.map((docSnap) => ({
+    const handleTodos = (snap) => {
+      if (canceled) return;
+
+      const fetchedTodos = [];
+      const allDates = new Set();
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() || {};
+        if (data.deleted === true) return;
+        const actualLogs = sanitizeLogs(data.actualLogs);
+        Object.keys(actualLogs).forEach((key) => allDates.add(key));
+        fetchedTodos.push({
           id: docSnap.id,
-          ...(docSnap.data() || {}),
-        }));
-
-        const fetchedTodos = [];
-        const allDates = new Set();
-        todoSnap.forEach((docSnap) => {
-          const data = docSnap.data() || {};
-          const actualLogs = sanitizeLogs(data.actualLogs);
-          Object.keys(actualLogs).forEach((key) => allDates.add(key));
-          fetchedTodos.push({
-            id: docSnap.id,
-            ...data,
-            actualLogs,
-          });
+          ...data,
+          actualLogs,
         });
+      });
 
-        if (allDates.size === 0) {
-          setTodos(fetchedTodos);
-          setLabels(fetchedLabels);
-          setDateRange([]);
-          setTotalSeries([]);
-          setNoData(true);
-          return;
-        }
-
-        const sortedDates = Array.from(allDates).sort();
-        const minKey = sortedDates[0];
-        const maxActualKey = sortedDates[sortedDates.length - 1];
-        const todayKey = new Date().toLocaleDateString("sv-SE", {
-          timeZone: "Asia/Tokyo",
-        });
-        const maxKey = todayKey > maxActualKey ? todayKey : maxActualKey;
-        const range = buildDateRange(minKey, maxKey);
-
-        const totalsMap = new Map(range.map((key) => [key, 0]));
-        fetchedTodos.forEach((todo) => {
-          Object.entries(todo.actualLogs || {}).forEach(([key, value]) => {
-            if (!totalsMap.has(key)) return;
-            const minutes = Number(value);
-            if (!Number.isFinite(minutes)) return;
-            totalsMap.set(key, totalsMap.get(key) + minutes);
-          });
-        });
-
+      if (allDates.size === 0) {
         setTodos(fetchedTodos);
-        setLabels(fetchedLabels);
-        setDateRange(range);
-        setTotalSeries(
-          range.map((date) => ({
-            date,
-            minutes: totalsMap.get(date) || 0,
-          }))
-        );
-      } catch (error) {
-        console.warn("Failed to load analytics data", error);
-        if (!active) return;
-        setTodos([]);
-        setLabels([]);
         setDateRange([]);
         setTotalSeries([]);
         setNoData(true);
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
+        setLoading(false);
+        return;
       }
+
+      const sortedDates = Array.from(allDates).sort();
+      const minKey = sortedDates[0];
+      const maxActualKey = sortedDates[sortedDates.length - 1];
+      const todayKey = new Date().toLocaleDateString("sv-SE", {
+        timeZone: "Asia/Tokyo",
+      });
+      const maxKey = todayKey > maxActualKey ? todayKey : maxActualKey;
+      const range = buildDateRange(minKey, maxKey);
+
+      const totalsMap = new Map(range.map((key) => [key, 0]));
+      fetchedTodos.forEach((todo) => {
+        Object.entries(todo.actualLogs || {}).forEach(([key, value]) => {
+          if (!totalsMap.has(key)) return;
+          const minutes = Number(value);
+          if (!Number.isFinite(minutes)) return;
+          totalsMap.set(key, totalsMap.get(key) + minutes);
+        });
+      });
+
+      setTodos(fetchedTodos);
+      setDateRange(range);
+      setTotalSeries(
+        range.map((date) => ({
+          date,
+          minutes: totalsMap.get(date) || 0,
+        }))
+      );
+      setNoData(false);
+      setLoading(false);
     };
 
-    void load();
+    const handleTodosError = (error) => {
+      console.warn("Failed to load analytics todos", error);
+      if (canceled) return;
+      setTodos([]);
+      setDateRange([]);
+      setTotalSeries([]);
+      setNoData(true);
+      setLoading(false);
+    };
+
+    const handleLabels = (snap) => {
+      if (canceled) return;
+      const fetchedLabels = snap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() || {}),
+      }));
+      setLabels(fetchedLabels);
+    };
+
+    const handleLabelsError = (error) => {
+      console.warn("Failed to load analytics labels", error);
+      if (canceled) return;
+      setLabels([]);
+    };
+
+    const unsubscribeTodos = onSnapshot(todosQuery, handleTodos, handleTodosError);
+    const unsubscribeLabels = onSnapshot(labelsQuery, handleLabels, handleLabelsError);
 
     return () => {
-      active = false;
+      canceled = true;
+      unsubscribeTodos?.();
+      unsubscribeLabels?.();
     };
   }, [userId, reloadSignal]);
 
