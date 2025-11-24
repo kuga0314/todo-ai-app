@@ -1,6 +1,6 @@
 const CHANGELOG = [
   {
-    version: "1.1.4.1",
+    version: "1.1.4.2",
     date: "2025-11-24",
     title: "リスクレベルの表示",
     items: [
