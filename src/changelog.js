@@ -1,6 +1,6 @@
 const CHANGELOG = [
   {
-    version: "1.1.2.9",
+    version: "1.1.3.0",
     date: "2025-11-24",
     title: "フィードバックフォームの作成",
     items: [
