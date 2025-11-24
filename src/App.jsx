@@ -36,6 +36,7 @@ import DailyPlan from "./components/DailyPlan";
 import ProgressEntry from "./pages/ProgressEntry";
 import VersionBadge from "./components/VersionBadge";
 import ChangelogModal from "./components/ChangelogModal";
+import FeedbackModal from "./components/FeedbackModal";
 import "./App.css";
 
 function App() {
@@ -70,8 +71,9 @@ const HelpPage = () => {
 };
 
 /* 共通レイアウト */
-const Layout = ({ logout, loginCount }) => {
+const Layout = ({ logout, loginCount, user }) => {
   const [showChangelog, setShowChangelog] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   return (
     <>
@@ -79,6 +81,13 @@ const Layout = ({ logout, loginCount }) => {
         <div className="container hdr-inner">
           <h1 className="brand">進捗マネジメントアプリ</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              className="btn btn-outline"
+              style={{ whiteSpace: "nowrap" }}
+              onClick={() => setShowFeedback(true)}
+            >
+              意見を送る
+            </button>
             {typeof loginCount === "number" && (
               <span
                 title="累計ログイン回数"
@@ -113,6 +122,11 @@ const Layout = ({ logout, loginCount }) => {
 
       <Outlet />
       <BottomNav />
+      <FeedbackModal
+        open={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        user={user}
+      />
       <ChangelogModal open={showChangelog} onClose={() => setShowChangelog(false)} />
     </>
   );
@@ -309,7 +323,7 @@ const AppWithRouter = ({ logout, user }) => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout logout={logout} loginCount={loginCount} />}>
+        <Route element={<Layout logout={logout} loginCount={loginCount} user={user} />}>
           {/* ホーム */}
           <Route
             index
