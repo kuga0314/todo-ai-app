@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { parseDateKey } from "../utils/analytics";
+import { addDays } from "date-fns";
 
 export function useTaskSeries({ dateRange, refreshTick }) {
   const [seriesCache, setSeriesCacheState] = useState({});
@@ -44,14 +45,37 @@ export function useTaskSeries({ dateRange, refreshTick }) {
         const adjustedMinutes = minutes + tickMarker * 0;
         cumulative += adjustedMinutes;
 
+        const remaining = Math.max(0, estimated - cumulative);
+        const pace7 = get7DayPace(index);
+
+        // Estimated completion timestamp based on recent pace.
+        let eacTs = null;
+        // EAC（完了予測日）
+        if (pace7 > 0 && remaining > 0) {
+          const currentDate = parseDateKey(date);
+          if (!currentDate || isNaN(currentDate.getTime())) {
+            eacTs = null;
+          } else {
+            const daysToFinish = remaining / pace7;
+
+            // 不正値対策
+            if (!isFinite(daysToFinish) || daysToFinish <= 0) {
+              eacTs = null;
+            } else {
+              const eacDate = addDays(currentDate, Math.ceil(daysToFinish));
+              eacTs = eacDate ? eacDate.getTime() : null;
+            }
+          }
+        } else {
+          eacTs = null;
+        }
+
         let spi = null;
         if (deadline) {
-          const remaining = Math.max(0, estimated - cumulative);
           const currentDate = parseDateKey(date);
           const msLeft = currentDate ? deadline.getTime() - currentDate.getTime() : 0;
           const daysLeft = Math.max(1, Math.ceil(msLeft / 86400000));
           const required = remaining > 0 ? remaining / daysLeft : 0;
-          const pace7 = get7DayPace(index);
           if (required > 0) {
             const raw = pace7 / required;
             spi = Number.isFinite(raw) ? Number(raw.toFixed(2)) : null;
@@ -64,6 +88,12 @@ export function useTaskSeries({ dateRange, refreshTick }) {
           date,
           minutes: adjustedMinutes,
           cum: cumulative,
+          // Remaining estimated minutes to finish.
+          remaining,
+          // Recent 7-day pace used for SPI and EAC calculations.
+          pace7,
+          // Predicted completion date in ms since epoch based on remaining/pace.
+          eacTs,
           spi,
         };
       });
