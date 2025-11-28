@@ -1,0 +1,106 @@
+import { useCallback, useState } from "react";
+import { parseDateKey } from "../utils/analytics";
+
+export function useTaskSeries({ dateRange, refreshTick }) {
+  const [seriesCache, setSeriesCacheState] = useState({});
+
+  const buildTaskSeries = useCallback(
+    (task) => {
+      if (!dateRange.length) return [];
+      const logs = task.actualLogs || {};
+      let cumulative = 0;
+      const estimated = Number(task.estimatedMinutes) || 0;
+      let deadline = null;
+      const tickMarker = refreshTick;
+      if (task.deadline?.toDate) {
+        deadline = task.deadline.toDate();
+      } else if (task.deadline instanceof Date) {
+        deadline = task.deadline;
+      } else if (typeof task.deadline === "string" || typeof task.deadline === "number") {
+        const parsed = new Date(task.deadline);
+        if (!Number.isNaN(parsed.getTime())) {
+          deadline = parsed;
+        }
+      }
+
+      const get7DayPace = (index) => {
+        const startIdx = Math.max(0, index - 6);
+        let sum = 0;
+        let daysWorked = 0;
+        for (let i = startIdx; i <= index; i += 1) {
+          const key = dateRange[i];
+          const value = Number(logs[key]) || 0;
+          sum += value;
+          if (value > 0) {
+            daysWorked += 1;
+          }
+        }
+        const denominator = Math.max(1, daysWorked < 3 ? daysWorked || 1 : 7);
+        return sum / denominator;
+      };
+
+      return dateRange.map((date, index) => {
+        const minutes = Number(logs[date]) || 0;
+        const adjustedMinutes = minutes + tickMarker * 0;
+        cumulative += adjustedMinutes;
+
+        let spi = null;
+        if (deadline) {
+          const remaining = Math.max(0, estimated - cumulative);
+          const currentDate = parseDateKey(date);
+          const msLeft = currentDate ? deadline.getTime() - currentDate.getTime() : 0;
+          const daysLeft = Math.max(1, Math.ceil(msLeft / 86400000));
+          const required = remaining > 0 ? remaining / daysLeft : 0;
+          const pace7 = get7DayPace(index);
+          if (required > 0) {
+            const raw = pace7 / required;
+            spi = Number.isFinite(raw) ? Number(raw.toFixed(2)) : null;
+          } else {
+            spi = remaining === 0 ? 1 : 0;
+          }
+        }
+
+        return {
+          date,
+          minutes: adjustedMinutes,
+          cum: cumulative,
+          spi,
+        };
+      });
+    },
+    [dateRange, refreshTick]
+  );
+
+  const setSeriesCache = useCallback((updater) => {
+    setSeriesCacheState((prev) =>
+      typeof updater === "function" ? updater(prev) : updater || {}
+    );
+  }, []);
+
+  const ensureSeries = useCallback(
+    (task) => {
+      setSeriesCacheState((prev) => {
+        if (prev[task.todo.id]) return prev;
+        return {
+          ...prev,
+          [task.todo.id]: buildTaskSeries(task.todo),
+        };
+      });
+    },
+    [buildTaskSeries]
+  );
+
+  const invalidateSeries = useCallback((todoId) => {
+    if (!todoId) return;
+    setSeriesCacheState((prev) => {
+      if (!prev[todoId]) return prev;
+      const next = { ...prev };
+      delete next[todoId];
+      return next;
+    });
+  }, []);
+
+  return { buildTaskSeries, ensureSeries, invalidateSeries, seriesCache, setSeriesCache };
+}
+
+export default useTaskSeries;
