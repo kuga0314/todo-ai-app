@@ -28,6 +28,13 @@ export default function AnalyticsTaskCard({
   const { todo, estimated, actualTotal, progressRatio, deadlineAt, labelInfo, minutesToday } =
     task;
   const displaySeries = series || buildTaskSeries(task.todo);
+  const latestEacTs = (() => {
+    for (let i = displaySeries.length - 1; i >= 0; i -= 1) {
+      if (displaySeries[i].eacTs != null) return displaySeries[i].eacTs;
+    }
+    return null;
+  })();
+  const latestEacText = latestEacTs ? format(new Date(latestEacTs), "yyyy-MM-dd") : "—";
   const { riskKey, riskText, isBeforeStart } = resolveRiskDisplay(todo);
   const displayRisk = isBeforeStart ? "⏳ 開始前" : riskText;
   const cardRiskKey = isBeforeStart ? "none" : riskKey || "none";
@@ -90,6 +97,7 @@ export default function AnalyticsTaskCard({
           <div>A: {formatMinutes(actualTotal)}</div>
           <div>進捗率: {formatProgress(progressRatio)}</div>
           <div>締切: {deadlineText}</div>
+          <div>EAC(完了予測日): {latestEacText}</div>
         </div>
       </div>
       {isExpanded && (
@@ -164,6 +172,70 @@ export default function AnalyticsTaskCard({
                   strokeWidth={2}
                   dot={false}
                   strokeDasharray="3 3"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="ana-chart ana-chart--task" style={{ marginTop: 16 }}>
+            <ResponsiveContainer key={`${todo.id}:${refreshTick}:eac`}>
+              <ComposedChart
+                key={`${todo.id}:${refreshTick}:chart-eac`}
+                data={displaySeries}
+                margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12 }}
+                  angle={-30}
+                  textAnchor="end"
+                  height={70}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 12 }}
+                  label={{
+                    value: "残り(分)",
+                    angle: -90,
+                    position: "insideLeft",
+                    style: { textAnchor: "middle" },
+                  }}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 12 }}
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={(value) => (value ? format(new Date(value), "MM/dd") : "—")}
+                  label={{
+                    value: "EAC予測日",
+                    angle: 90,
+                    position: "insideRight",
+                    style: { textAnchor: "middle" },
+                  }}
+                />
+                <Tooltip
+                  formatter={(value, key) => {
+                    if (key === "remaining") return [`残り: ${value} 分`, "残り作業"];
+                    if (key === "eacTs") {
+                      if (value == null) return ["—", "EAC予測日"];
+                      return [format(new Date(value), "yyyy-MM-dd"), "EAC予測日"];
+                    }
+                    return value;
+                  }}
+                />
+                <Legend />
+                <Bar yAxisId="left" dataKey="remaining" name="残り(分)" fill="#6366f1" />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="eacTs"
+                  name="EAC予測日"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  dot={false}
+                  strokeDasharray="4 2"
                 />
               </ComposedChart>
             </ResponsiveContainer>
