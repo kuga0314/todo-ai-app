@@ -141,7 +141,8 @@ export default function AnalyticsTaskCard({
                   }}
                 />
                 <Tooltip
-                  formatter={(value, key) => {
+                  formatter={(value, _name, entry) => {
+                    const key = entry?.dataKey || _name;
                     if (key === "minutes") return [`${value} 分`, "日別実績"];
                     if (key === "cum") return [`${value} 分`, "累積実績"];
                     if (key === "spi")
@@ -216,7 +217,8 @@ export default function AnalyticsTaskCard({
                   }}
                 />
                 <Tooltip
-                  formatter={(value, key) => {
+                  formatter={(value, _name, entry) => {
+                    const key = entry?.dataKey || _name;
                     if (key === "remaining") return [`残り: ${value} 分`, "残り作業"];
                     if (key === "eacTs") {
                       if (value == null) return ["—", "EAC予測日"];
