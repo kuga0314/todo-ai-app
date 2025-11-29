@@ -231,7 +231,15 @@ export default function AnalyticsTaskCard({
                       }}
                     />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="remaining" name="残り(分)" fill="#6366f1" />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="remaining"
+                      name="残り(分)"
+                      stroke="#6366f1"
+                      strokeWidth={2}
+                      dot
+                    />
                     <Line
                       yAxisId="right"
                       type="monotone"
