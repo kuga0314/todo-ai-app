@@ -2,6 +2,8 @@ import { Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Responsi
 import { formatMinutes } from "../../utils/analytics";
 
 export default function AnalyticsTotalSummary({ totalSeries, totalMinutes, avg7, avg30, refreshTick }) {
+  const hasLogs = totalSeries.some((item) => Number(item.minutes) > 0);
+
   return (
     <div>
       <h3 className="ana-section-title">全タスク合計の作業時間（日別）</h3>
@@ -22,42 +24,46 @@ export default function AnalyticsTotalSummary({ totalSeries, totalMinutes, avg7,
         </div>
       </div>
       <div className="ana-chart">
-        <ResponsiveContainer key={`total:${refreshTick}`}>
-          <LineChart
-            key={`total-chart:${refreshTick}`}
-            data={totalSeries}
-            margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 12 }}
-              angle={-30}
-              textAnchor="end"
-              height={70}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              tick={{ fontSize: 12 }}
-              label={{
-                value: "分",
-                angle: -90,
-                position: "insideLeft",
-                style: { textAnchor: "middle" },
-              }}
-            />
-            <Tooltip formatter={(value) => `${value} 分`} />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey="minutes"
-              name="日別合計(分)"
-              stroke="#4f46e5"
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {hasLogs ? (
+          <ResponsiveContainer key={`total:${refreshTick}`}>
+            <LineChart
+              key={`total-chart:${refreshTick}`}
+              data={totalSeries}
+              margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12 }}
+                angle={-30}
+                textAnchor="end"
+                height={70}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                label={{
+                  value: "分",
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { textAnchor: "middle" },
+                }}
+              />
+              <Tooltip formatter={(value) => `${value} 分`} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="minutes"
+                name="日別合計(分)"
+                stroke="#4f46e5"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="ana-text-muted ana-text-muted--spaced">ログがありません</p>
+        )}
       </div>
     </div>
   );

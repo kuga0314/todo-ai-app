@@ -1,14 +1,40 @@
 import { useCallback, useState } from "react";
-import { parseDateKey } from "../utils/analytics";
+import { formatDateKey, parseDateKey } from "../utils/analytics";
 import { addDays } from "date-fns";
 
 export function useTaskSeries({ dateRange, refreshTick }) {
   const [seriesCache, setSeriesCacheState] = useState({});
 
+  const toDateValue = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value.toDate === "function") {
+      const converted = value.toDate();
+      return converted instanceof Date && !Number.isNaN(converted.getTime())
+        ? converted
+        : null;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   const buildTaskSeries = useCallback(
     (task) => {
       if (!dateRange.length) return [];
       const logs = task.actualLogs || {};
+
+      const plannedStartAt = toDateValue(task.plannedStart);
+      const plannedStartKey = plannedStartAt ? formatDateKey(plannedStartAt) : null;
+      const logKeys = Object.keys(logs || {});
+      const earliestLogKey = logKeys.length ? logKeys.reduce((a, b) => (a < b ? a : b)) : null;
+      const startKey = plannedStartKey || earliestLogKey;
+
+      const startIndex = startKey
+        ? dateRange.findIndex((date) => date >= startKey)
+        : 0;
+      const effectiveRange =
+        startIndex === -1 ? [] : dateRange.slice(Math.max(0, startIndex));
+      if (!effectiveRange.length) return [];
       let cumulative = 0;
       const estimated = Number(task.estimatedMinutes) || 0;
       let deadline = null;
@@ -29,7 +55,7 @@ export function useTaskSeries({ dateRange, refreshTick }) {
         let sum = 0;
         let daysWorked = 0;
         for (let i = startIdx; i <= index; i += 1) {
-          const key = dateRange[i];
+          const key = effectiveRange[i];
           const value = Number(logs[key]) || 0;
           sum += value;
           if (value > 0) {
@@ -40,7 +66,7 @@ export function useTaskSeries({ dateRange, refreshTick }) {
         return sum / denominator;
       };
 
-      return dateRange.map((date, index) => {
+      return effectiveRange.map((date, index) => {
         const minutes = Number(logs[date]) || 0;
         const adjustedMinutes = minutes + tickMarker * 0;
         cumulative += adjustedMinutes;
