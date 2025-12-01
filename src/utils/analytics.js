@@ -104,7 +104,7 @@ export const resolveRiskDisplay = (todo, series) => {
     const spi = Number(lastPoint?.spi);
     if (Number.isFinite(spi)) {
       if (spi >= 1) fallback = "ok";
-      else if (spi >= 0.85) fallback = "warn";
+      else if (spi >= 0.8) fallback = "warn";
       else fallback = "late";
     }
   }
