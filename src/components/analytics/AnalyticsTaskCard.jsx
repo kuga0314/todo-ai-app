@@ -10,11 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  formatMinutes,
-  formatProgress,
-  resolveRiskDisplay,
-} from "../../utils/analytics";
+import { formatMinutes, formatProgress } from "../../utils/analytics";
 
 export default function AnalyticsTaskCard({
   task,
@@ -25,8 +21,21 @@ export default function AnalyticsTaskCard({
   buildTaskSeries,
   onOpenLogEditor,
 }) {
-  const { todo, estimated, actualTotal, progressRatio, deadlineAt, labelInfo, minutesToday } =
-    task;
+  const {
+    todo,
+    estimated,
+    actualTotal,
+    progressRatio,
+    deadlineAt,
+    labelInfo,
+    minutesToday,
+    riskKey,
+    riskText,
+    requiredPerDay,
+    requiredMinutesForWarn,
+    requiredMinutesForOk,
+    isBeforeStart,
+  } = task;
   const displaySeries = series || buildTaskSeries(task.todo);
   const hasTaskLogs = displaySeries.some((item) => Number(item.minutes) > 0);
   const latestEacTs = (() => {
@@ -36,11 +45,23 @@ export default function AnalyticsTaskCard({
     return null;
   })();
   const latestEacText = latestEacTs ? format(new Date(latestEacTs), "yyyy-MM-dd") : "—";
-  const { riskKey, riskText, isBeforeStart } = resolveRiskDisplay(todo);
   const displayRisk = isBeforeStart ? "⏳ 開始前" : riskText;
   const cardRiskKey = isBeforeStart ? "none" : riskKey || "none";
   const deadlineText = deadlineAt ? format(deadlineAt, "yyyy-MM-dd HH:mm") : "—";
   const todayBadgeClass = `ana-badge ana-badge--today${minutesToday > 0 ? " is-active" : ""}`;
+  const improvementMessages = [];
+  if (!isBeforeStart) {
+    if (cardRiskKey === "late" && Number.isFinite(requiredMinutesForWarn) && requiredMinutesForWarn > 0) {
+      improvementMessages.push(`今日 ${requiredMinutesForWarn} 分で🟡注意まで`);
+    }
+    if (
+      (cardRiskKey === "late" || cardRiskKey === "warn") &&
+      Number.isFinite(requiredMinutesForOk) &&
+      requiredMinutesForOk > 0
+    ) {
+      improvementMessages.push(`今日 ${requiredMinutesForOk} 分で🟢良好へ`);
+    }
+  }
 
   return (
     <div key={todo.id} className={`card ana-card ana-card--risk-${cardRiskKey}`}>
@@ -99,6 +120,14 @@ export default function AnalyticsTaskCard({
           <div>進捗率: {formatProgress(progressRatio)}</div>
           <div>締切: {deadlineText}</div>
           <div>EAC(完了予測日): {latestEacText}</div>
+          <div>
+            今日の目安:
+            {improvementMessages.length
+              ? ` ${improvementMessages.join(" / ")}`
+              : requiredPerDay != null && !isBeforeStart
+              ? ` ${Math.ceil(requiredPerDay)} 分/日`
+              : " —"}
+          </div>
         </div>
       </div>
       {isExpanded && (

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { jstDateKey } from "../../utils/logUpdates";
-import { calculateAverages, parseDateKey, toNumberOrNull } from "../../utils/analytics";
+import {
+  calculateAverages,
+  parseDateKey,
+  resolveRiskDisplay,
+  toNumberOrNull,
+} from "../../utils/analytics";
 import AnalyticsFilters from "./AnalyticsFilters";
 import AnalyticsTotalSummary from "./AnalyticsTotalSummary";
 import AnalyticsTaskList from "./AnalyticsTaskList";
@@ -65,6 +70,7 @@ export default function AnalyticsView({
   }, [baseTodos, dateRange]);
 
   const decoratedTodos = useMemo(() => {
+    const now = new Date();
     const result = baseTodos.map((todo) => {
       const estimated = toNumberOrNull(todo.estimatedMinutes);
       const actualTotal = Object.values(todo.actualLogs || {}).reduce(
@@ -81,6 +87,11 @@ export default function AnalyticsView({
         : null;
       const lastProgressAt = lastProgressKey ? parseDateKey(lastProgressKey) : null;
       const lastProgressTime = lastProgressAt?.getTime?.() ?? null;
+      const riskInfo = resolveRiskDisplay(todo, undefined, {
+        estimatedMinutes: estimated,
+        actualMinutes: actualTotal,
+        now,
+      });
 
       return {
         todo,
@@ -91,6 +102,12 @@ export default function AnalyticsView({
         labelInfo,
         minutesToday,
         lastProgressTime,
+        isBeforeStart: !!riskInfo.isBeforeStart,
+        riskKey: riskInfo.riskKey,
+        riskText: riskInfo.riskText,
+        requiredPerDay: riskInfo.requiredPerDay,
+        requiredMinutesForWarn: riskInfo.requiredMinutesForWarn,
+        requiredMinutesForOk: riskInfo.requiredMinutesForOk,
       };
     });
     return refreshTick ? [...result] : result;

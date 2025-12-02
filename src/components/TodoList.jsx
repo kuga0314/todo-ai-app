@@ -229,25 +229,25 @@ export default function TodoList({
         ? Math.max(0, estimatedMinutes - actualMinutes)
         : null;
 
-    let requiredPerDay = null;
-    if (deadlineAt && remainingMinutes != null) {
-      const msLeft = deadlineAt.getTime() - now.getTime();
-      const daysLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-      requiredPerDay = remainingMinutes / daysLeft;
-    }
-
     const nowTs = now.getTime();
     const isBeforeStart = plannedStartAt ? plannedStartAt.getTime() > nowTs : false;
 
+    const riskInfo = resolveRiskDisplay(todo, undefined, {
+      estimatedMinutes,
+      actualMinutes,
+      now,
+    });
     const spiNum = Number(todo.spi);
     const spiText = Number.isFinite(spiNum) && !isBeforeStart ? spiNum.toFixed(2) : "—";
     const eacText = !isBeforeStart && actualMinutes > 0 && todo.eacDate
       ? todo.eacDate
       : "—";
     const riskMode = todo.riskMode ?? null;
-    const { riskKey, riskText } = isBeforeStart
-      ? { riskKey: "none", riskText: "⏳ 開始前" }
-      : resolveRiskDisplay(todo);
+    const riskKey = isBeforeStart ? "none" : riskInfo.riskKey;
+    const riskText = isBeforeStart ? "⏳ 開始前" : riskInfo.riskText;
+    const requiredPerDay = isBeforeStart ? null : riskInfo.requiredPerDay;
+    const requiredMinutesForWarn = isBeforeStart ? null : riskInfo.requiredMinutesForWarn;
+    const requiredMinutesForOk = isBeforeStart ? null : riskInfo.requiredMinutesForOk;
     const createdAt = toDateValue(todo.createdAt);
 
     return {
@@ -259,6 +259,8 @@ export default function TodoList({
       progressRatio,
       remainingMinutes,
       requiredPerDay,
+      requiredMinutesForWarn,
+      requiredMinutesForOk,
       spiText,
       eacText,
       riskKey,
@@ -457,6 +459,8 @@ export default function TodoList({
             progressRatio,
             remainingMinutes,
             requiredPerDay,
+            requiredMinutesForWarn,
+            requiredMinutesForOk,
             spiText,
             eacText,
             riskKey,
@@ -476,6 +480,20 @@ export default function TodoList({
 
           const displayRiskText = isBeforeStart ? "⏳ 開始前" : riskText;
           const editingState = editStates[todo.id];
+
+          const improvementMessages = [];
+          if (!isBeforeStart) {
+            if (riskKey === "late" && Number.isFinite(requiredMinutesForWarn) && requiredMinutesForWarn > 0) {
+              improvementMessages.push(`今日 ${requiredMinutesForWarn} 分で🟡注意まで`);
+            }
+            if (
+              (riskKey === "late" || riskKey === "warn") &&
+              Number.isFinite(requiredMinutesForOk) &&
+              requiredMinutesForOk > 0
+            ) {
+              improvementMessages.push(`今日 ${requiredMinutesForOk} 分で🟢良好へ`);
+            }
+          }
 
           return (
             <li
@@ -579,6 +597,13 @@ export default function TodoList({
                       {displayRiskText}
                     </span>
                   </div>
+
+                  {improvementMessages.length > 0 && (
+                    <div className="meta-line">
+                      <span className="meta-label">今日の目安:</span>
+                      <span className="meta-value">{improvementMessages.join(" / ")}</span>
+                    </div>
+                  )}
 
                   {editingState ? (
                     <div className="meta-line meta-line--edit">
