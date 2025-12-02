@@ -75,7 +75,9 @@ const toDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-export const resolveRiskDisplay = (todo, series) => {
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+export const resolveRiskDisplay = (todo, series, options = {}) => {
   const normalizeRisk = (value) => {
     if (!value) return null;
     const trimmed = String(value).trim();
@@ -91,7 +93,7 @@ export const resolveRiskDisplay = (todo, series) => {
 
   const deadline = toDate(todo.deadline);
   const plannedStart = toDate(todo.plannedStart);
-  const now = new Date();
+  const now = options.now instanceof Date ? options.now : new Date();
   if (plannedStart && now.getTime() < plannedStart.getTime()) {
     return { riskKey: "none", riskText: "—", isBeforeStart: true };
   }
@@ -122,7 +124,50 @@ export const resolveRiskDisplay = (todo, series) => {
       ? "🟢 良好"
       : "—";
 
-  return { riskKey, riskText };
+  const estimatedMinutes = toNumberOrNull(options.estimatedMinutes ?? todo.estimatedMinutes);
+  const actualRaw = options.actualMinutes ?? todo.actualTotalMinutes;
+  const actualMinutes = toNumberOrNull(actualRaw);
+  const actualTotal = actualMinutes != null ? Math.max(0, Math.round(actualMinutes)) : 0;
+  const remainingMinutes =
+    estimatedMinutes != null ? Math.max(0, Math.round(estimatedMinutes - actualTotal)) : null;
+  const daysLeft = deadline
+    ? Math.max(1, Math.ceil((deadline.getTime() - now.getTime()) / MS_PER_DAY))
+    : null;
+  const requiredPerDay =
+    remainingMinutes != null && daysLeft != null
+      ? Math.ceil(remainingMinutes / daysLeft)
+      : null;
+
+  let requiredMinutesForWarn = null;
+  let requiredMinutesForOk = null;
+
+  if (remainingMinutes != null) {
+    if (deadlinePassed && !todo?.completed) {
+      requiredMinutesForWarn = remainingMinutes;
+      requiredMinutesForOk = remainingMinutes;
+    } else if (riskKey === "late") {
+      requiredMinutesForWarn = requiredPerDay ?? remainingMinutes ?? null;
+      requiredMinutesForOk = remainingMinutes;
+    } else if (riskKey === "warn") {
+      requiredMinutesForWarn = 0;
+      requiredMinutesForOk = requiredPerDay ?? 0;
+    } else if (riskKey === "ok") {
+      requiredMinutesForWarn = 0;
+      requiredMinutesForOk = 0;
+    } else {
+      requiredMinutesForWarn = requiredPerDay;
+      requiredMinutesForOk = requiredPerDay;
+    }
+  }
+
+  return {
+    riskKey,
+    riskText,
+    remainingMinutes,
+    requiredPerDay,
+    requiredMinutesForWarn,
+    requiredMinutesForOk,
+  };
 };
 
 export const calculateAverages = (series, windowSize) => {
