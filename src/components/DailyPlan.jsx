@@ -25,12 +25,38 @@ function todayKeyTokyo() {
   return f.format(new Date());
 }
 
+function getTodayKey() {
+  return todayKeyTokyo();
+}
+
+function getTodayActualTotal(todos, todayKey) {
+  let total = 0;
+  for (const t of todos) {
+    if (t.actualLogs && t.actualLogs[todayKey]) {
+      total += Number(t.actualLogs[todayKey]) || 0;
+    }
+  }
+  return total;
+}
+
 /** “遅れベース＋キャパ連動”で今日のプランを選定 */
-function selectTodayPlan(todos, appSettings) {
+function selectTodayPlan(todos, appSettings, _todayKey, options = {}) {
+  const { mode = "initial", remainingCap = null } = options;
   const capDefault = 120;
-  const cap = Number.isFinite(Number(appSettings?.dailyCap))
+  const baseCap = Number.isFinite(Number(appSettings?.dailyCap))
     ? Number(appSettings.dailyCap)
     : capDefault;
+
+  let cap;
+  if (mode === "initial") {
+    cap = baseCap;
+  } else {
+    if (typeof remainingCap === "number" && remainingCap > 0) {
+      cap = remainingCap;
+    } else {
+      cap = Infinity;
+    }
+  }
 
   const today = new Date();
 
@@ -87,7 +113,17 @@ function selectTodayPlan(todos, appSettings) {
   let used = 0;
   const plan = [];
   for (const c of candidates) {
-    const need = Math.min(Math.max(0, c.required), c.R, cap - used);
+    let need;
+
+    const required = Math.max(0, c.required);
+    const R = c.R;
+
+    if (cap === Infinity) {
+      need = Math.min(required, R);
+    } else {
+      const remainCapForThisTask = Math.max(0, cap - used);
+      need = Math.min(required, R, remainCapForThisTask);
+    }
     if (need <= 0) continue;
     plan.push({ ...c, todayMinutes: Math.round(need) });
     used += need;
@@ -141,7 +177,8 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("dailyPlan.collapsed") === "true";
   });
-  const dateKey = useMemo(() => todayKeyTokyo(), []);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const todayKey = useMemo(() => getTodayKey(), []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -186,10 +223,37 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     [todos]
   );
 
-  const plan = useMemo(
-    () => selectTodayPlan(incompleteTodos, appSettings),
-    [incompleteTodos, appSettings]
+  const baseDailyCap = useMemo(() => {
+    if (Number.isFinite(Number(appSettings?.dailyCap))) {
+      return Number(appSettings.dailyCap);
+    }
+    return 120;
+  }, [appSettings?.dailyCap]);
+
+  const todayActualTotal = useMemo(
+    () => getTodayActualTotal(incompleteTodos, todayKey),
+    [incompleteTodos, todayKey]
   );
+
+  const remainingCap = useMemo(
+    () => baseDailyCap - todayActualTotal,
+    [baseDailyCap, todayActualTotal]
+  );
+
+  const plan = useMemo(() => {
+    let mode = "initial";
+    let capForOptions = null;
+
+    if (refreshToken > 0) {
+      mode = "recalc";
+      capForOptions = remainingCap;
+    }
+
+    return selectTodayPlan(incompleteTodos, appSettings, todayKey, {
+      mode,
+      remainingCap: capForOptions,
+    });
+  }, [incompleteTodos, appSettings, todayKey, refreshToken, remainingCap]);
 
   const planTodayMinutesMap = useMemo(() => {
     const map = new Map();
@@ -205,10 +269,10 @@ export default function DailyPlan({ todos: propTodos = [] }) {
   const { chartData, totals: chartTotals } = useMemo(() => {
     const rows = (incompleteTodos || [])
       .map((t) => {
-        const assigned = Number(t?.assigned?.[dateKey]) || 0;
+        const assigned = Number(t?.assigned?.[todayKey]) || 0;
         const fallbackAssigned = planTodayMinutesMap.get(t.id) || 0;
         const plannedMinutes = assigned > 0 ? assigned : fallbackAssigned;
-        const actual = Number(t?.actualLogs?.[dateKey]) || 0;
+        const actual = Number(t?.actualLogs?.[todayKey]) || 0;
         if (plannedMinutes <= 0 && actual <= 0) return null;
         return {
           id: t.id,
@@ -234,7 +298,7 @@ export default function DailyPlan({ todos: propTodos = [] }) {
         hasData: rows.length > 0,
       },
     };
-  }, [incompleteTodos, dateKey, planTodayMinutesMap]);
+  }, [incompleteTodos, todayKey, planTodayMinutesMap]);
 
   const chartDataWithSummary = useMemo(() => {
     if (!chartTotals.hasData) return [];
@@ -255,15 +319,27 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     if (!user?.uid || !plan?.items?.length) return;
     (async () => {
       const ops = plan.items.map((item) => {
+        const todo = incompleteTodos.find((t) => t.id === item.id);
+        if (!todo) return null;
+
+        const alreadyAssigned = todo.assigned && todo.assigned[todayKey];
+        if (alreadyAssigned && refreshToken === 0) return null;
+
         const ref = doc(db, "todos", item.id);
-        return updateDoc(ref, {
-          [`assigned.${dateKey}`]: item.todayMinutes,
-        });
+        const newAssigned = {
+          ...(todo.assigned || {}),
+          [todayKey]: item.todayMinutes,
+        };
+        return updateDoc(ref, { assigned: newAssigned });
       });
-      await Promise.allSettled(ops);
-      console.log("✅ 今日の割当を todos.assigned に保存しました:", dateKey);
+
+      const filteredOps = ops.filter(Boolean);
+      if (filteredOps.length === 0) return;
+
+      await Promise.allSettled(filteredOps);
+      console.log("✅ 今日の割当を todos.assigned に保存しました:", todayKey);
     })();
-  }, [user?.uid, plan, dateKey]);
+  }, [user?.uid, plan, todayKey, incompleteTodos, refreshToken]);
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
@@ -278,22 +354,38 @@ export default function DailyPlan({ todos: propTodos = [] }) {
       >
         <div>
           <h3 style={{ margin: 0 }}>今日のプラン</h3>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{dateKey}</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{todayKey}</div>
         </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed((prev) => !prev)}
-          style={{
-            background: "#fff",
-            border: "1px solid #d0d0d0",
-            borderRadius: 4,
-            padding: "4px 10px",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          {collapsed ? "表示 ▼" : "非表示 ▲"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setRefreshToken((v) => v + 1)}
+            style={{
+              background: "#fff",
+              border: "1px solid #d0d0d0",
+              borderRadius: 4,
+              padding: "4px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            今日のプランを更新
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollapsed((prev) => !prev)}
+            style={{
+              background: "#fff",
+              border: "1px solid #d0d0d0",
+              borderRadius: 4,
+              padding: "4px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            {collapsed ? "表示 ▼" : "非表示 ▲"}
+          </button>
+        </div>
       </div>
 
       {!collapsed && (
@@ -314,6 +406,11 @@ export default function DailyPlan({ todos: propTodos = [] }) {
                     </span>
                   )}
                 </div>
+                {refreshToken > 0 && remainingCap <= 0 && (
+                  <p style={{ fontSize: 12, color: "#666", marginTop: 0 }}>
+                    すでに日次キャパシティ以上の作業を行っているため、キャパ制約なしで目安時間を表示しています。
+                  </p>
+                )}
                 <ul
                   style={{
                     listStyle: "none",
