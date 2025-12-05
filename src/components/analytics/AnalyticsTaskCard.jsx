@@ -115,11 +115,31 @@ export default function AnalyticsTaskCard({
           </div>
         </div>
         <div className="ana-summary">
-          <div>E: {estimated != null ? formatMinutes(estimated) : "—"}</div>
-          <div>A: {formatMinutes(actualTotal)}</div>
-          <div>進捗率: {formatProgress(progressRatio)}</div>
-          <div>締切: {deadlineText}</div>
-          <div>EAC(完了予測日): {latestEacText}</div>
+          <div
+            title="Estimate（見積時間）：タスク完了に必要だと最初に見積もった合計作業時間（分）"
+          >
+            E: {estimated != null ? formatMinutes(estimated) : "—"}
+          </div>
+          <div
+            title="Actual（実績時間）：これまでに記録した合計作業時間（分）"
+          >
+            A: {formatMinutes(actualTotal)}
+          </div>
+          <div
+            title="進捗率 = A ÷ E。1（100%）なら見積もり通り、1以上なら見積より速いペース"
+          >
+            進捗率: {formatProgress(progressRatio)}
+          </div>
+          <div
+            title="タスクの締切日時。この時間までに見積時間Eを消化する前提でSPIなどを計算しています"
+          >
+            締切: {deadlineText}
+          </div>
+          <div
+            title="EAC（予測完了日）：現在のペースが続いた場合に、このタスクが完了すると予測される日付。締切より後になると遅延リスクが高い状態です"
+          >
+            EAC(完了予測日): {latestEacText}
+          </div>
           <div>
             今日の目安:
             {improvementMessages.length

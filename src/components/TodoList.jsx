@@ -585,15 +585,29 @@ export default function TodoList({
 
                   <div className="meta-line">
                     <span className="meta-label">SPI:</span>
-                    <span className="meta-value">{spiText}</span>
+                    <span
+                      className="meta-value"
+                      title="SPI（進捗指数）＝ 過去7日間の実績ペース ÷ 締切までに必要なペース。1以上なら計画通り、それ未満だとこのままだと締切に間に合わない可能性があります"
+                    >
+                      {spiText}
+                    </span>
 
                     <span className="spacer" />
                     <span className="meta-label">EAC:</span>
-                    <span className="meta-value">{eacText}</span>
+                    <span
+                      className="meta-value"
+                      title="EAC（予測完了日）：現在のペースが続いた場合に、このタスクが完了すると予測される日付。締切より後になると遅延リスクが高い状態です"
+                    >
+                      {eacText}
+                    </span>
 
                     <span className="spacer" />
                     <span className="meta-label">リスク:</span>
-                    <span className="meta-value" style={{ fontWeight: 600 }}>
+                    <span
+                      className="meta-value"
+                      style={{ fontWeight: 600 }}
+                      title="タスクの遅延リスクの目安です。締切に対して現在の進捗がどの程度危険かを色とラベルで示しています"
+                    >
                       {displayRiskText}
                     </span>
                   </div>
