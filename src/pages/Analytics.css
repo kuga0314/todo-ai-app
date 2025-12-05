@@ -16,11 +16,11 @@
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text, #0f172a);
 }
 
 .ana-text-muted {
-  color: #666;
+  color: var(--muted, #475569);
 }
 
 .ana-text-muted--spaced {
@@ -43,10 +43,10 @@
 .ana-select {
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--surface, #f1f5f9);
   font-size: 14px;
-  color: #0f172a;
+  color: var(--text, #0f172a);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -63,7 +63,7 @@
 .ana-input:focus,
 .ana-select:focus {
   outline: none;
-  border-color: #2563eb;
+  border-color: var(--primary, #2563eb);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
@@ -71,7 +71,7 @@
   margin: 0 0 12px;
   font-size: 18px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text, #0f172a);
 }
 
 .ana-section-title--sub {
@@ -91,14 +91,14 @@
 
 .ana-metric__label {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted, #475569);
   margin-bottom: 4px;
 }
 
 .ana-metric__value {
   font-size: 18px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text, #0f172a);
 }
 
 .ana-metric__value--large {
@@ -117,29 +117,32 @@
 }
 
 .ana-card {
-  padding: 16px;
-  border: 1px solid #e5e7eb;
+  --ana-risk-color: var(--border, #e2e8f0);
+  position: relative;
+  padding: 16px 16px 16px 18px;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-  border-left: 6px solid #cbd5e1;
-  background: #fff;
+  box-shadow: var(--shadow-sm, 0 1px 8px rgba(0, 0, 0, 0.12));
+  border-left: 6px solid var(--ana-risk-color);
+  background: var(--card-bg, #ffffff);
+  color: var(--text, #0f172a);
+  overflow: hidden;
 }
 
-.ana-card--risk-ok {
-  border-left-color: #10b981;
+.ana-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--ana-risk-color);
+  border-radius: 10px 0 0 10px;
+  pointer-events: none;
 }
 
-.ana-card--risk-warn {
-  border-left-color: #f59e0b;
-}
-
-.ana-card--risk-late {
-  border-left-color: #ef4444;
-}
-
-.ana-card--risk-none {
-  border-left-color: #cbd5e1;
-}
+.ana-card--risk-ok { --ana-risk-color: #10b981; }
+.ana-card--risk-warn { --ana-risk-color: #f59e0b; }
+.ana-card--risk-late { --ana-risk-color: #ef4444; }
+.ana-card--risk-none { --ana-risk-color: #cbd5e1; }
 
 .ana-card__toggle {
   width: 100%;
@@ -154,7 +157,7 @@
 }
 
 .ana-card__toggle:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--primary, #2563eb);
   outline-offset: 4px;
   border-radius: 12px;
 }
@@ -174,7 +177,7 @@
   row-gap: 4px;
   font-size: 16px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text, #0f172a);
 }
 
 .ana-label {
@@ -183,7 +186,7 @@
   padding: 2px 6px;
   border-radius: 999px;
   background-color: var(--ana-label-bg, #e2e8f0);
-  color: #0f172a;
+  color: var(--text, #0f172a);
   flex-shrink: 0;
 }
 
@@ -205,72 +208,73 @@
   gap: 4px;
 }
 
-.ana-badge--risk-ok {
-  background: #dcfce7;
-  color: #065f46;
-  border-color: #86efac;
-}
+  .ana-badge--risk-ok {
+    background: color-mix(in srgb, #10b981 18%, transparent);
+    color: #0b3b2c;
+    border-color: color-mix(in srgb, #10b981 50%, transparent);
+  }
 
-.ana-badge--risk-warn {
-  background: #fef9c3;
-  color: #854d0e;
-  border-color: #fde68a;
-}
+  .ana-badge--risk-warn {
+    background: color-mix(in srgb, #f59e0b 22%, transparent);
+    color: #5a2f06;
+    border-color: color-mix(in srgb, #f59e0b 55%, transparent);
+  }
 
-.ana-badge--risk-late {
-  background: #fee2e2;
-  color: #991b1b;
-  border-color: #fca5a5;
-}
+  .ana-badge--risk-late {
+    background: color-mix(in srgb, #ef4444 18%, transparent);
+    color: #5d0f10;
+    border-color: color-mix(in srgb, #ef4444 55%, transparent);
+  }
 
-.ana-badge--risk-none {
-  background: #e2e8f0;
-  color: #334155;
-  border-color: #cbd5e1;
-}
+  .ana-badge--risk-none {
+    background: var(--surface-strong, #e2e8f0);
+    color: var(--muted, #475569);
+    border-color: var(--border, #cbd5e1);
+  }
 
-.ana-badge--today {
-  background: #e2e8f0;
-  color: #0f172a;
-}
+  .ana-badge--today {
+    background: var(--surface, #f1f5f9);
+    color: var(--text, #0f172a);
+  }
 
-.ana-badge--today.is-active {
-  background: #dcfce7;
-}
+  .ana-badge--today.is-active {
+    background: color-mix(in srgb, #10b981 20%, var(--surface, #f1f5f9));
+  }
 
-.ana-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: #fff;
-  color: #0f172a;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
-    box-shadow 0.2s ease;
-}
+  .ana-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--card-bg, #ffffff);
+    color: var(--text, #0f172a);
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
 
-.ana-btn--outline {
-  border-color: #2563eb;
-  color: #2563eb;
-}
+  .ana-btn--outline {
+    border-color: var(--primary, #2563eb);
+    color: var(--primary, #2563eb);
+    background: color-mix(in srgb, var(--primary, #2563eb) 6%, var(--card-bg, #ffffff));
+  }
 
-.ana-btn:hover {
-  background: #f1f5f9;
-}
+  .ana-btn:hover {
+    background: var(--surface, #f1f5f9);
+  }
 
-.ana-btn--outline:hover {
-  background: #eff6ff;
-}
+  .ana-btn--outline:hover {
+    background: color-mix(in srgb, var(--primary, #2563eb) 10%, var(--surface, #f1f5f9));
+  }
 
-.ana-btn:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
-}
+  .ana-btn:focus-visible {
+    outline: 2px solid var(--primary, #2563eb);
+    outline-offset: 2px;
+  }
 
 .ana-toggle-icon {
   transition: transform 0.2s ease;
@@ -285,7 +289,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  color: #475569;
+  color: var(--muted, #475569);
   font-size: 13px;
   margin-top: 8px;
 }

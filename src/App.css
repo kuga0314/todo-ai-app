@@ -2,22 +2,52 @@
 
 /* ===== 基本トークン ===== */
 :root {
-  --primary: #4f9aff;
-  --primary-dark: #2b6cb0;
-  --bg: #f5f8ff;
-  --card-bg: #fff;
-  --text: #2d3748;
-  --muted: #6a7280;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --bg: #f8fafc;
+  --card-bg: #ffffff;
+  --surface: #f1f5f9;
+  --surface-strong: #e2e8f0;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: #e2e8f0;
+
+  --header-from: #eef2ff;
+  --header-to: #2563eb;
+  --header-text: #0b1220;
+  --header-outline: rgba(15, 23, 42, 0.18);
 
   --r-lg: 14px;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.12);
   --transition-fast: 0.18s ease;
 
   /* ヘッダー/タブの高さ（BottomNav.css と合わせて 64px に統一） */
   --hdr-h: 56px;
   --tabbar-h: 64px;
   --main-pad: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #7ab8ff;
+    --primary-dark: #2563eb;
+    --bg: #0b1220;
+    --card-bg: #111827;
+    --surface: #0f172a;
+    --surface-strong: #1f2937;
+    --text: #e5e7eb;
+    --muted: #9fb0cf;
+    --border: #1f2937;
+
+    --header-from: #0b152a;
+    --header-to: var(--primary-dark);
+    --header-text: #ffffff;
+    --header-outline: rgba(255, 255, 255, 0.7);
+
+    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -37,8 +67,8 @@ body {
   top: 0;
   z-index: 20;
   backdrop-filter: saturate(180%) blur(12px);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  color: #fff;
+  background: linear-gradient(135deg, var(--header-from) 0%, var(--header-to) 100%);
+  color: var(--header-text);
   box-shadow: 0 3px 12px rgba(0,0,0,0.1);
 }
 .hdr-inner { display: flex; align-items: center; justify-content: space-between; min-height: var(--hdr-h); }
@@ -51,8 +81,8 @@ body {
   justify-content: flex-end;
 }
 .login-chip {
-  background-color: #eef2ff;
-  color: #1e40af;
+  background-color: rgba(15, 23, 42, 0.08);
+  color: inherit;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
@@ -68,8 +98,9 @@ body {
 }
 .btn:hover { filter: brightness(1.05); }
 .btn:active { transform: scale(0.97); }
-.btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.9); padding:.55rem .9rem; border-radius:10px; }
-.btn-outline:hover { background: rgba(255,255,255,.16); }
+.btn-outline { background: transparent; color: inherit; border: 1.5px solid var(--header-outline); padding:.55rem .9rem; border-radius:10px; }
+.btn-outline:hover { background: rgba(15,23,42,.06); }
+.btn-ghost { color: inherit; }
 
 /* ===== Main ===== */
 /* 下タブに被らないように、タブ + safe-area 分の下余白を確保 */
@@ -84,12 +115,14 @@ body {
   box-shadow: var(--shadow-sm);
   padding: 14px 16px;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  border: 1px solid var(--border);
+  color: var(--text);
 }
 .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
 /* ===== ホームの“全面カレンダー”用ラッパ ===== */
 .home-cal{
-  background:#fff;
+  background:var(--card-bg);
   box-shadow:none;          /* 影を消して“面”に */
   border-radius:8px;
   padding: 8px;             /* ← 下は通常の余白だけに戻す */
