@@ -101,13 +101,12 @@ export default function DayPanel({
     background: "rgba(0,0,0,0.20)",
     zIndex: 1000,
     display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
   };
   const modalStyle = {
     position: "relative",
-    marginTop: 16,
-    marginLeft: 16,
     width: "min(720px, calc(100vw - 32px))",
     background: "#fff",
     borderRadius: 12,
@@ -139,8 +138,16 @@ export default function DayPanel({
   const labelStyle = { display: "block", fontSize: ".85rem", marginBottom: 6, color: "#555" };
 
   return (
-    <div style={overlayStyle} onMouseDown={handleBackdropClick}>
-      <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
+    <div
+      className="quick-modal-overlay"
+      style={overlayStyle}
+      onMouseDown={handleBackdropClick}
+    >
+      <div
+        className="quick-modal"
+        style={modalStyle}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         {/* ヘッダー */}
         <div style={headerStyle}>
           <h3 style={titleStyle}>

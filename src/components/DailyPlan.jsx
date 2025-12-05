@@ -173,6 +173,7 @@ export default function DailyPlan({ todos: propTodos = [] }) {
   );
   const [appSettings, setAppSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [revealWave, setRevealWave] = useState(0);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("dailyPlan.collapsed") === "true";
@@ -183,6 +184,12 @@ export default function DailyPlan({ todos: propTodos = [] }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem("dailyPlan.collapsed", collapsed ? "true" : "false");
+  }, [collapsed]);
+
+  useEffect(() => {
+    if (!collapsed) {
+      setRevealWave((v) => v + 1);
+    }
   }, [collapsed]);
 
   useEffect(() => {
@@ -373,7 +380,11 @@ export default function DailyPlan({ todos: propTodos = [] }) {
           </button>
           <button
             type="button"
-            onClick={() => setCollapsed((prev) => !prev)}
+            onClick={() =>
+              setCollapsed((prev) => {
+                return !prev;
+              })
+            }
             style={{
               background: "#fff",
               border: "1px solid #d0d0d0",
@@ -389,7 +400,11 @@ export default function DailyPlan({ todos: propTodos = [] }) {
       </div>
 
       {!collapsed && (
-        <div className="card-content">
+        <div
+          key={revealWave}
+          className="card-content daily-plan-content"
+          data-wave={revealWave}
+        >
           {loading ? (
             <div>読み込み中…</div>
           ) : (
@@ -418,17 +433,19 @@ export default function DailyPlan({ todos: propTodos = [] }) {
                     margin: 0,
                   }}
                 >
-                  {plan.items.map((it, idx) => (
-                    <li
-                      key={it.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        padding: "6px 0",
-                        borderTop:
-                          idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
-                      }}
-                    >
+                    {plan.items.map((it, idx) => (
+                      <li
+                        key={it.id}
+                        className="daily-plan-item"
+                        style={{
+                          "--item-index": idx,
+                          display: "flex",
+                          alignItems: "center",
+                          padding: "6px 0",
+                          borderTop:
+                            idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
+                        }}
+                      >
                       <span
                         style={{
                           width: 10,
