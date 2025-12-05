@@ -1,0 +1,48 @@
+.all-tasks__section {
+  padding: 16px 16px 8px;
+}
+
+.all-tasks__header {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--card-bg);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.all-tasks__header h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.all-tasks__desc {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.all-tasks__filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.all-tasks__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  user-select: none;
+  color: var(--text);
+}
+
+.all-tasks__checkbox input[type="checkbox"] {
+  accent-color: var(--primary);
+}

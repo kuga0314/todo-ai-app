@@ -334,17 +334,7 @@ export default function TodoList({
       }}
     >
       {/* ===== フィルター＆並び替えバー（固定） ===== */}
-      <div
-        className="list-toolbar"
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 5,
-          background: "#fff",
-          padding: "8px 0",
-          borderBottom: "1px solid #eee",
-        }}
-      >
+      <div className="list-toolbar">
         <div className="list-controls">
           <div className="filter-row">
             <div className="filter-group">

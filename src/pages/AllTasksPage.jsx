@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import TodoList from "../components/TodoList";
+import "./AllTasksPage.css";
 
 export default function AllTasksPage({
   todos,
@@ -28,50 +29,20 @@ export default function AllTasksPage({
   return (
     <main className="app-main">
       <div className="container">
-        <section className="card" style={{ padding: "16px 16px 8px" }}>
+        <section className="card all-tasks__section">
           {/* ===== 上部ヘッダー（常に固定） ===== */}
-          <header
-            style={{
-              marginBottom: 12,
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              position: "sticky",
-              top: 0,
-              zIndex: 10,
-              background: "#fff",
-              paddingBottom: 8,
-              borderBottom: "1px solid #eee",
-            }}
-          >
+          <header className="all-tasks__header">
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h2 style={{ margin: 0, fontSize: 20, lineHeight: 1.3 }}>
-                すべてのタスク
-              </h2>
-              <p style={{ margin: "6px 0 0", color: "#666", fontSize: 13 }}>
+              <h2>すべてのタスク</h2>
+              <p className="all-tasks__desc">
                 期限やラベルに関係なく、登録済みのタスクをまとめて確認できます。
                 追加はホーム（カレンダー画面）の「＋」から行ってください。
               </p>
             </div>
           </header>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              margin: "0 0 12px",
-            }}
-          >
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 14,
-                userSelect: "none",
-              }}
-            >
+          <div className="all-tasks__filters">
+            <label className="all-tasks__checkbox">
               <input
                 type="checkbox"
                 checked={incompleteOnly}

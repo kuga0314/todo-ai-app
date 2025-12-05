@@ -122,20 +122,23 @@ const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
 
   const modalStyle = {
     width: "min(480px, 100%)",
-    background: "#fff",
+    background: "var(--card-bg)",
     borderRadius: 12,
     boxShadow: "0 20px 40px rgba(15,23,42,0.18)",
     padding: 20,
-    color: "#0f172a",
+    color: "var(--text)",
+    border: "1px solid var(--border)",
   };
 
   const inputStyle = {
     width: "100%",
     padding: "10px 12px",
     borderRadius: 10,
-    border: "1px solid #cbd5f5",
+    border: "1px solid var(--border)",
     fontSize: 15,
     boxSizing: "border-box",
+    background: "var(--surface)",
+    color: "var(--text)",
   };
 
   return (
@@ -152,11 +155,12 @@ const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
             type="button"
             onClick={handleClose}
             style={{
-              border: "1px solid #cbd5f5",
-              background: "#f8fafc",
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
               borderRadius: 8,
               padding: "6px 10px",
               cursor: "pointer",
+              color: "var(--text)",
             }}
           >
             閉じる
@@ -165,7 +169,10 @@ const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
 
         <form onSubmit={handleSubmit} style={{ marginTop: 16, display: "grid", gap: 14 }}>
           <div>
-            <label htmlFor="add-missing-search" style={{ display: "block", fontSize: 13, color: "#475569", marginBottom: 6 }}>
+            <label
+              htmlFor="add-missing-search"
+              style={{ display: "block", fontSize: 13, color: "var(--muted)", marginBottom: 6 }}
+            >
               タスクを検索
             </label>
             <input
@@ -179,7 +186,10 @@ const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
           </div>
 
           <div>
-            <label htmlFor="add-missing-select" style={{ display: "block", fontSize: 13, color: "#475569", marginBottom: 6 }}>
+            <label
+              htmlFor="add-missing-select"
+              style={{ display: "block", fontSize: 13, color: "var(--muted)", marginBottom: 6 }}
+            >
               対象タスク
             </label>
             <select
@@ -195,13 +205,16 @@ const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
                 </option>
               ))}
             </select>
-            <p style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
+            <p style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
               この日に未記録のタスクから選択します。
             </p>
           </div>
 
           <div>
-            <label htmlFor="add-missing-minutes" style={{ display: "block", fontSize: 13, color: "#475569", marginBottom: 6 }}>
+            <label
+              htmlFor="add-missing-minutes"
+              style={{ display: "block", fontSize: 13, color: "var(--muted)", marginBottom: 6 }}
+            >
               追加する分数
             </label>
             <input
@@ -225,9 +238,9 @@ const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
               type="button"
               onClick={handleClose}
               style={{
-                border: "1px solid #cbd5f5",
-                background: "#f8fafc",
-                color: "#1e293b",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text)",
                 borderRadius: 10,
                 padding: "8px 16px",
                 cursor: saving ? "default" : "pointer",
@@ -388,13 +401,13 @@ export default function ProgressEntry({ todos = [], src }) {
         <section className="card" style={{ padding: 16 }}>
           <header style={{ marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: 20 }}>進捗入力</h2>
-            <p style={{ margin: "6px 0 0", color: "#666", fontSize: 13 }}>
+            <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
               {format(today, "yyyy/M/d (EEE)")} に取り組んだ時間を入力し、「一括保存」を押してください。
             </p>
           </header>
 
           {rows.length === 0 ? (
-            <p style={{ color: "#666" }}>入力対象のタスクはありません。</p>
+            <p style={{ color: "var(--muted)" }}>入力対象のタスクはありません。</p>
           ) : (
             <ul
               style={{
@@ -416,9 +429,9 @@ export default function ProgressEntry({ todos = [], src }) {
                       gap: 10,
                       alignItems: "center",
                       padding: "10px 12px",
-                      border: "1px solid #eee",
+                      border: "1px solid var(--border)",
                       borderRadius: 10,
-                      background: "#fff",
+                      background: "var(--card-bg)",
                     }}
                   >
                     <div style={{ minWidth: 0 }}>
@@ -436,7 +449,7 @@ export default function ProgressEntry({ todos = [], src }) {
                       <div
                         style={{
                           fontSize: 12,
-                          color: "#666",
+                          color: "var(--muted)",
                           marginTop: 2,
                           display: "flex",
                           gap: 10,
@@ -461,15 +474,17 @@ export default function ProgressEntry({ todos = [], src }) {
                       onChange={(e) => handleChange(t.id, e.target.value)}
                       style={{
                         padding: 8,
-                        border: "1px solid #ddd",
+                        border: "1px solid var(--border)",
                         borderRadius: 8,
+                        background: "var(--surface)",
+                        color: "var(--text)",
                       }}
                     />
 
                     <div
                       style={{
                         textAlign: "right",
-                        color: "#333",
+                        color: "var(--text)",
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >
@@ -491,7 +506,7 @@ export default function ProgressEntry({ todos = [], src }) {
               marginTop: 14,
             }}
           >
-            <div style={{ color: "#666", fontSize: 13 }}>
+            <div style={{ color: "var(--muted)", fontSize: 13 }}>
               入力合計: <b>{totalEntered}</b> 分
             </div>
             <button
@@ -522,11 +537,12 @@ export default function ProgressEntry({ todos = [], src }) {
                 type="button"
                 onClick={() => moveSelectedDate(-1)}
                 style={{
-                  border: "1px solid #cbd5f5",
-                  background: "#f8fafc",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
                   borderRadius: 8,
                   padding: "6px 10px",
                   cursor: "pointer",
+                  color: "var(--text)",
                 }}
               >
                 ← 前日
@@ -538,19 +554,22 @@ export default function ProgressEntry({ todos = [], src }) {
                 style={{
                   padding: "8px 12px",
                   borderRadius: 8,
-                  border: "1px solid #cbd5f5",
+                  border: "1px solid var(--border)",
                   fontSize: 15,
+                  background: "var(--surface)",
+                  color: "var(--text)",
                 }}
               />
               <button
                 type="button"
                 onClick={() => moveSelectedDate(1)}
                 style={{
-                  border: "1px solid #cbd5f5",
-                  background: "#f8fafc",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
                   borderRadius: 8,
                   padding: "6px 10px",
                   cursor: "pointer",
+                  color: "var(--text)",
                 }}
               >
                 翌日 →
@@ -571,14 +590,14 @@ export default function ProgressEntry({ todos = [], src }) {
                 今日に戻る
               </button>
             </div>
-            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
               選択した日付の実績ログを編集・削除できます。ログのないタスクを追加することもできます。
             </p>
           </header>
 
           <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
             {workedTodos.length === 0 ? (
-              <p style={{ color: "#64748b", margin: 0 }}>
+              <p style={{ color: "var(--muted)", margin: 0 }}>
                 この日はまだログがありません。下の「未作業タスクを検索して追加」から登録できます。
               </p>
             ) : (
@@ -588,10 +607,10 @@ export default function ProgressEntry({ todos = [], src }) {
                   <div
                     key={todo.id}
                     style={{
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       borderRadius: 12,
                       padding: 14,
-                      background: "#fff",
+                      background: "var(--card-bg)",
                       display: "flex",
                       flexDirection: "column",
                       gap: 8,
@@ -600,7 +619,7 @@ export default function ProgressEntry({ todos = [], src }) {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: 15 }}>{todo.text}</div>
-                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
                           この日の実績: {todo.minutes} 分
                           {deadline ? ` ｜ 締切: ${format(deadline, "yyyy/MM/dd HH:mm")}` : ""}
                         </div>
@@ -633,7 +652,7 @@ export default function ProgressEntry({ todos = [], src }) {
               onClick={() => setMissingModalOpen(true)}
               style={{
                 border: "1px solid #2563eb",
-                background: "#fff",
+                background: "var(--surface)",
                 color: "#2563eb",
                 borderRadius: 10,
                 padding: "10px 18px",
