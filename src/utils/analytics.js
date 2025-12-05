@@ -1,3 +1,5 @@
+import { jstDateKey } from "./logUpdates";
+
 export const DATE_CAP = 365;
 
 export const formatDateKey = (date) => {
@@ -77,6 +79,11 @@ const toDate = (value) => {
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+const roundUpToFiveMinutes = (value) => {
+  if (!Number.isFinite(value)) return null;
+  return Math.ceil(Math.ceil(value) / 5) * 5;
+};
+
 export const resolveRiskDisplay = (todo, series, options = {}) => {
   const normalizeRisk = (value) => {
     if (!value) return null;
@@ -130,33 +137,39 @@ export const resolveRiskDisplay = (todo, series, options = {}) => {
   const actualTotal = actualMinutes != null ? Math.max(0, Math.round(actualMinutes)) : 0;
   const remainingMinutes =
     estimatedMinutes != null ? Math.max(0, Math.round(estimatedMinutes - actualTotal)) : null;
-  const daysLeft = deadline
-    ? Math.max(1, Math.ceil((deadline.getTime() - now.getTime()) / MS_PER_DAY))
-    : null;
-  const requiredPerDay =
-    remainingMinutes != null && daysLeft != null
-      ? Math.ceil(remainingMinutes / daysLeft)
-      : null;
 
   let requiredMinutesForWarn = null;
   let requiredMinutesForOk = null;
+  let requiredPerDay = null;
 
-  if (remainingMinutes != null) {
-    if (deadlinePassed && !todo?.completed) {
-      requiredMinutesForWarn = remainingMinutes;
-      requiredMinutesForOk = remainingMinutes;
-    } else if (riskKey === "late") {
-      requiredMinutesForWarn = requiredPerDay ?? remainingMinutes ?? null;
-      requiredMinutesForOk = remainingMinutes;
+  const canCalculateGuidance = remainingMinutes != null && remainingMinutes > 0 && !!deadline;
+
+  if (canCalculateGuidance) {
+    const today = parseDateKey(jstDateKey(now));
+    const diffMs = deadline.getTime() - today.getTime();
+    const diffDaysRaw = diffMs / MS_PER_DAY;
+    const daysLeft = Math.max(1, Math.ceil(diffDaysRaw));
+
+    const basePerDay = remainingMinutes / daysLeft;
+    requiredPerDay = basePerDay;
+
+    const clampToRemaining = (value) => {
+      const rounded = roundUpToFiveMinutes(value);
+      if (rounded == null) return null;
+      return Math.min(rounded, remainingMinutes);
+    };
+
+    const okFactor = riskKey === "late" ? 2 : riskKey === "warn" ? 1.5 : 1;
+
+    if (riskKey === "late") {
+      requiredMinutesForWarn = clampToRemaining(basePerDay);
+      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
     } else if (riskKey === "warn") {
       requiredMinutesForWarn = 0;
-      requiredMinutesForOk = requiredPerDay ?? 0;
-    } else if (riskKey === "ok") {
-      requiredMinutesForWarn = 0;
-      requiredMinutesForOk = 0;
+      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
     } else {
-      requiredMinutesForWarn = requiredPerDay;
-      requiredMinutesForOk = requiredPerDay;
+      requiredMinutesForWarn = clampToRemaining(basePerDay);
+      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
     }
   }
 
