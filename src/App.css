@@ -102,6 +102,26 @@ body {
 .btn-outline:hover { background: rgba(15,23,42,.06); }
 .btn-ghost { color: inherit; }
 
+.btn,
+.ana-btn {
+  transition:
+    transform 140ms ease-out,
+    box-shadow 140ms ease-out,
+    background-color 140ms ease-out,
+    border-color 140ms ease-out;
+}
+
+.btn:active,
+.ana-btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.btn:hover,
+.ana-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+}
+
 /* ===== Main ===== */
 /* 下タブに被らないように、タブ + safe-area 分の下余白を確保 */
 .app-main {
@@ -114,11 +134,17 @@ body {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   padding: 14px 16px;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    transform 180ms ease-out,
+    box-shadow 180ms ease-out,
+    background-color 160ms ease-out;
   border: 1px solid var(--border);
   color: var(--text);
 }
-.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+}
 
 /* ===== ホームの“全面カレンダー”用ラッパ ===== */
 .home-cal{
@@ -136,6 +162,18 @@ body {
 
 /* ===== BottomNav の表示（常時表示前提。スタイル自体は BottomNav.css） ===== */
 .bottom-nav { display: flex; }
+
+.bottom-nav button,
+.bottom-nav a {
+  transition:
+    transform 140ms ease-out,
+    color 140ms ease-out;
+}
+
+.bottom-nav button:active,
+.bottom-nav a:active {
+  transform: translateY(1px) scale(0.96);
+}
 
 /* ===== 小さめ画面 ===== */
 @media (max-width: 980px) {
@@ -195,5 +233,14 @@ body {
   .app-main {
     padding: var(--main-pad) 0
       calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }
