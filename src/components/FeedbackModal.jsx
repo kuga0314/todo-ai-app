@@ -139,8 +139,18 @@ const FeedbackModal = ({ open, onClose, user }) => {
   if (!open) return null;
 
   return (
-    <div style={overlayStyle} role="dialog" aria-modal="true" onClick={onClose}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="floating-overlay"
+      style={overlayStyle}
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="floating-overlay__surface"
+        style={modalStyle}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div style={headerStyle}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 18 }}>開発者へのフィードバック</div>

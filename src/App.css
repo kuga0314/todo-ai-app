@@ -128,6 +128,97 @@ body {
   padding: var(--main-pad) 0 calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
 }
 
+/* タブ切り替え時のスライド感 */
+.tab-motion-shell {
+  position: relative;
+  overflow: hidden;
+  min-height: calc(
+    100dvh - var(--hdr-h) - var(--tabbar-h) - env(safe-area-inset-bottom, 0px)
+  );
+}
+
+.tab-motion {
+  height: 100%;
+  animation-duration: 260ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+}
+
+.tab-motion.slide-forward {
+  animation-name: tab-slide-forward;
+}
+
+.tab-motion.slide-backward {
+  animation-name: tab-slide-backward;
+}
+
+@keyframes tab-slide-forward {
+  from {
+    opacity: 0;
+    transform: translateX(18px) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+/* オーバーレイ系のフェードイン（ヘッダーボタン用モーダルなど） */
+.floating-overlay {
+  animation: overlay-fade-in 200ms ease-out both;
+}
+
+.floating-overlay__surface {
+  animation: modal-fade-lift 260ms cubic-bezier(0.19, 1, 0.22, 1) both;
+  transform-origin: center;
+}
+
+.help-page {
+  animation: help-fade-in 240ms ease-out both;
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-fade-lift {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes help-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tab-slide-backward {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
 /* 共通カード（設定など） */
 .card {
   background: var(--card-bg);
@@ -144,6 +235,41 @@ body {
 .card:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+}
+
+/* ===== DailyPlan の開閉モーション ===== */
+.daily-plan-content {
+  animation: daily-plan-drop 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top center;
+}
+
+.daily-plan-item {
+  opacity: 0;
+  animation:
+    daily-plan-item-fall 360ms cubic-bezier(0.19, 1, 0.22, 1) both;
+  animation-delay: calc(var(--item-index, 0) * 60ms);
+}
+
+@keyframes daily-plan-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scaleY(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes daily-plan-item-fall {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ===== ホームの“全面カレンダー”用ラッパ ===== */

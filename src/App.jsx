@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -7,6 +7,7 @@ import {
   Navigate,
   Outlet,
   Link,
+  useLocation,
 } from "react-router-dom";
 import {
   collection,
@@ -51,7 +52,7 @@ export default App;
 ───────────────────────────── */
 const HelpPage = () => {
   return (
-    <main className="app-main">
+    <main className="app-main help-page">
       <div className="container">
         <section className="card" style={{ lineHeight: 1.7 }}>
           <h2>このアプリで使う考え方</h2>
@@ -112,6 +113,24 @@ const HelpPage = () => {
 
 /* 共通レイアウト */
 const Layout = ({ logout, loginCount, user }) => {
+  const location = useLocation();
+  const prevPathRef = useRef(location.pathname);
+  const [slideDirection, setSlideDirection] = useState("forward");
+
+  useEffect(() => {
+    const tabOrder = ["/", "/progress", "/all-tasks", "/analytics", "/settings"];
+    const prevIndex = tabOrder.indexOf(prevPathRef.current);
+    const nextIndex = tabOrder.indexOf(location.pathname);
+
+    if (prevIndex !== -1 && nextIndex !== -1) {
+      setSlideDirection(nextIndex >= prevIndex ? "forward" : "backward");
+    } else {
+      setSlideDirection("forward");
+    }
+
+    prevPathRef.current = location.pathname;
+  }, [location.pathname]);
+
   const [showChangelog, setShowChangelog] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
 
@@ -150,7 +169,11 @@ const Layout = ({ logout, loginCount, user }) => {
         </div>
       </header>
 
-      <Outlet />
+      <div className="tab-motion-shell">
+        <div key={location.pathname} className={`tab-motion slide-${slideDirection}`}>
+          <Outlet />
+        </div>
+      </div>
       <BottomNav />
       <FeedbackModal
         open={showFeedback}

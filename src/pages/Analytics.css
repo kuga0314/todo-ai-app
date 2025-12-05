@@ -343,9 +343,10 @@
 }
 
 .ana-card__chart.is-open {
-  max-height: 420px;
+  max-height: 900px;
   opacity: 1;
   transform: translateY(0);
+  overflow: visible;
 }
 
 .ana-chart--task {
