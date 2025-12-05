@@ -151,7 +151,7 @@ export default function AnalyticsTaskCard({
         </div>
       </div>
       {isExpanded && (
-        <div className="ana-card__chart">
+        <div className={`ana-card__chart${isExpanded ? " is-open" : ""}`}>
           {hasTaskLogs ? (
             <>
               <div className="ana-chart ana-chart--task">
