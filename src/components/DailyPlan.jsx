@@ -178,16 +178,20 @@ function selectTodayPlan(todos, appSettings, _todayKey, options = {}) {
 }
 
 function mapPlanItemsForDailyPlan(items = []) {
-  return items.map((item, index) => ({
-    todoId: item.id,
-    title: item.text || "（無題）",
-    plannedMinutes: Math.max(0, Math.round(Number(item.todayMinutes) || 0)),
-    order: index + 1,
-    requiredMinutes: Number.isFinite(Number(item.required))
+  return items.map((item, index) => {
+    const required = Number.isFinite(Number(item.required))
       ? Math.round(Number(item.required))
-      : undefined,
-    labelColor: item.labelColor || null,
-  }));
+      : null;
+
+    return {
+      todoId: item.id,
+      title: item.text || "（無題）",
+      plannedMinutes: Math.max(0, Math.round(Number(item.todayMinutes) || 0)),
+      order: index + 1,
+      requiredMinutes: required,
+      labelColor: item.labelColor || null,
+    };
+  });
 }
 
 function normalizePlanResult(result) {
@@ -245,6 +249,26 @@ function planSnapshotForHistory(plan) {
     totalPlannedMinutes: plan.used,
     items: mapPlanItemsForDailyPlan(plan.items),
   };
+}
+
+function removeUndefined(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => removeUndefined(v))
+      .filter((v) => v !== undefined);
+  }
+
+  if (value && typeof value === "object" && value.constructor === Object) {
+    return Object.entries(value).reduce((acc, [key, val]) => {
+      const cleaned = removeUndefined(val);
+      if (cleaned !== undefined) {
+        acc[key] = cleaned;
+      }
+      return acc;
+    }, {});
+  }
+
+  return value === undefined ? undefined : value;
 }
 
 export default function DailyPlan({ todos: propTodos = [] }) {
@@ -485,13 +509,16 @@ export default function DailyPlan({ todos: propTodos = [] }) {
         }
       : null;
 
-    if (historyPayload) {
+    const safePayload = removeUndefined(payload);
+    const safeHistory = historyPayload ? removeUndefined(historyPayload) : null;
+
+    if (safeHistory) {
       await Promise.all([
-        setDoc(planRef, { ...payload, lastChange: historyPayload }, { merge: true }),
-        addDoc(collection(planRef, "revisions"), historyPayload),
+        setDoc(planRef, { ...safePayload, lastChange: safeHistory }, { merge: true }),
+        addDoc(collection(planRef, "revisions"), safeHistory),
       ]);
     } else {
-      await setDoc(planRef, payload, { merge: true });
+      await setDoc(planRef, safePayload, { merge: true });
     }
 
     await Promise.allSettled(

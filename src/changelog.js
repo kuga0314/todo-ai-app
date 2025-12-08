@@ -1,6 +1,6 @@
 const CHANGELOG = [
   {
-    version: "1.3.3",
+    version: "1.3.4",
     date: "2025-12-08",
     title: "通知機能に関して",
     items: [

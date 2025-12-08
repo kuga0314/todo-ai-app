@@ -8,4 +8,7 @@ exports.scheduleProgressReminder =
 
 exports.onTodoStats = require("./updateStats").onTodoStats;
 
-exports.scheduleMorningSummary   = require("./scheduleMorningSummary").scheduleMorningSummary;
+exports.scheduleMorningSummary =
+  require("./scheduleMorningSummary").scheduleMorningSummary;
+
+exports.user = require("./user").user;
