@@ -165,20 +165,7 @@ async function buildMorningBody(uid) {
 
   const plan = selectMorningPlan(tasks, appSettings);
 
-  if (!plan.items.length)
-    return {
-      title: "朝プラン",
-      body: "今日は特に遅れているタスクはありません。",
-      dateKey: todayKey,
-      plan,
-    };
-
-  const total = Math.round(plan.used || 0);
-  const bullets = plan.items
-    .map((x, i) => `${i + 1}) ${x.text} ${Math.round(x.todayMinutes || 0)}分`)
-    .join(" ");
-
-  const body = `今日のプラン: ${plan.items.length}件 / 合計${total}分  ${bullets}`;
+  const body = "今日取り組むおすすめのタスクを確認してみましょう！";
   return { title: "朝プラン", body, dateKey: todayKey, plan };
 }
 
