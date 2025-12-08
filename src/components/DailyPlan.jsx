@@ -1,6 +1,17 @@
 // src/components/DailyPlan.jsx
 import { useEffect, useMemo, useState } from "react";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -166,6 +177,76 @@ function selectTodayPlan(todos, appSettings, _todayKey, options = {}) {
   return { items: plan, cap, used: Math.round(used) };
 }
 
+function mapPlanItemsForDailyPlan(items = []) {
+  return items.map((item, index) => ({
+    todoId: item.id,
+    title: item.text || "（無題）",
+    plannedMinutes: Math.max(0, Math.round(Number(item.todayMinutes) || 0)),
+    order: index + 1,
+    requiredMinutes: Number.isFinite(Number(item.required))
+      ? Math.round(Number(item.required))
+      : undefined,
+    labelColor: item.labelColor || null,
+  }));
+}
+
+function normalizePlanResult(result) {
+  const items = (result?.items || []).map((item, index) => ({
+    id: item.id,
+    text: item.text || "（無題）",
+    todayMinutes: Math.max(0, Math.round(Number(item.todayMinutes) || 0)),
+    labelColor: item.labelColor || null,
+    required: Number.isFinite(Number(item.required))
+      ? Math.round(Number(item.required))
+      : undefined,
+    order: index + 1,
+  }));
+
+  const usedFromItems = Math.round(
+    items.reduce((sum, item) => sum + (Number(item.todayMinutes) || 0), 0)
+  );
+  const used = Number.isFinite(Number(result?.used))
+    ? Math.round(Number(result.used))
+    : usedFromItems;
+
+  return {
+    cap: Number.isFinite(Number(result?.cap)) ? Math.round(Number(result.cap)) : null,
+    used,
+    items,
+  };
+}
+
+function normalizePlanDocument(data) {
+  const items = (data?.items || []).map((item, index) => ({
+    id: item.todoId,
+    text: item.title || "（無題）",
+    todayMinutes: Math.max(0, Math.round(Number(item.plannedMinutes) || 0)),
+    labelColor: item.labelColor || null,
+    order: Number.isFinite(Number(item.order)) ? Math.round(item.order) : index + 1,
+  }));
+
+  const used = Number.isFinite(Number(data?.totalPlannedMinutes))
+    ? Math.round(Number(data.totalPlannedMinutes))
+    : Math.round(items.reduce((sum, item) => sum + (Number(item.todayMinutes) || 0), 0));
+
+  return {
+    cap: Number.isFinite(Number(data?.capMinutes))
+      ? Math.round(Number(data.capMinutes))
+      : null,
+    used,
+    items,
+  };
+}
+
+function planSnapshotForHistory(plan) {
+  if (!plan) return null;
+  return {
+    capMinutes: plan.cap,
+    totalPlannedMinutes: plan.used,
+    items: mapPlanItemsForDailyPlan(plan.items),
+  };
+}
+
 export default function DailyPlan({ todos: propTodos = [] }) {
   const { user } = useAuth();
   const [todos, setTodos] = useState(() =>
@@ -173,12 +254,14 @@ export default function DailyPlan({ todos: propTodos = [] }) {
   );
   const [appSettings, setAppSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [planLoaded, setPlanLoaded] = useState(false);
+  const [planState, setPlanState] = useState(null);
+  const [refreshMessage, setRefreshMessage] = useState("");
   const [revealWave, setRevealWave] = useState(0);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("dailyPlan.collapsed") === "true";
   });
-  const [refreshToken, setRefreshToken] = useState(0);
   const todayKey = useMemo(() => getTodayKey(), []);
 
   useEffect(() => {
@@ -201,6 +284,8 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     if (!user?.uid) {
       setAppSettings(null);
       setLoading(false);
+      setPlanLoaded(true);
+      setPlanState(null);
       return;
     }
 
@@ -220,8 +305,31 @@ export default function DailyPlan({ todos: propTodos = [] }) {
       }
     })();
 
+    let planCanceled = false;
+    setPlanLoaded(false);
+    (async () => {
+      try {
+        const planSnap = await getDoc(doc(db, "users", user.uid, "dailyPlans", todayKey));
+        if (!planCanceled) {
+          if (planSnap.exists()) {
+            setPlanState(normalizePlanDocument(planSnap.data()));
+          } else {
+            setPlanState(null);
+          }
+          setPlanLoaded(true);
+        }
+      } catch (error) {
+        console.error("failed to load daily plan", error);
+        if (!planCanceled) {
+          setPlanState(null);
+          setPlanLoaded(true);
+        }
+      }
+    })();
+
     return () => {
       canceled = true;
+      planCanceled = true;
     };
   }, [user?.uid]);
 
@@ -247,31 +355,23 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     [baseDailyCap, todayActualTotal]
   );
 
-  const plan = useMemo(() => {
-    let mode = "initial";
-    let capForOptions = null;
+  const initialPlanCandidate = useMemo(
+    () => selectTodayPlan(incompleteTodos, appSettings, todayKey, { mode: "initial" }),
+    [incompleteTodos, appSettings, todayKey]
+  );
 
-    if (refreshToken > 0) {
-      mode = "recalc";
-      capForOptions = remainingCap;
-    }
-
-    return selectTodayPlan(incompleteTodos, appSettings, todayKey, {
-      mode,
-      remainingCap: capForOptions,
-    });
-  }, [incompleteTodos, appSettings, todayKey, refreshToken, remainingCap]);
+  const activePlan = planState || normalizePlanResult(initialPlanCandidate);
 
   const planTodayMinutesMap = useMemo(() => {
     const map = new Map();
-    (plan?.items || []).forEach((item) => {
+    (activePlan?.items || []).forEach((item) => {
       const minutes = Number(item.todayMinutes) || 0;
       if (minutes > 0) {
         map.set(item.id, Math.round(minutes));
       }
     });
     return map;
-  }, [plan?.items]);
+  }, [activePlan?.items]);
 
   const { chartData, totals: chartTotals } = useMemo(() => {
     const rows = (incompleteTodos || [])
@@ -321,32 +421,168 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     ];
   }, [chartData, chartTotals]);
 
-  /** ★ 今日の割当を Firestore に書き込み */
   useEffect(() => {
-    if (!user?.uid || !plan?.items?.length) return;
+    if (!user?.uid || !planLoaded) return;
+    if (planState) return;
+
+    const nextPlan = normalizePlanResult(initialPlanCandidate);
+    setPlanState(nextPlan);
+
     (async () => {
-      const ops = plan.items.map((item) => {
+      try {
+        const planRef = doc(db, "users", user.uid, "dailyPlans", todayKey);
+        const payload = {
+          date: todayKey,
+          userId: user.uid,
+          capMinutes: Number.isFinite(Number(nextPlan.cap))
+            ? Math.round(Number(nextPlan.cap))
+            : null,
+          totalPlannedMinutes: Math.max(0, Math.round(Number(nextPlan.used) || 0)),
+          items: mapPlanItemsForDailyPlan(nextPlan.items || []),
+          source: "dailyPlan-app",
+          updatedAt: serverTimestamp(),
+        };
+        await setDoc(planRef, payload, { merge: true });
+        await Promise.allSettled(
+          nextPlan.items.map((item) => {
+            const todo = incompleteTodos.find((t) => t.id === item.id);
+            if (!todo) return null;
+            const ref = doc(db, "todos", item.id);
+            const newAssigned = {
+              ...(todo.assigned || {}),
+              [todayKey]: item.todayMinutes,
+            };
+            return updateDoc(ref, { assigned: newAssigned });
+          })
+        );
+      } catch (error) {
+        console.error("failed to initialize daily plan", error);
+      }
+    })();
+  }, [user?.uid, planLoaded, planState, initialPlanCandidate, todayKey, incompleteTodos]);
+
+  const savePlanWithHistory = async (nextPlan, { previousPlan } = {}) => {
+    if (!user?.uid) return;
+
+    const planRef = doc(db, "users", user.uid, "dailyPlans", todayKey);
+    const payload = {
+      date: todayKey,
+      userId: user.uid,
+      capMinutes: Number.isFinite(Number(nextPlan.cap)) ? nextPlan.cap : null,
+      totalPlannedMinutes: Math.max(0, Math.round(Number(nextPlan.used) || 0)),
+      items: mapPlanItemsForDailyPlan(nextPlan.items || []),
+      source: "dailyPlan-app",
+      updatedAt: serverTimestamp(),
+    };
+
+    const historyPayload = previousPlan
+      ? {
+          userId: user.uid,
+          before: planSnapshotForHistory(previousPlan),
+          after: planSnapshotForHistory(nextPlan),
+          source: "dailyPlan-app",
+          changedAt: serverTimestamp(),
+        }
+      : null;
+
+    if (historyPayload) {
+      await Promise.all([
+        setDoc(planRef, { ...payload, lastChange: historyPayload }, { merge: true }),
+        addDoc(collection(planRef, "revisions"), historyPayload),
+      ]);
+    } else {
+      await setDoc(planRef, payload, { merge: true });
+    }
+
+    await Promise.allSettled(
+      (nextPlan.items || []).map((item) => {
         const todo = incompleteTodos.find((t) => t.id === item.id);
         if (!todo) return null;
-
-        const alreadyAssigned = todo.assigned && todo.assigned[todayKey];
-        if (alreadyAssigned && refreshToken === 0) return null;
-
         const ref = doc(db, "todos", item.id);
         const newAssigned = {
           ...(todo.assigned || {}),
           [todayKey]: item.todayMinutes,
         };
         return updateDoc(ref, { assigned: newAssigned });
-      });
+      })
+    );
 
-      const filteredOps = ops.filter(Boolean);
-      if (filteredOps.length === 0) return;
+    setPlanState(nextPlan);
+  };
 
-      await Promise.allSettled(filteredOps);
-      console.log("✅ 今日の割当を todos.assigned に保存しました:", todayKey);
-    })();
-  }, [user?.uid, plan, todayKey, incompleteTodos, refreshToken]);
+  const arePlansEqual = (a, b) => {
+    if (!a || !b) return false;
+    if (Number(a.cap) !== Number(b.cap)) return false;
+    if (Number(a.used) !== Number(b.used)) return false;
+    const ai = a.items || [];
+    const bi = b.items || [];
+    if (ai.length !== bi.length) return false;
+    for (let i = 0; i < ai.length; i++) {
+      const x = ai[i];
+      const y = bi[i];
+      if (
+        x.id !== y.id ||
+        Number(x.todayMinutes) !== Number(y.todayMinutes) ||
+        Number(x.order) !== Number(y.order)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleRefreshPlan = async () => {
+    if (!user?.uid) return;
+    const ok =
+      typeof window !== "undefined"
+        ? window.confirm("今日のプランを更新しますか？")
+        : true;
+    if (!ok) return;
+
+    try {
+      const freshSnap = await getDocs(
+        query(collection(db, "todos"), where("userId", "==", user.uid))
+      );
+      const freshTodos = freshSnap.docs
+        .map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }))
+        .filter((t) => t.deleted !== true);
+      setTodos(freshTodos);
+
+      const freshIncomplete = freshTodos.filter((t) => !t.completed);
+      const freshRemainingCap =
+        baseDailyCap - getTodayActualTotal(freshIncomplete, todayKey);
+
+      const nextPlan = normalizePlanResult(
+        selectTodayPlan(freshIncomplete, appSettings, todayKey, {
+          mode: "recalc",
+          remainingCap: freshRemainingCap,
+        })
+      );
+
+      if (planState && arePlansEqual(planState, nextPlan)) {
+        setRefreshMessage(
+          "進捗に変化がないため、提案内容に変更はありません。"
+        );
+        return;
+      }
+
+      await savePlanWithHistory(nextPlan, { previousPlan: planState });
+      setRefreshMessage(
+        "入力済みの進捗を反映して、今日のプランを再計算しました。"
+      );
+      setRevealWave((v) => v + 1);
+    } catch (error) {
+      console.error("refresh daily plan failed", error);
+      const isPermissionError =
+        error?.code === "permission-denied" ||
+        /permission/i.test(error?.message || "");
+      setRefreshMessage(
+        isPermissionError
+          ? "権限エラーのため今日のプランを保存できませんでした。再ログインするか、管理者に権限設定をご確認ください。"
+          : "今日のプランの更新に失敗しました。時間をおいて再度お試しください。"
+      );
+    }
+  };
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
@@ -366,7 +602,7 @@ export default function DailyPlan({ todos: propTodos = [] }) {
         <div style={{ display: "flex", gap: 8 }}>
           <button
             type="button"
-            onClick={() => setRefreshToken((v) => v + 1)}
+            onClick={handleRefreshPlan}
             style={{
               background: "#fff",
               border: "1px solid #d0d0d0",
@@ -399,33 +635,44 @@ export default function DailyPlan({ todos: propTodos = [] }) {
         </div>
       </div>
 
+      {refreshMessage && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "8px 10px",
+            background: "#f5f7ff",
+            border: "1px solid #d9e2ff",
+            color: "#2d3a8c",
+            borderRadius: 4,
+            fontSize: 13,
+          }}
+        >
+          {refreshMessage}
+        </div>
+      )}
+
       {!collapsed && (
         <div
           key={revealWave}
           className="card-content daily-plan-content"
           data-wave={revealWave}
         >
-          {loading ? (
+          {loading || !planLoaded ? (
             <div>読み込み中…</div>
           ) : (
             <>
-              {!plan.items || plan.items.length === 0 ? (
+              {!activePlan.items || activePlan.items.length === 0 ? (
               <div>今日は予定された日次プランがありません。</div>
             ) : (
               <>
                 <div style={{ marginBottom: 8 }}>
-                  合計 <b>{plan.used}</b> 分
-                  {Number.isFinite(plan.cap) && (
+                  合計 <b>{activePlan.used}</b> 分
+                  {Number.isFinite(activePlan.cap) && (
                     <span style={{ marginLeft: 6, opacity: 0.7 }}>
-                      （上限 {plan.cap} 分）
+                      （上限 {activePlan.cap} 分）
                     </span>
                   )}
                 </div>
-                {refreshToken > 0 && remainingCap <= 0 && (
-                  <p style={{ fontSize: 12, color: "#666", marginTop: 0 }}>
-                    すでに日次キャパシティ以上の作業を行っているため、キャパ制約なしで目安時間を表示しています。
-                  </p>
-                )}
                 <ul
                   style={{
                     listStyle: "none",
@@ -433,7 +680,7 @@ export default function DailyPlan({ todos: propTodos = [] }) {
                     margin: 0,
                   }}
                 >
-                    {plan.items.map((it, idx) => (
+                    {activePlan.items.map((it, idx) => (
                       <li
                         key={it.id}
                         className="daily-plan-item"

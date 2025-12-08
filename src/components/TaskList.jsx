@@ -12,6 +12,7 @@ import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import { format } from "date-fns";
 import "./TodoList.css";
+import { logTodoHistory } from "../utils/todoHistory";
 
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
 const toDateValue = (v) => {
@@ -77,12 +78,46 @@ export default function TodoList({
     if (!Number.isFinite(addMin) || addMin <= 0) return;
 
     const todayKey = jstDateKey();
+    const currentTotal = Math.max(0, Math.round(Number(todo.actualTotalMinutes) || 0));
+    const currentLog = Math.max(0, Math.round(Number(todo.actualLogs?.[todayKey]) || 0));
+    const estimatedMinutes = Number.isFinite(Number(todo.estimatedMinutes))
+      ? Math.max(0, Number(todo.estimatedMinutes))
+      : null;
+    const nextTotal = currentTotal + addMin;
+    const remainingAfterLog =
+      estimatedMinutes != null ? Math.max(0, estimatedMinutes - nextTotal) : null;
+
+    const shouldConfirmCompletion =
+      !todo.completed && estimatedMinutes != null && remainingAfterLog <= 0;
+    const confirmComplete = shouldConfirmCompletion
+      ? window.confirm(
+          "入力した進捗で残り時間が0分になりました。完了として扱いますか？"
+        )
+      : false;
+
+    const updates = {
+      actualTotalMinutes: increment(addMin),              // 合計
+      [`actualLogs.${todayKey}`]: increment(addMin),      // 当日ログ
+    };
+
+    let completionTimestamp = null;
+    if (confirmComplete) {
+      completionTimestamp = serverTimestamp();
+      updates.completed = true;
+      updates.completedAt = completionTimestamp;
+    }
+
+    const historyUpdates = {
+      actualTotalMinutes: nextTotal,
+      [`actualLogs.${todayKey}`]: currentLog + addMin,
+    };
+    if (confirmComplete) {
+      historyUpdates.completed = true;
+      historyUpdates.completedAt = completionTimestamp;
+    }
 
     try {
-      await updateDoc(doc(db, "todos", todo.id), {
-        actualTotalMinutes: increment(addMin),              // 合計
-        [`actualLogs.${todayKey}`]: increment(addMin),      // 当日ログ
-      });
+      await updateDoc(doc(db, "todos", todo.id), updates);
       await addDoc(collection(db, "todos", todo.id, "sessions"), {
         date: todayKey,
         minutes: addMin,
@@ -90,6 +125,13 @@ export default function TodoList({
         trigger: "list",
         createdAt: serverTimestamp(),
       });
+      await logTodoHistory(
+        todo,
+        historyUpdates,
+        confirmComplete
+          ? "add-actual-and-complete-from-task-list"
+          : "add-actual-from-task-list"
+      );
       setInputs((m) => ({ ...m, [todo.id]: "" }));
     } catch (e) {
       console.error("add actual minutes failed", e);
@@ -99,9 +141,9 @@ export default function TodoList({
 
   const toggleComplete = async (todo) => {
     try {
-      await updateDoc(doc(db, "todos", todo.id), {
-        completed: !todo.completed,
-      });
+      const updates = { completed: !todo.completed };
+      await updateDoc(doc(db, "todos", todo.id), updates);
+      await logTodoHistory(todo, updates, "toggle-complete-task-list");
     } catch (e) {
       console.error("toggle complete failed", e);
     }
@@ -112,10 +154,12 @@ export default function TodoList({
     if (!ok) return;
 
     try {
-      await updateDoc(doc(db, "todos", todo.id), {
+      const updates = {
         deleted: true,
         deletedAt: serverTimestamp(),
-      });
+      };
+      await updateDoc(doc(db, "todos", todo.id), updates);
+      await logTodoHistory(todo, updates, "soft-delete-task-list");
     } catch (e) {
       console.error("soft delete failed", e);
       alert("タスクの削除に失敗しました。通信環境を確認してください。");
