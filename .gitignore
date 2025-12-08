@@ -30,3 +30,4 @@ firestore-export/*.json
 
 # Build metadata
 /public/build-meta.json
+serviceAccountKey.json
