@@ -19,14 +19,19 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 /** 1) data-only ペイロード対応（将来用） */
-messaging.onBackgroundMessage(({ data }) => {
-  const title  = data?.title || "AI ToDo";
-  const body   = data?.body  || "お知らせがあります";
-  const taskId = data?.taskId || null;
-  const icon   = data?.icon  || "/icons/icon-192.png";
-  const badge  = data?.badge || "/icons/badge-72.png";
-  const url    = data?.url   || "/";
-  const tag    = data?.tag || (taskId ? `todo-${taskId}` : undefined);
+messaging.onBackgroundMessage((payload) => {
+  // notification ペイロード付きメッセージはブラウザ側で自動表示されるため、
+  // Service Worker では通知を重複表示しない。
+  if (payload?.notification) return;
+
+  const data = payload?.data || {};
+  const title  = data.title || "AI ToDo";
+  const body   = data.body  || "お知らせがあります";
+  const taskId = data.taskId || null;
+  const icon   = data.icon  || "/icons/icon-192.png";
+  const badge  = data.badge || "/icons/badge-72.png";
+  const url    = data.url   || "/";
+  const tag    = data.tag || (taskId ? `todo-${taskId}` : undefined);
 
   self.registration.showNotification(title, {
     body, icon, badge, tag,
