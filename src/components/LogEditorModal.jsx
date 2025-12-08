@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { applyLogDiff, jstDateKey } from "../utils/logUpdates";
@@ -130,7 +131,7 @@ export default function LogEditorModal({
     }
   };
 
-  return (
+  const modalContent = (
     <div className="lem-overlay" onMouseDown={handleClose}>
       <div
         className="lem-dialog"
@@ -247,4 +248,6 @@ export default function LogEditorModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
