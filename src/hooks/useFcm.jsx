@@ -1,5 +1,11 @@
 import { useEffect } from "react";
-import { arrayUnion, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  arrayUnion,
+  deleteField,
+  doc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db, messagingPromise } from "../firebase/firebaseConfig";
 import { getToken } from "firebase/messaging";
 import { useAuth } from "./useAuth";
@@ -47,7 +53,11 @@ export const useFcm = () => {
         if (localStorage.getItem(LS) !== token) {
           await setDoc(
             doc(db, "users", user.uid),
-            { fcmTokens: arrayUnion(token), fcmUpdatedAt: serverTimestamp() },
+            {
+              fcmTokens: arrayUnion(token),
+              fcmToken: deleteField(), // 旧フィールドをクリアして二重送信を防ぐ
+              fcmUpdatedAt: serverTimestamp(),
+            },
             { merge: true }
           );
           localStorage.setItem(LS, token);

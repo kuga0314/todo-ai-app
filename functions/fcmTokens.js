@@ -2,14 +2,18 @@
 
 function extractFcmTokens(data = {}) {
   const tokens = new Set();
-  if (Array.isArray(data.fcmTokens)) {
-    data.fcmTokens
-      .filter((token) => typeof token === "string" && token.trim() !== "")
-      .forEach((token) => tokens.add(token));
-  }
-  if (typeof data.fcmToken === "string" && data.fcmToken.trim() !== "") {
+  const fromArray = Array.isArray(data.fcmTokens)
+    ? data.fcmTokens.filter((token) => typeof token === "string" && token.trim() !== "")
+    : [];
+
+  // 旧フィールド fcmToken が残っていても、配列が存在する場合は配列を優先して
+  // 同一デバイスへの二重送信を避ける。
+  if (fromArray.length > 0) {
+    fromArray.forEach((token) => tokens.add(token));
+  } else if (typeof data.fcmToken === "string" && data.fcmToken.trim() !== "") {
     tokens.add(data.fcmToken);
   }
+
   return Array.from(tokens);
 }
 
