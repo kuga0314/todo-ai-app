@@ -46,9 +46,12 @@ export default function Settings() {
     getDoc(ref).then((snap) => {
       if (snap.exists()) {
         const d = snap.data();
+        const morningTime =
+          d.morningPlanTime || d.morningSummaryTime || "07:30";
+
         setProgressReminderTime(d.progressReminderTime || "21:00");
-        setMorningSummaryEnabled(!!d.morningSummaryTime);
-        setMorningSummaryTime(d.morningSummaryTime || "07:30");
+        setMorningSummaryEnabled(!!morningTime);
+        setMorningSummaryTime(morningTime);
         setRiskNotifyEnabled(d.riskNotifyEnabled ?? true);
         setCountdownEnabled(d.countdownEnabled ?? true);
         setInactiveNudgeEnabled(d.inactiveNudgeEnabled ?? true);
@@ -64,6 +67,8 @@ export default function Settings() {
       ref,
       {
         progressReminderTime,
+        morningPlanTime: morningSummaryEnabled ? morningSummaryTime : null,
+        // 互換のため既存フィールドにも書き込む
         morningSummaryTime: morningSummaryEnabled ? morningSummaryTime : null,
         riskNotifyEnabled,
         countdownEnabled,
@@ -189,15 +194,17 @@ export default function Settings() {
               checked={morningSummaryEnabled}
               onChange={(e) => setMorningSummaryEnabled(e.target.checked)}
             />
-            朝プラン通知
+            朝プラン通知（ホームの「今日のプラン」を通知で受け取る）
           </label>
           {morningSummaryEnabled && (
-            <input
-              type="time"
-              value={morningSummaryTime}
-              onChange={(e) => setMorningSummaryTime(e.target.value)}
-              style={{ marginLeft: 24 }}
-            />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ marginLeft: 24 }}>通知時刻:</span>
+              <input
+                type="time"
+                value={morningSummaryTime}
+                onChange={(e) => setMorningSummaryTime(e.target.value)}
+              />
+            </div>
           )}
 
           <label>

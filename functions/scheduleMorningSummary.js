@@ -33,112 +33,201 @@ function todayKeyTokyo() {
   return f.format(new Date());
 }
 
-/**
- * 今日取り組むべきタスクを算出する
- * - 条件: 遅れているタスク（実際進捗 < 理想進捗）
- * - 並び順: 遅れ度大きい順 → 必要ペース大きい順 → 締切近い順
- * - キャパ連動: 合計 requiredMinutes が上限(既定120分)を超えない範囲で選ぶ
- */
-async function buildMorningBody(uid) {
-  const todosSnap = await db.collection("todos").where("userId", "==", uid).get();
-  const tasks = [];
-  const today = new Date();
-  const todayKey = todayKeyTokyo();
+function selectMorningPlan(tasks, appSettings) {
+  const capDefault = 120;
+  const cap = Number.isFinite(Number(appSettings?.dailyCap))
+    ? Number(appSettings.dailyCap)
+    : capDefault;
 
-  todosSnap.forEach((doc) => {
-    const t = doc.data() || {};
+  const today = new Date();
+  const candidates = [];
+
+  for (const t of tasks) {
     const E = Number(t.estimatedMinutes) || 0;
     const A = Number(t.actualTotalMinutes) || 0;
-    if (E <= 0 || A >= E) return;
+    if (E <= 0 || A >= E) continue;
 
     const R = Math.max(0, E - A);
-    const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0);
-    const deadline =
-      t.deadline?.toDate?.() ??
-      (t.deadline?.seconds ? new Date(t.deadline.seconds * 1000) : null);
-    if (!deadline) return;
+    const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0) || 0;
 
-    const totalDays = Math.max(
-      1,
-      Math.ceil((deadline - (t.createdAt?.toDate?.() ?? 0)) / 86400000)
-    );
-    const startDate = t.createdAt?.toDate?.() ?? new Date(today);
-    const elapsed = Math.max(0, Math.ceil((today - startDate) / 86400000));
-    const idealProgress = Math.min(1, elapsed / totalDays);
-    const actualProgress = Math.min(1, A / E);
-    const lag = idealProgress - actualProgress;
+    const deadline = t.deadline instanceof Date ? t.deadline : null;
+    if (!deadline) continue;
 
-    if (lag <= 0) return;
+    const createdAt = t.createdAt instanceof Date ? t.createdAt : today;
+    const totalDays = Math.max(1, Math.ceil((deadline - createdAt) / 86400000));
+    const elapsed = Math.max(0, Math.ceil((today - createdAt) / 86400000));
+    const ideal = Math.min(1, elapsed / totalDays);
+    const actual = Math.min(1, A / E);
+    const lag = ideal - actual;
 
-    tasks.push({
-      id: doc.id,
+    if (lag <= 0) continue;
+
+    candidates.push({
+      id: t.id,
       text: t.text || "（無題）",
       R,
       required,
       lag,
-      E,
-      A,
       deadlineTs: deadline.getTime(),
     });
-  });
+  }
 
-  tasks.sort(
+  candidates.sort(
     (a, b) =>
       b.lag - a.lag ||
       b.required - a.required ||
       a.deadlineTs - b.deadlineTs
   );
 
-  let cap = 120;
-  try {
-    const s = (await db.doc(`users/${uid}/settings/app`).get()).data() || {};
-    if (Number.isFinite(Number(s.dailyCap))) cap = Number(s.dailyCap);
-  } catch (e) {
-    console.warn("read dailyCap failed", e);
-  }
-
-  const plan = [];
   let used = 0;
-  for (const t of tasks) {
-    const need = Math.min(t.required || 0, t.R, cap - used);
+  const plan = [];
+  for (const c of candidates) {
+    const required = Math.max(0, c.required);
+    const R = c.R;
+    const need = Math.min(required, R, Math.max(0, cap - used));
     if (need <= 0) continue;
-    plan.push({ ...t, todayMinutes: need });
+    plan.push({
+      id: c.id,
+      text: c.text,
+      todayMinutes: Math.round(need),
+      required: c.required,
+      deadlineTs: c.deadlineTs,
+    });
     used += need;
     if (used >= cap || plan.length >= 3) break;
   }
 
   if (plan.length === 0) {
-    const alt = [];
-    todosSnap.forEach((doc) => {
-      const t = doc.data() || {};
-      const E = Number(t.estimatedMinutes) || 0;
-      const A = Number(t.actualTotalMinutes) || 0;
-      if (E <= 0 || A >= E) return;
-      const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0);
-      const deadline =
-        t.deadline?.toDate?.() ??
-        (t.deadline?.seconds ? new Date(t.deadline.seconds * 1000) : null);
-      if (!deadline) return;
-      alt.push({
-        text: t.text || "（無題）",
-        required,
-        deadlineTs: deadline.getTime(),
-      });
-    });
-    alt.sort((a, b) => a.deadlineTs - b.deadlineTs || b.required - a.required);
-    plan.push(...alt.slice(0, 3));
+    const pending = tasks
+      .map((t) => {
+        const E = Number(t.estimatedMinutes) || 0;
+        const A = Number(t.actualTotalMinutes) || 0;
+        if (E <= 0 || A >= E) return null;
+        const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0) || 0;
+        const deadline = t.deadline instanceof Date ? t.deadline : null;
+        if (!deadline) return null;
+        return {
+          id: t.id,
+          text: t.text || "（無題）",
+          required,
+          deadlineTs: deadline.getTime(),
+        };
+      })
+      .filter(Boolean);
+
+    pending.sort((a, b) => a.deadlineTs - b.deadlineTs || b.required - a.required);
+    const sliced = pending.slice(0, 3);
+    return {
+      items: sliced.map((x) => ({
+        id: x.id,
+        text: x.text,
+        todayMinutes: Math.round(x.required),
+        required: x.required,
+        deadlineTs: x.deadlineTs,
+      })),
+      cap,
+      used: Math.round(sliced.reduce((s, x) => s + x.required, 0)),
+    };
   }
 
-  if (plan.length === 0)
-    return { title: "朝プラン", body: "今日は特に遅れているタスクはありません。", dateKey: todayKey };
+  return { items: plan, cap, used: Math.round(used) };
+}
 
-  const total = Math.round(plan.reduce((s, x) => s + (x.todayMinutes || x.required || 0), 0));
-  const bullets = plan
-    .map((x, i) => `${i + 1}) ${x.text} ${Math.round(x.todayMinutes || x.required)}分`)
+async function buildMorningBody(uid) {
+  const todosSnap = await db.collection("todos").where("userId", "==", uid).get();
+  const todayKey = todayKeyTokyo();
+  const tasks = [];
+
+  todosSnap.forEach((doc) => {
+    const t = doc.data() || {};
+    const deadline =
+      t.deadline?.toDate?.() ??
+      (t.deadline?.seconds ? new Date(t.deadline.seconds * 1000) : null);
+    const createdAt =
+      t.createdAt?.toDate?.() ??
+      (t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000) : null);
+
+    tasks.push({
+      id: doc.id,
+      ...t,
+      deadline,
+      createdAt,
+    });
+  });
+
+  let appSettings = {};
+  try {
+    const s = (await db.doc(`users/${uid}/settings/app`).get()).data() || {};
+    appSettings = s;
+  } catch (e) {
+    console.warn("read dailyCap failed", e);
+  }
+
+  const plan = selectMorningPlan(tasks, appSettings);
+
+  if (!plan.items.length)
+    return {
+      title: "朝プラン",
+      body: "今日は特に遅れているタスクはありません。",
+      dateKey: todayKey,
+      plan,
+    };
+
+  const total = Math.round(plan.used || 0);
+  const bullets = plan.items
+    .map((x, i) => `${i + 1}) ${x.text} ${Math.round(x.todayMinutes || 0)}分`)
     .join(" ");
 
-  const body = `今日のプラン: ${plan.length}件 / 合計${total}分  ${bullets}`;
-  return { title: "朝プラン", body, dateKey: todayKey };
+  const body = `今日のプラン: ${plan.items.length}件 / 合計${total}分  ${bullets}`;
+  return { title: "朝プラン", body, dateKey: todayKey, plan };
+}
+
+function mapPlanItemsForDailyPlan(items = []) {
+  return items.map((item, index) => {
+    const plannedMinutes = Math.max(
+      0,
+      Math.round(item.todayMinutes || item.minutes || 0)
+    );
+    const row = {
+      todoId: item.id || item.todoId || null,
+      title: (item.text || item.title || "（無題）").trim() || "（無題）",
+      plannedMinutes,
+      order: index + 1,
+    };
+
+    if (Number.isFinite(Number(item.required))) {
+      row.requiredMinutes = Math.round(Number(item.required));
+    }
+
+    return row;
+  });
+}
+
+async function saveDailyPlan({ uid, todayKey, plan }) {
+  if (!uid || !todayKey || !plan) return;
+
+  const capMinutes = Number.isFinite(Number(plan.cap))
+    ? Math.round(Number(plan.cap))
+    : null;
+  const totalPlannedMinutes = Math.max(0, Math.round(Number(plan.used) || 0));
+  const items = mapPlanItemsForDailyPlan(plan.items || []);
+
+  const dailyPlanRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("dailyPlans")
+    .doc(todayKey);
+
+  await dailyPlanRef.set(
+    {
+      date: todayKey,
+      capMinutes,
+      totalPlannedMinutes,
+      items,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
 }
 
 /** スケジュール処理本体 */
@@ -153,12 +242,20 @@ exports.scheduleMorningSummary = onSchedule("every 1 minutes", async () => {
     const sSnap = await db.doc(`users/${uid}/settings/notification`).get();
     if (!sSnap.exists) continue;
     const s = sSnap.data() || {};
-    if (!s.morningSummaryTime || s.morningSummaryTime !== hhmm) continue;
+    const morningTime = s.morningPlanTime || s.morningSummaryTime;
+    if (!morningTime || morningTime !== hhmm) continue;
 
     const tokens = extractFcmTokens(data);
     if (!tokens.length) continue;
 
-    const { title, body, dateKey } = await buildMorningBody(uid);
+    const { title, body, dateKey, plan } = await buildMorningBody(uid);
+
+    try {
+      await saveDailyPlan({ uid, todayKey: dateKey, plan });
+    } catch (saveErr) {
+      console.error("save daily plan failed", { uid, dateKey, error: saveErr });
+    }
+
     const sendPromise = (async () => {
       let delivered = false;
       const payloadBase = {
