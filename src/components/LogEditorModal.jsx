@@ -1,8 +1,11 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { applyLogDiff, jstDateKey } from "../utils/logUpdates";
 import "./LogEditorModal.css";
+import { db } from "../firebase/firebaseConfig";
+import { logTodoHistory } from "../utils/todoHistory";
 
 const toDate = (value) => value?.toDate?.() ?? (value instanceof Date ? value : null);
 const parseDateKey = (key) => {
@@ -78,6 +81,9 @@ export default function LogEditorModal({
   );
   const deadline = toDate(todo.deadline);
   const dateForTitle = parseDateKey(dateKey);
+  const estimatedMinutes = Number.isFinite(Number(todo?.estimatedMinutes))
+    ? Math.max(0, Number(todo.estimatedMinutes))
+    : null;
 
   const handleSave = async () => {
     if (saving) return;
@@ -108,6 +114,18 @@ export default function LogEditorModal({
       return;
     }
 
+    const shouldConfirmCompletion =
+      !todo.completed && estimatedMinutes != null && nextTotal >= estimatedMinutes;
+    const confirmComplete = shouldConfirmCompletion
+      ? window.confirm(
+          [
+            "累積実績がE（見積時間）を超えました。",
+            "このログを完了として保存しますか？",
+            "OK: 完了として保存 / キャンセル: 完了にせず時間だけ保存",
+          ].join("\n")
+        )
+      : false;
+
     setSaving(true);
     setError("");
     try {
@@ -120,6 +138,27 @@ export default function LogEditorModal({
         source: "manual",
         trigger: "log-editor",
       });
+
+      const historyUpdates = {
+        actualTotalMinutes: nextTotal,
+        [`actualLogs.${dateKey}`]: newValue,
+      };
+
+      if (confirmComplete) {
+        const completionTimestamp = serverTimestamp();
+        await updateDoc(doc(db, "todos", todo.id), {
+          completed: true,
+          completedAt: completionTimestamp,
+        });
+        historyUpdates.completed = true;
+        historyUpdates.completedAt = completionTimestamp;
+      }
+
+      await logTodoHistory(
+        todo,
+        historyUpdates,
+        confirmComplete ? "log-editor-complete" : "log-editor-update"
+      );
       onSaved?.({ todoId: todo.id, dateKey, delta });
       alert("保存しました");
       onClose?.();
