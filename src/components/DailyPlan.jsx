@@ -448,6 +448,7 @@ export default function DailyPlan({ todos: propTodos = [] }) {
   useEffect(() => {
     if (!user?.uid || !planLoaded) return;
     if (planState) return;
+    if (!incompleteTodos || incompleteTodos.length === 0) return;
 
     const nextPlan = normalizePlanResult(initialPlanCandidate);
     setPlanState(nextPlan);
@@ -576,13 +577,9 @@ export default function DailyPlan({ todos: propTodos = [] }) {
       setTodos(freshTodos);
 
       const freshIncomplete = freshTodos.filter((t) => !t.completed);
-      const freshRemainingCap =
-        baseDailyCap - getTodayActualTotal(freshIncomplete, todayKey);
-
       const nextPlan = normalizePlanResult(
         selectTodayPlan(freshIncomplete, appSettings, todayKey, {
-          mode: "recalc",
-          remainingCap: freshRemainingCap,
+          mode: "initial",
         })
       );
 
