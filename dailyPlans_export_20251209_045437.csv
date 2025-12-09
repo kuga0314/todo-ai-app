@@ -1,0 +1,10 @@
+userId,date,viewType,planCapMinutes,planTotalMinutes,planChangedAt,planSource,todoId,title,plannedMinutes,requiredMinutes,order,labelColor
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,before,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,OBRscVWDrP6T2dgGwzRM,LinkedInラーニング,90,,1,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,before,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,yFII5G1f8Yf47CTrPlWC,ITパスポート100時間勉強する,151,,2,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,before,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,PMlKDTosFFAwOZY964VQ,テスト1,59,,3,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,current,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,OBRscVWDrP6T2dgGwzRM,LinkedInラーニング,90,90,1,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,current,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,yFII5G1f8Yf47CTrPlWC,ITパスポート100時間勉強する,149,149,2,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,current,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,PMlKDTosFFAwOZY964VQ,テスト1,61,71,3,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,after,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,OBRscVWDrP6T2dgGwzRM,LinkedInラーニング,90,90,1,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,after,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,yFII5G1f8Yf47CTrPlWC,ITパスポート100時間勉強する,149,149,2,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,2025-12-09,after,300,300,2025-12-08T19:54:28.150Z,dailyPlan-app,PMlKDTosFFAwOZY964VQ,テスト1,61,71,3,

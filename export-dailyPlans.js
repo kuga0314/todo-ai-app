@@ -4,6 +4,14 @@
 import fs from "fs";
 import path from "path";
 import admin from "firebase-admin";
+import {
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  getFirestore,
+} from "firebase/firestore/lite";
 
 function loadServiceAccount() {
   const credentialsPath = path.resolve("serviceAccountKey.json");
@@ -57,46 +65,73 @@ function buildRows(viewType, plan, meta) {
   const totalPlannedMinutes = plan?.totalPlannedMinutes;
   const items = Array.isArray(plan?.items) ? plan.items : [];
 
-  if (!items.length) {
-    return [
-      {
-        ...meta,
-        viewType,
-        planCapMinutes: capMinutes,
-        planTotalMinutes: totalPlannedMinutes,
-        todoId: "",
-        title: "",
-        plannedMinutes: "",
-        requiredMinutes: "",
-        order: "",
-        labelColor: "",
-      },
-    ];
-  }
+  const rows = (items.length ? items : [null]).map((item) => {
+    const todoId = item?.todoId ?? "";
+    const todoOrder = item?.order ?? "";
+    const todoTitle = item?.title ?? "";
+    const todoPlannedMinutes = item?.plannedMinutes ?? "";
+    const todoRequiredMinutes = item?.requiredMinutes ?? "";
+    const todoLabelColor = item?.labelColor ?? "";
 
-  return items.map((item) => ({
-    ...meta,
-    viewType,
-    planCapMinutes: capMinutes,
-    planTotalMinutes: totalPlannedMinutes,
-    todoId: item?.todoId ?? "",
-    title: item?.title ?? "",
-    plannedMinutes: item?.plannedMinutes ?? "",
-    requiredMinutes: item?.requiredMinutes ?? "",
-    order: item?.order ?? "",
-    labelColor: item?.labelColor ?? "",
-  }));
+    const row = [
+      meta.userId,
+      meta.dateKey,
+      viewType,
+      meta.revisionIndex ?? "",
+      meta.planChangedAt || "",
+      normalizeValue(capMinutes),
+      normalizeValue(totalPlannedMinutes),
+      todoId,
+      todoOrder,
+      todoTitle,
+      todoPlannedMinutes,
+      todoRequiredMinutes,
+      todoLabelColor,
+    ]
+      .map(csvEscape)
+      .join(",");
+
+    return row;
+  });
+
+  return rows;
 }
 
 function sortRows(rows) {
-  const viewOrder = { before: 0, current: 1, after: 2 };
+  const viewOrder = {
+    initial: 0,
+    before: 1,
+    after: 2,
+    current: 3,
+  };
+
   return rows.sort((a, b) => {
-    return (
-      normalizeValue(a.userId).localeCompare(normalizeValue(b.userId)) ||
-      normalizeValue(a.date).localeCompare(normalizeValue(b.date)) ||
-      (viewOrder[a.viewType] ?? 99) - (viewOrder[b.viewType] ?? 99) ||
-      Number(a.order || 0) - Number(b.order || 0)
-    );
+    const aCols = a.split(",");
+    const bCols = b.split(",");
+
+    const aUserId = aCols[0];
+    const bUserId = bCols[0];
+    if (aUserId !== bUserId) return aUserId.localeCompare(bUserId);
+
+    const aDate = aCols[1];
+    const bDate = bCols[1];
+    if (aDate !== bDate) return aDate.localeCompare(bDate);
+
+    const aChanged = aCols[4] || "";
+    const bChanged = bCols[4] || "";
+    if (aChanged !== bChanged) {
+      if (!aChanged) return 1;
+      if (!bChanged) return -1;
+      return aChanged.localeCompare(bChanged);
+    }
+
+    const aView = viewOrder[aCols[2]] ?? 999;
+    const bView = viewOrder[bCols[2]] ?? 999;
+    if (aView !== bView) return aView - bView;
+
+    const aOrder = Number(aCols[8]) || 0;
+    const bOrder = Number(bCols[8]) || 0;
+    return aOrder - bOrder;
   });
 }
 
@@ -135,18 +170,17 @@ async function main() {
   const docs = await fetchDailyPlans();
   const rows = [];
 
-  docs.forEach((doc) => {
-    const data = doc.data() || {};
-    const userId = extractUserId(doc, data);
-    const date = extractDateKey(doc, data);
+  for (const planDoc of docs) {
+    const data = planDoc.data() || {};
+    const userId = extractUserId(planDoc, data);
+    const dateKey = extractDateKey(planDoc, data);
     const planChangedAt = extractChangedAt(data);
-    const planSource = data.source ?? "";
 
-    const meta = {
+    const baseMeta = {
       userId,
-      date,
+      dateKey,
       planChangedAt,
-      planSource,
+      revisionIndex: "",
     };
 
     rows.push(
@@ -157,62 +191,71 @@ async function main() {
           totalPlannedMinutes: data.totalPlannedMinutes,
           items: data.items,
         },
-        meta
+        baseMeta
       )
     );
 
-    const lastChange = data.lastChange;
+    const revisionsSnap = await planDoc.ref
+      .collection("revisions")
+      .orderBy("changedAt", "asc")
+      .get();
 
-    if (lastChange?.before) {
-      rows.push(
-        ...buildRows(
-          "before",
-          {
-            capMinutes: lastChange.before.capMinutes,
-            totalPlannedMinutes: lastChange.before.totalPlannedMinutes,
-            items: lastChange.before.items,
-          },
-          meta
-        )
-      );
-    }
+    if (!revisionsSnap.empty) {
+      const revisionDocs = revisionsSnap.docs;
 
-    if (lastChange?.after) {
+      const firstRevData = revisionDocs[0].data();
+      const firstChangedAt = formatTimestamp(firstRevData.changedAt);
       rows.push(
-        ...buildRows(
-          "after",
-          {
-            capMinutes: lastChange.after.capMinutes,
-            totalPlannedMinutes: lastChange.after.totalPlannedMinutes,
-            items: lastChange.after.items,
-          },
-          meta
-        )
+        ...buildRows("initial", firstRevData.before, {
+          ...baseMeta,
+          planChangedAt: firstChangedAt,
+          revisionIndex: 0,
+        })
       );
+
+      revisionDocs.forEach((revDoc, idx) => {
+        const revData = revDoc.data();
+        const changedAt = formatTimestamp(revData.changedAt);
+        const revIndex = idx + 1;
+
+        rows.push(
+          ...buildRows("before", revData.before, {
+            ...baseMeta,
+            planChangedAt: changedAt,
+            revisionIndex: revIndex,
+          })
+        );
+        rows.push(
+          ...buildRows("after", revData.after, {
+            ...baseMeta,
+            planChangedAt: changedAt,
+            revisionIndex: revIndex,
+          })
+        );
+      });
     }
-  });
+  }
 
   const sorted = sortRows(rows);
   const headers = [
     "userId",
     "date",
     "viewType",
-    "planCapMinutes",
-    "planTotalMinutes",
+    "revisionIndex",
     "planChangedAt",
-    "planSource",
+    "planCapMinutes",
+    "planTotalPlannedMinutes",
     "todoId",
-    "title",
-    "plannedMinutes",
-    "requiredMinutes",
-    "order",
-    "labelColor",
+    "todoOrder",
+    "todoTitle",
+    "todoPlannedMinutes",
+    "todoRequiredMinutes",
+    "todoLabelColor",
   ];
 
   const csvLines = [headers.join(",")];
   sorted.forEach((row) => {
-    const line = headers.map((key) => csvEscape(row[key])).join(",");
-    csvLines.push(line);
+    csvLines.push(row);
   });
 
   const filename = formatFilename();
