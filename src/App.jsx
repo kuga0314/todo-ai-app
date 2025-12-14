@@ -24,6 +24,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase/firebaseConfig";
+import { CalendarCheck, ChatCircleDots, Question, SignOut } from "phosphor-react";
 
 import { useAuth } from "./hooks/useAuth.jsx";
 import { useFcm } from "./hooks/useFcm.jsx";
@@ -141,29 +142,39 @@ const Layout = ({ logout, loginCount, user }) => {
           <h1 className="brand">進捗マネジメントアプリ</h1>
           <div className="hdr-actions">
             <button
-              className="btn btn-outline"
-              style={{ whiteSpace: "nowrap" }}
+              className="hdr-chip hdr-chip--primary"
               onClick={() => setShowFeedback(true)}
             >
-              意見を送る
+              <ChatCircleDots size={18} weight="fill" className="hdr-chip__icon" aria-hidden />
+              <span>意見を送る</span>
             </button>
             {typeof loginCount === "number" && (
-              <span title="累計ログイン回数" className="login-chip">
-                ログイン {loginCount}回
+              <span title="累計ログイン回数" className="hdr-chip hdr-chip--muted">
+                <CalendarCheck
+                  size={18}
+                  weight="bold"
+                  className="hdr-chip__icon"
+                  aria-hidden
+                />
+                <span>ログイン {loginCount}回</span>
               </span>
             )}
             <Link
               to="/help"
-              className="btn btn-ghost"
+              className="hdr-chip hdr-chip--ghost"
               title="進捗指標の説明"
               aria-label="ヘルプ"
-              style={{ fontSize: "18px" }}
             >
-              ❓
+              <Question size={18} weight="bold" className="hdr-chip__icon" aria-hidden />
+              <span>ヘルプ</span>
             </Link>
-            <VersionBadge onClick={() => setShowChangelog(true)} />
-            <button onClick={logout} className="btn btn-outline">
-              ログアウト
+            <VersionBadge
+              onClick={() => setShowChangelog(true)}
+              className="hdr-chip--ghost"
+            />
+            <button onClick={logout} className="hdr-chip hdr-chip--warn">
+              <SignOut size={18} weight="bold" className="hdr-chip__icon" aria-hidden />
+              <span>ログアウト</span>
             </button>
           </div>
         </div>

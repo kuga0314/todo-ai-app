@@ -65,9 +65,11 @@
   background: var(--surface-strong, #e2e8f0);
 }
 
-.bottom-nav .tab-item span[role="img"] {
-  font-size: 20px;
+.bottom-nav .tab-item .tab-icon {
+  width: 26px;
+  height: 26px;
   line-height: 1;
+  display: block;
 }
 
 .bottom-nav .tab-item .tab-label {

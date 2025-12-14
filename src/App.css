@@ -76,18 +76,89 @@ body {
 .hdr-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-.login-chip {
-  background-color: rgba(15, 23, 42, 0.08);
+
+.hdr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.55rem 0.95rem;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
   color: inherit;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  transition: transform 120ms ease, box-shadow 120ms ease, background 180ms ease,
+    border-color 180ms ease;
   white-space: nowrap;
+}
+
+.hdr-chip__icon {
+  display: inline-flex;
+}
+
+.hdr-chip:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.hdr-chip:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.16);
+}
+
+.hdr-chip--primary {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(14, 165, 233, 0.95));
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.hdr-chip--primary:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 1), rgba(14, 165, 233, 1));
+}
+
+.hdr-chip--muted {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.28);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.hdr-chip--ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.hdr-chip--ghost:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.hdr-chip--warn {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.32);
+  color: #fff4f4;
+}
+
+.hdr-chip--warn:hover {
+  background: rgba(248, 113, 113, 0.24);
+}
+
+.version-badge {
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  padding-inline: 0.8rem;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+
+.version-badge__text {
+  line-height: 1.3;
 }
 
 /* ===== Buttons ===== */
@@ -336,6 +407,7 @@ body {
     min-width: 0;
   }
 
+  .hdr-actions .hdr-chip,
   .hdr-actions .btn,
   .hdr-actions .btn-outline,
   .hdr-actions .btn-ghost {
@@ -344,9 +416,9 @@ body {
     border-radius: 10px;
   }
 
-  .login-chip {
-    align-self: stretch;
-    text-align: center;
+  .hdr-actions .hdr-chip {
+    width: 100%;
+    justify-content: center;
   }
 
   .card { padding: 12px; }
