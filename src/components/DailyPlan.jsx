@@ -40,16 +40,6 @@ function getTodayKey() {
   return todayKeyTokyo();
 }
 
-function getTodayActualTotal(todos, todayKey) {
-  let total = 0;
-  for (const t of todos) {
-    if (t.actualLogs && t.actualLogs[todayKey]) {
-      total += Number(t.actualLogs[todayKey]) || 0;
-    }
-  }
-  return total;
-}
-
 /** “遅れベース＋キャパ連動”で今日のプランを選定 */
 function selectTodayPlan(todos, appSettings, _todayKey, options = {}) {
   const { mode = "initial", remainingCap = null } = options;
@@ -355,28 +345,11 @@ export default function DailyPlan({ todos: propTodos = [] }) {
       canceled = true;
       planCanceled = true;
     };
-  }, [user?.uid]);
+  }, [todayKey, user?.uid]);
 
   const incompleteTodos = useMemo(
     () => (todos || []).filter((t) => !t.completed),
     [todos]
-  );
-
-  const baseDailyCap = useMemo(() => {
-    if (Number.isFinite(Number(appSettings?.dailyCap))) {
-      return Number(appSettings.dailyCap);
-    }
-    return 120;
-  }, [appSettings?.dailyCap]);
-
-  const todayActualTotal = useMemo(
-    () => getTodayActualTotal(incompleteTodos, todayKey),
-    [incompleteTodos, todayKey]
-  );
-
-  const remainingCap = useMemo(
-    () => baseDailyCap - todayActualTotal,
-    [baseDailyCap, todayActualTotal]
   );
 
   const initialPlanCandidate = useMemo(

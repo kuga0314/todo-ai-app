@@ -1,49 +1,51 @@
 import { NavLink } from "react-router-dom";
+import {
+  ChartLine,
+  GearSix,
+  HouseLine,
+  IconContext,
+  Gauge,
+  ListChecks,
+} from "phosphor-react";
 import "./BottomNav.css";
+
+const tabs = [
+  { to: "/", label: "ホーム", Icon: HouseLine, end: true },
+  { to: "/progress", label: "進捗", Icon: Gauge },
+  { to: "/all-tasks", label: "タスク", Icon: ListChecks },
+  { to: "/analytics", label: "分析", Icon: ChartLine },
+  { to: "/settings", label: "設定", Icon: GearSix },
+];
 
 export default function BottomNav() {
   return (
-    <nav className="bottom-nav">
-      <NavLink
-        to="/"
-        end
-        className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
-      >
-        <span role="img" aria-label="home">🏠</span>
-        <span className="tab-label">ホーム</span>
-      </NavLink>
+    <IconContext.Provider value={{ size: 26, color: "currentColor" }}>
+      <nav className="bottom-nav">
+        {tabs.map((tab) => {
+          const { to, label, Icon: TabIcon, end } = tab;
 
-      <NavLink
-        to="/progress"
-        className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
-      >
-        <span role="img" aria-label="progress">⏱️</span>
-        <span className="tab-label">進捗</span>
-      </NavLink>
-
-      <NavLink
-        to="/all-tasks"
-        className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
-      >
-        <span role="img" aria-label="tasks">📋</span>
-        <span className="tab-label">タスク</span>
-      </NavLink>
-
-      <NavLink
-        to="/analytics"
-        className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
-      >
-        <span role="img" aria-label="analytics">📊</span>
-        <span className="tab-label">分析</span>
-      </NavLink>
-
-      <NavLink
-        to="/settings"
-        className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
-      >
-        <span role="img" aria-label="settings">⚙️</span>
-        <span className="tab-label">設定</span>
-      </NavLink>
-    </nav>
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) => (isActive ? "tab-item active" : "tab-item")}
+            >
+              {({ isActive }) => (
+                <>
+                  <TabIcon
+                    weight={isActive ? "fill" : "regular"}
+                    className="tab-icon"
+                    aria-hidden="true"
+                    title={label}
+                  />
+                  <span className="tab-label">{label}</span>
+                </>
+              )}
+            </NavLink>
+          );
+        })}
+      </nav>
+    </IconContext.Provider>
   );
 }
