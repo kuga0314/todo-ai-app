@@ -25,7 +25,10 @@ messaging.onBackgroundMessage((payload) => {
   if (payload?.notification) return;
 
   const data = payload?.data || {};
-  const title  = data.title || "AI ToDo";
+  // タイトルがない場合は既定の通知を出さずに無視する
+  if (!data.title) return;
+
+  const title  = data.title;
   const body   = data.body  || "お知らせがあります";
   const taskId = data.taskId || null;
   const icon   = data.icon  || "/icons/icon-192.png";
