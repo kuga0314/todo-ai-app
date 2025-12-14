@@ -19,6 +19,7 @@ import {
   dateFromKey,
   endOfDayExclusive,
 } from "../utils/calendarHelpers";
+import TaskDetailModal from "./TaskDetailModal";
 
 // ★ ラベル購読用
 import { collection, onSnapshot } from "firebase/firestore";
@@ -39,6 +40,13 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTodoId, setSelectedTodoId] = useState(null);
+
+  useEffect(() => {
+    if (!selectedTodoId) return;
+    const exists = (todos ?? []).some((t) => t.id === selectedTodoId);
+    if (!exists) setSelectedTodoId(null);
+  }, [todos, selectedTodoId]);
 
   // ★ 設定ページで作成したラベル（name, color）を購読
   const [labels, setLabels] = useState([]);
@@ -113,6 +121,15 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
     return [...deadlineEvents, ...assignmentEvents];
   }, [todos, labels, notificationMode]);
 
+  const handleSelectEvent = (event) => {
+    const targetId = event.type === "assignment" ? event.todoId : event.id;
+    setSelectedTodoId(targetId);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedTodoId(null);
+  };
+
   return (
     <div className="calendar-wrapper" style={{ flex: 1, display: "flex" }}>
       <div className="calendar-box" style={{ flex: 1, position: "relative" }}>
@@ -128,6 +145,7 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
           culture="ja"
           selectable
           onSelectSlot={(slotInfo) => setSelectedDate(slotInfo.start)}
+          onSelectEvent={handleSelectEvent}
           messages={{ month: "月表示", today: "今日", previous: "前", next: "次" }}
           // ★ ラベル色を背景色に反映。完了クラスは維持。
           eventPropGetter={(event) => {
@@ -158,6 +176,14 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
             onClose={() => setSelectedDate(null)}
             onAdd={onAdd} // 親の addTodo をそのまま渡す
             labels={labels} // ★ DayPanel にラベルを渡す
+          />
+        )}
+
+        {selectedTodoId && (
+          <TaskDetailModal
+            todo={(todos ?? []).find((t) => t.id === selectedTodoId)}
+            labels={labels}
+            onClose={handleCloseModal}
           />
         )}
       </div>
