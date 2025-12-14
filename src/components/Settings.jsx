@@ -12,6 +12,7 @@ import {
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import VersionInfo from "./VersionInfo";
+import "../styles/settings.css";
 
 /**
  * 設定ページ
@@ -24,6 +25,7 @@ export default function Settings() {
   const [appMsg, setAppMsg] = useState("");
 
   /* ───── 通知設定 ───── */
+  const [progressReminderEnabled, setProgressReminderEnabled] = useState(true);
   const [progressReminderTime, setProgressReminderTime] = useState("21:00");
   const [morningSummaryEnabled, setMorningSummaryEnabled] = useState(false);
   const [morningSummaryTime, setMorningSummaryTime] = useState("07:30");
@@ -49,7 +51,12 @@ export default function Settings() {
         const morningTime =
           d.morningPlanTime || d.morningSummaryTime || "07:30";
 
-        setProgressReminderTime(d.progressReminderTime || "21:00");
+        const reminderEnabled =
+          d.progressReminderEnabled ?? d.progressReminderTime !== null;
+        const reminderTime = d.progressReminderTime || "21:00";
+
+        setProgressReminderEnabled(reminderEnabled);
+        setProgressReminderTime(reminderTime);
         setMorningSummaryEnabled(!!morningTime);
         setMorningSummaryTime(morningTime);
         setRiskNotifyEnabled(d.riskNotifyEnabled ?? true);
@@ -66,7 +73,8 @@ export default function Settings() {
     await setDoc(
       ref,
       {
-        progressReminderTime,
+        progressReminderEnabled,
+        progressReminderTime: progressReminderEnabled ? progressReminderTime : null,
         morningPlanTime: morningSummaryEnabled ? morningSummaryTime : null,
         // 互換のため既存フィールドにも書き込む
         morningSummaryTime: morningSummaryEnabled ? morningSummaryTime : null,
@@ -171,102 +179,105 @@ export default function Settings() {
   if (loading) return <p>読み込み中…</p>;
 
   return (
-    <div className="settings">
-      <h2>設定</h2>
+    <div className="settings-container">
+      <div className="settings-header">
+        <h2>設定</h2>
+        <p className="text-muted">通知や上限時間、ラベルをまとめて管理できます。</p>
+      </div>
 
       {/* 通知設定 */}
-      <section className="card" style={{ marginBottom: 20 }}>
-        <h3>通知設定</h3>
-        <div style={{ display: "grid", gap: 12, marginTop: 10 }}>
-          <label>
-            日次進捗リマインド時刻:
-            <input
-              type="time"
-              value={progressReminderTime}
-              onChange={(e) => setProgressReminderTime(e.target.value)}
-              style={{ marginLeft: 8 }}
-            />
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={morningSummaryEnabled}
-              onChange={(e) => setMorningSummaryEnabled(e.target.checked)}
-            />
-            朝プラン通知（ホームの「今日のプラン」を通知で受け取る）
-          </label>
-          {morningSummaryEnabled && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ marginLeft: 24 }}>通知時刻:</span>
-              <input
-                type="time"
-                value={morningSummaryTime}
-                onChange={(e) => setMorningSummaryTime(e.target.value)}
-              />
-            </div>
-          )}
-
-          <label>
-            <input
-              type="checkbox"
-              checked={riskNotifyEnabled}
-              onChange={(e) => setRiskNotifyEnabled(e.target.checked)}
-            />
-            遅延リスク通知を受け取る
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={countdownEnabled}
-              onChange={(e) => setCountdownEnabled(e.target.checked)}
-            />
-            締切カウントダウン通知を受け取る
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={inactiveNudgeEnabled}
-              onChange={(e) => setInactiveNudgeEnabled(e.target.checked)}
-            />
-            無活動アラートを受け取る
-          </label>
+      <section className="settings-card">
+        <div className="section-title">
+          <h3>通知設定</h3>
+          <p className="text-muted">毎日のリマインドを最適なタイミングで受け取ります。</p>
         </div>
-        <button
-          onClick={saveNotificationSettings}
-          style={{ marginTop: 12, padding: "8px 16px" }}
-        >
-          保存
-        </button>
+
+        <div className="settings-grid">
+          <div className="field">
+            <label className="field-label">日次進捗リマインド</label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={progressReminderEnabled}
+                onChange={(e) => setProgressReminderEnabled(e.target.checked)}
+              />
+              <span>1日の終わりに進捗入力を促す通知を受け取る</span>
+            </label>
+            {progressReminderEnabled && (
+              <div className="nested-field">
+                <span className="field-label subtle">通知時刻</span>
+                <input
+                  id="progressReminderTime"
+                  type="time"
+                  value={progressReminderTime}
+                  onChange={(e) => setProgressReminderTime(e.target.value)}
+                />
+              </div>
+            )}
+            <p className="hint">1日の終わりに、進捗入力を忘れないようお知らせします。</p>
+          </div>
+
+          <div className="field">
+            <label className="field-label">朝プラン通知</label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={morningSummaryEnabled}
+                onChange={(e) => setMorningSummaryEnabled(e.target.checked)}
+              />
+              <span>ホームの「今日のプラン」を通知で受け取る</span>
+            </label>
+            {morningSummaryEnabled && (
+              <div className="nested-field">
+                <span className="field-label subtle">通知時刻</span>
+                <input
+                  type="time"
+                  value={morningSummaryTime}
+                  onChange={(e) => setMorningSummaryTime(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="settings-actions">
+          <button className="btn-primary" onClick={saveNotificationSettings}>
+            通知設定を保存
+          </button>
+        </div>
       </section>
 
       {/* 日次キャパ */}
-      <section className="card" style={{ marginBottom: 20 }}>
-        <h3>日次キャパ（上限分数）</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-          <label>
-            <input
-              type="number"
-              min="1"
-              placeholder="未設定（120分）"
-              value={dailyCap}
-              onChange={(e) => setDailyCap(e.target.value)}
-              style={{ marginRight: 8 }}
-            />
-            分
-          </label>
-          <button onClick={saveAppSettings} style={{ alignSelf: "flex-start", padding: "8px 16px" }}>
-            保存
+      <section className="settings-card">
+        <div className="section-title">
+          <h3>日次キャパ（上限分数）</h3>
+          <p className="text-muted">1日に割り当てるタスク量の目安を設定できます。</p>
+        </div>
+        <div className="settings-grid single-column">
+          <div className="field">
+            <label className="field-label" htmlFor="dailyCap">
+              上限分数
+            </label>
+            <div className="inline-input">
+              <input
+                id="dailyCap"
+                type="number"
+                min="1"
+                placeholder="未設定（120分）"
+                value={dailyCap}
+                onChange={(e) => setDailyCap(e.target.value)}
+              />
+              <span className="unit">分</span>
+            </div>
+            <p className="hint">未設定の場合はデフォルトで120分になります。</p>
+          </div>
+        </div>
+        <div className="settings-actions">
+          <button className="btn-primary" onClick={saveAppSettings}>
+            日次キャパを保存
           </button>
           {appMsg && (
-            <p
-              style={{
-                color: appMsg === "保存しました" ? "#2e7d32" : "#d32f2f",
-                margin: 0,
-              }}
-            >
+            <p className={`save-feedback ${appMsg === "保存しました" ? "success" : "error"}`}>
               {appMsg}
             </p>
           )}
@@ -274,9 +285,13 @@ export default function Settings() {
       </section>
 
       {/* ラベル管理 */}
-      <section className="card">
-        <h3>ラベル管理</h3>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <section className="settings-card labels-card">
+        <div className="section-title">
+          <h3>ラベル管理</h3>
+          <p className="text-muted">タスクに色をつけて整理しましょう。</p>
+        </div>
+
+        <div className="label-form">
           <input
             type="text"
             placeholder="ラベル名"
@@ -288,38 +303,24 @@ export default function Settings() {
             value={newLabelColor}
             onChange={(e) => setNewLabelColor(e.target.value)}
           />
-          <button onClick={addLabel}>追加</button>
+          <button className="btn-secondary" onClick={addLabel}>
+            追加
+          </button>
         </div>
 
         {labels.length === 0 ? (
-          <p style={{ color: "#666" }}>ラベルはまだありません。</p>
+          <p className="text-muted">ラベルはまだありません。</p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+          <ul className="label-list">
             {labels.map((lb) => (
-              <li
-                key={lb.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  border: "1px solid #eee",
-                  borderRadius: 8,
-                  padding: "6px 10px",
-                }}
-              >
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span
-                    style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: "50%",
-                      background: lb.color,
-                      display: "inline-block",
-                    }}
-                  />
-                  {lb.name}
+              <li key={lb.id}>
+                <span className="label-chip" style={{ "--label-color": lb.color }}>
+                  <span className="label-dot" style={{ background: lb.color }} />
+                  <span className="label-name">{lb.name}</span>
                 </span>
-                <button onClick={() => deleteLabel(lb.id)}>削除</button>
+                <button className="text-button" onClick={() => deleteLabel(lb.id)}>
+                  削除
+                </button>
               </li>
             ))}
           </ul>
