@@ -1,11 +1,12 @@
 // node export-todos-logs.js
-// Export todos actualLogs into a CSV file for research analysis.
+// Export todos actualLogs into CSV files for research analysis.
 
 import fs from "fs";
 import path from "path";
 import admin from "firebase-admin";
 
 function loadServiceAccount() {
+  // Keep serviceAccountKey.json out of git (.gitignore) because it contains secrets.
   const credentialsPath = path.resolve("serviceAccountKey.json");
   const raw = fs.readFileSync(credentialsPath, "utf8");
   return JSON.parse(raw);
@@ -35,28 +36,12 @@ function toISOString(value) {
   return date ? date.toISOString() : "";
 }
 
-function normalizeValue(value) {
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
-
 function csvEscape(value) {
-  const stringValue = normalizeValue(value);
+  const stringValue = value === null || value === undefined ? "" : String(value);
   if (/[",\n\r]/.test(stringValue)) {
     return `"${stringValue.replace(/"/g, '""')}"`;
   }
   return stringValue;
-}
-
-function formatFilename(date = new Date()) {
-  const pad = (num) => String(num).padStart(2, "0");
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-  const seconds = pad(date.getSeconds());
-  return `todos_logs_export_${year}${month}${day}_${hours}${minutes}${seconds}.csv`;
 }
 
 async function fetchTodos() {
@@ -83,84 +68,84 @@ function normalizeDateKey(dateKey) {
   return stringValue;
 }
 
-function buildTodoRows(todoId, data, userId) {
-  const taskName = data.text || "";
+function buildTodoRows(todoId, data) {
   const estimatedMinutes = data.estimatedMinutes ?? "";
   const deadline = toISOString(data.deadline);
   const completed = data.completed ? "true" : "false";
   const logs = data.actualLogs || {};
 
-  const rows = Object.entries(logs)
+  const logRows = Object.entries(logs)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, minutes]) => {
+    .flatMap(([date, minutes]) => {
+      const parsedMinutes = Number(minutes);
+      if (!Number.isFinite(parsedMinutes) || parsedMinutes <= 0) {
+        // Skip invalid or non-positive minute entries to avoid NaN/zero noise in analysis.
+        return [];
+      }
+
       const normalizedDate = normalizeDateKey(date);
       return [
-        userId,
-        todoId,
-        taskName,
-        normalizedDate,
-        normalizeValue(minutes),
-        normalizeValue(estimatedMinutes),
-        deadline,
-        completed,
+        [todoId, normalizedDate, parsedMinutes],
       ];
     });
 
-  return rows;
+  const todoRow = [todoId, estimatedMinutes, deadline, completed];
+
+  return { logRows, todoRow };
 }
 
-function sortRows(rows) {
+function sortLogRows(rows) {
   return rows.sort((a, b) => {
-    const aUserId = a[0];
-    const bUserId = b[0];
-    if (aUserId !== bUserId) return aUserId.localeCompare(bUserId);
-
-    const aTodo = a[1];
-    const bTodo = b[1];
-    if (aTodo !== bTodo) return aTodo.localeCompare(bTodo);
-
-    const aDate = a[3];
-    const bDate = b[3];
+    const [aTodoId, aDate] = a;
+    const [bTodoId, bDate] = b;
+    if (aTodoId !== bTodoId) return aTodoId.localeCompare(bTodoId);
     return aDate.localeCompare(bDate);
   });
 }
 
 async function main() {
   const docs = await fetchTodos();
-  const rows = [];
+  const logRows = [];
+  const todoRows = [];
 
   for (const todoDoc of docs) {
     const data = todoDoc.data() || {};
     if (data.deleted === true) continue;
 
-    const userId = data.userId || data.uid || "";
     const todoId = todoDoc.id;
+    const { logRows: todoLogs, todoRow } = buildTodoRows(todoId, data);
 
-    rows.push(...buildTodoRows(todoId, data, userId));
+    logRows.push(...todoLogs);
+    todoRows.push(todoRow);
   }
 
-  const sorted = sortRows(rows);
-  const headers = [
-    "userId",
-    "todoId",
-    "taskName",
-    "date",
-    "actualMinutes",
-    "estimatedMinutes",
-    "deadline",
-    "completed",
+  const sortedLogs = sortLogRows(logRows);
+  const sortedTodos = todoRows.sort((a, b) => a[0].localeCompare(b[0]));
+
+  const exportDir = path.resolve("export");
+  fs.mkdirSync(exportDir, { recursive: true });
+
+  const logHeaders = ["todoId", "date", "actualMinutes"];
+  const todoHeaders = ["todoId", "estimatedMinutes", "deadline", "completed"];
+
+  const logCsvLines = [
+    logHeaders.join(","),
+    ...sortedLogs.map((row) => row.map(csvEscape).join(",")),
   ];
 
-  const csvLines = [
-    headers.join(","),
-    ...sorted.map((row) => row.map(csvEscape).join(",")),
+  const todoCsvLines = [
+    todoHeaders.join(","),
+    ...sortedTodos.map((row) => row.map(csvEscape).join(",")),
   ];
 
-  const filename = formatFilename();
-  const outputPath = path.resolve(filename);
-  fs.writeFileSync(outputPath, csvLines.join("\n"), "utf8");
+  const logsPath = path.join(exportDir, "logs_long.csv");
+  const todosPath = path.join(exportDir, "todos.csv");
 
-  console.log(`Exported ${sorted.length} rows to ${filename}`);
+  fs.writeFileSync(logsPath, logCsvLines.join("\n"), "utf8");
+  fs.writeFileSync(todosPath, todoCsvLines.join("\n"), "utf8");
+
+  console.log(`Exported ${sortedLogs.length} log rows to ${logsPath}`);
+  console.log(`Exported ${sortedTodos.length} todo rows to ${todosPath}`);
 }
 
 main().catch((err) => {
