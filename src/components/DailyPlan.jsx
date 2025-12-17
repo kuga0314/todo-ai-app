@@ -357,7 +357,39 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     [incompleteTodos, appSettings, todayKey]
   );
 
-  const activePlan = planState || normalizePlanResult(initialPlanCandidate);
+  const visiblePlanState = useMemo(() => {
+    if (!planState) return null;
+
+    const visibleIds = new Set(
+      (todos || [])
+        .filter((t) => t.deleted !== true && !t.completed)
+        .map((t) => t.id)
+    );
+
+    const filteredItems = (planState.items || []).filter((item) =>
+      visibleIds.has(item.id)
+    );
+
+    if (filteredItems.length === (planState.items || []).length) {
+      return planState;
+    }
+
+    const normalizedItems = filteredItems.map((item, index) => ({
+      ...item,
+      order: index + 1,
+    }));
+
+    const used = Math.round(
+      normalizedItems.reduce(
+        (sum, item) => sum + (Number(item.todayMinutes) || 0),
+        0
+      )
+    );
+
+    return { ...planState, items: normalizedItems, used };
+  }, [planState, todos]);
+
+  const activePlan = visiblePlanState || normalizePlanResult(initialPlanCandidate);
 
   const planTodayMinutesMap = useMemo(() => {
     const map = new Map();
@@ -556,14 +588,14 @@ export default function DailyPlan({ todos: propTodos = [] }) {
         })
       );
 
-      if (planState && arePlansEqual(planState, nextPlan)) {
+      if (visiblePlanState && arePlansEqual(visiblePlanState, nextPlan)) {
         setRefreshMessage(
           "進捗に変化がないため、提案内容に変更はありません。"
         );
         return;
       }
 
-      await savePlanWithHistory(nextPlan, { previousPlan: planState });
+      await savePlanWithHistory(nextPlan, { previousPlan: visiblePlanState });
       setRefreshMessage(
         "入力済みの進捗を反映して、今日のプランを再計算しました。"
       );
