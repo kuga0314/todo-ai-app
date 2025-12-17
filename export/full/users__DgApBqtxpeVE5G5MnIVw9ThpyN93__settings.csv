@@ -1,0 +1,4 @@
+__docPath,__docId,countdownEnabled,dailyCap,inactiveNudgeEnabled,morningPlanTime,morningSummaryTime,progressReminderEnabled,progressReminderTime,riskNotifyEnabled,weekday,weekend
+users/DgApBqtxpeVE5G5MnIVw9ThpyN93/settings/app,app,,300,,,,,,,,
+users/DgApBqtxpeVE5G5MnIVw9ThpyN93/settings/notification,notification,false,,false,09:30,09:30,true,22:00,false,,
+users/DgApBqtxpeVE5G5MnIVw9ThpyN93/settings/notifyWindow,notifyWindow,,,,,,,,,"{""start"":""08:00"",""end"":""23:00""}","{""start"":""09:00"",""end"":""23:30""}"
