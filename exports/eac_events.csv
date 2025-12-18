@@ -1,0 +1,5 @@
+userId,todoId,eventDateKey,deadlineKey,estimatedMinutes,eacDateKey_at_event,minutes_before_7d_avg,minutes_after_7d_avg,delta_minutes_7d,pace7d_at_event,spi_at_event,hasPlan_at_event,planContainsThisTodo_at_event,notes
+DgApBqtxpeVE5G5MnIVw9ThpyN93,GcE0Hifqb7GEKHs4nCEl,2025-11-25,2025-11-27,90,2025-11-28,3.2857142857142856,0,-3.2857142857142856,23,1.03,false,false,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,aQInLuXM80dQeHCpz6vs,2025-11-29,2025-12-01,720,2025-12-02,42.857142857142854,60,17.142857142857146,150,1.07,false,false,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,qqno5R8Kz2aCKyUhqk3A,2025-11-26,2025-11-27,90,2025-11-28,5.857142857142857,0,-5.857142857142857,41,1.67,false,false,
+DgApBqtxpeVE5G5MnIVw9ThpyN93,yFII5G1f8Yf47CTrPlWC,2025-11-26,2025-12-31,6000,2026-02-07,42.857142857142854,12.857142857142858,-29.999999999999996,55.714285714285715,0.5,false,false,
