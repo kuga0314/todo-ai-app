@@ -357,6 +357,31 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     [incompleteTodos, appSettings, todayKey]
   );
 
+  const assignedPlan = useMemo(() => {
+    const items = (todos || [])
+      .filter((t) => t.deleted !== true && !t.completed)
+      .map((t, index) => {
+        const minutes = Number(t?.assigned?.[todayKey]) || 0;
+        if (minutes <= 0) return null;
+        return {
+          id: t.id,
+          text: t.text || "（無題）",
+          todayMinutes: Math.round(minutes),
+          labelColor: t.labelColor || null,
+          order: index + 1,
+        };
+      })
+      .filter(Boolean);
+
+    if (items.length === 0) return null;
+
+    const used = Math.round(
+      items.reduce((sum, item) => sum + (Number(item.todayMinutes) || 0), 0)
+    );
+
+    return { items, used, cap: null };
+  }, [todos, todayKey]);
+
   const visiblePlanState = useMemo(() => {
     if (!planState) return null;
 
@@ -389,7 +414,8 @@ export default function DailyPlan({ todos: propTodos = [] }) {
     return { ...planState, items: normalizedItems, used };
   }, [planState, todos]);
 
-  const activePlan = visiblePlanState || normalizePlanResult(initialPlanCandidate);
+  const activePlan =
+    visiblePlanState || assignedPlan || normalizePlanResult(initialPlanCandidate);
 
   const planTodayMinutesMap = useMemo(() => {
     const map = new Map();
