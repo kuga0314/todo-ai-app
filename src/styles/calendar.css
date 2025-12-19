@@ -106,6 +106,7 @@
 /* ===== イベント（カレンダー内のToDo） ===== */
 .calendar-box .rbc-event {
   padding: 2px 4px;        /* ← ピルをコンパクトにして表示領域を稼ぐ */
+  padding-right: 18px;     /* ← バッジ分の余白を確保 */
   border-radius: 5px;
   font-size: .78rem;       /* ← 文字を小さくして6文字程度入る余白を確保 */
   line-height: 1.2;
@@ -116,6 +117,7 @@
   white-space: normal;     /* ← 折り返しを許可 */
   word-break: break-word;  /* ← 単語境界で折り返し */
   width: calc(100% - 4px); /* ← セル左右に少し余白を残しつつ最大幅を活用 */
+  position: relative;      /* ← バッジを右上に重ねるため */
 }
 /* デフォルトの見た目（JSで色を当てない時） */
 .calendar-box .event-default   { background: var(--primary); color: #fff; }
@@ -133,6 +135,44 @@
   overflow: hidden;
   word-break: inherit;
   text-overflow: clip;      /* ← 省略記号ではなく本文優先 */
+}
+
+.cal-event-content { position: static; }
+.cal-event-title { display: inline; }
+.cal-warn-badge{
+  position:absolute;
+  top:2px;
+  right:2px;
+  width:14px;
+  height:14px;
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:11px;
+  font-weight:800;
+  line-height:1;
+  background:#ff4d4f;
+  color:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.18);
+}
+
+@keyframes calWarnShake{
+  0%   { transform: rotate(0deg)   scale(1); }
+  25%  { transform: rotate(-10deg) scale(1.02); }
+  50%  { transform: rotate(10deg)  scale(1.02); }
+  75%  { transform: rotate(-8deg)  scale(1.02); }
+  100% { transform: rotate(0deg)   scale(1); }
+}
+
+.cal-warn-badge--shake{
+  transform-origin: 70% 30%;
+  animation: calWarnShake .28s ease-in-out;
+  animation-iteration-count: 3;
+}
+
+@media (prefers-reduced-motion: reduce){
+  .cal-warn-badge--shake{ animation:none; }
 }
 
 @media (max-width: 520px) {

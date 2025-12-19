@@ -116,3 +116,35 @@ export const endOfDayExclusive = (date) => {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
   return addDays(date, 1);
 };
+
+const normalizeDateValue = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value.toDate === "function") {
+    const converted = value.toDate();
+    return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+/** EAC（Firestore Timestamp / Date / string / number 対応） */
+export const getEacDate = (t) =>
+  t?.eacDate?.toDate?.() ??
+  t?.eacDate ??
+  t?.eacTs?.toDate?.() ??
+  t?.eacTs ??
+  null;
+
+export const isEacOverDeadline = (t) => {
+  if (!t) return false;
+  const deadlineRaw = getDeadline(t);
+  const eacRaw = getEacDate(t);
+  if (!deadlineRaw || !eacRaw) return false;
+
+  const deadline = normalizeDateValue(deadlineRaw);
+  const eac = normalizeDateValue(eacRaw);
+  if (!deadline || !eac) return false;
+
+  return eac.getTime() > deadline.getTime();
+};

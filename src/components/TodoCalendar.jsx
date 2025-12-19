@@ -1,5 +1,5 @@
 // src/components/TodoCalendar.jsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Calendar, dateFnsLocalizer, Views } from "react-big-calendar";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import {
@@ -18,6 +18,7 @@ import {
   formatMinutes,
   dateFromKey,
   endOfDayExclusive,
+  isEacOverDeadline,
 } from "../utils/calendarHelpers";
 import TaskDetailModal from "./TaskDetailModal";
 
@@ -41,6 +42,9 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTodoId, setSelectedTodoId] = useState(null);
+  const [shakeIds, setShakeIds] = useState({});
+  const shakenRef = useRef(new Set());
+  const monthKey = useMemo(() => format(currentDate, "yyyy-MM"), [currentDate]);
 
   useEffect(() => {
     if (!selectedTodoId) return;
@@ -81,6 +85,7 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
           labelId: t.labelId ?? null,
           color,
           type: "deadline",
+          todo: t,
         };
       })
       .filter(Boolean);
@@ -114,12 +119,51 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
           todoId: todo.id,
           minutes: assignment.minutes,
           dateKey: assignment.date,
+          todo,
         });
       });
     });
 
     return [...deadlineEvents, ...assignmentEvents];
   }, [todos, labels, notificationMode]);
+
+  const warnTodoIds = useMemo(() => {
+    const ids = new Set();
+    (events ?? []).forEach((event) => {
+      const start = event?.start instanceof Date ? event.start : new Date(event?.start);
+      if (!start || Number.isNaN(start.getTime())) return;
+      if (
+        start.getFullYear() !== currentDate.getFullYear() ||
+        start.getMonth() !== currentDate.getMonth()
+      ) {
+        return;
+      }
+      const todo = event?.todo;
+      if (todo && !todo.completed && isEacOverDeadline(todo)) {
+        ids.add(todo.id);
+      }
+    });
+    return Array.from(ids);
+  }, [events, currentDate]);
+
+  useEffect(() => {
+    shakenRef.current = new Set();
+    setShakeIds({});
+  }, [monthKey]);
+
+  useEffect(() => {
+    if (!warnTodoIds.length) return;
+    setShakeIds((prev) => {
+      const next = { ...prev };
+      warnTodoIds.forEach((id) => {
+        if (!shakenRef.current.has(id)) {
+          shakenRef.current.add(id);
+          next[id] = (prev[id] ?? 0) + 1;
+        }
+      });
+      return next;
+    });
+  }, [warnTodoIds, monthKey]);
 
   const handleSelectEvent = (event) => {
     const targetId = event.type === "assignment" ? event.todoId : event.id;
@@ -128,6 +172,39 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
 
   const handleCloseModal = () => {
     setSelectedTodoId(null);
+  };
+
+  const handleBadgeAnimationEnd = (todoId) => {
+    if (!todoId) return;
+    setShakeIds((prev) => {
+      if (!prev[todoId]) return prev;
+      const next = { ...prev };
+      delete next[todoId];
+      return next;
+    });
+  };
+
+  const CalendarEvent = ({ event }) => {
+    const todo = event?.todo;
+    const shouldWarn = todo && !todo.completed && isEacOverDeadline(todo);
+    const shouldShake = shouldWarn && shakeIds?.[todo.id];
+    const warnLabel = "完了予測日が締め切り以降です";
+
+    return (
+      <div className="cal-event-content">
+        <span className="cal-event-title">{event.title}</span>
+        {shouldWarn ? (
+          <span
+            className={`cal-warn-badge${shouldShake ? " cal-warn-badge--shake" : ""}`}
+            title={warnLabel}
+            aria-label={warnLabel}
+            onAnimationEnd={() => handleBadgeAnimationEnd(todo.id)}
+          >
+            !
+          </span>
+        ) : null}
+      </div>
+    );
   };
 
   return (
@@ -166,6 +243,7 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
               style,
             };
           }}
+          components={{ event: CalendarEvent }}
           style={{ height: "100%" }}
         />
 
