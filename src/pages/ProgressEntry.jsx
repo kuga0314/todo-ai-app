@@ -11,6 +11,7 @@ import {
 import { db } from "../firebase/firebaseConfig";
 import LogEditorModal from "../components/LogEditorModal";
 import { applyLogDiff, jstDateKey } from "../utils/logUpdates";
+import "../styles/progress.css";
 
 const toDate = (v) => v?.toDate?.() ?? (v instanceof Date ? v : null);
 
@@ -396,102 +397,79 @@ export default function ProgressEntry({ todos = [], src }) {
   };
 
   return (
-    <main className="app-main">
-      <div className="container" style={{ display: "grid", gap: 20 }}>
-        <section className="card" style={{ padding: 16 }}>
-          <header style={{ marginBottom: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 20 }}>進捗入力</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
-              {format(today, "yyyy/M/d (EEE)")} に取り組んだ時間を入力し、「一括保存」を押してください。
-            </p>
+    <main className="app-main progress-page">
+      <div className="container progress-grid">
+        <section className="card progress-entry-card">
+          <header className="progress-card-header">
+            <div>
+              <h2 className="progress-card-title">進捗入力</h2>
+              <p className="progress-card-sub">
+                {format(today, "yyyy/M/d (EEE)")} に取り組んだ時間を入力し、「一括保存」を押してください。
+              </p>
+            </div>
+            <div className="progress-chip-count" aria-label="入力対象タスク数">
+              残タスク {rows.length} 件
+            </div>
           </header>
 
           {rows.length === 0 ? (
-            <p style={{ color: "var(--muted)" }}>入力対象のタスクはありません。</p>
+            <p className="progress-empty">入力対象のタスクはありません。</p>
           ) : (
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "grid",
-                gap: 10,
-              }}
-            >
+            <ul className="progress-entry-list">
               {rows.map((t) => {
                 const prog = t.E ? t.A / t.E : null;
                 return (
-                  <li
-                    key={t.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 140px 110px",
-                      gap: 10,
-                      alignItems: "center",
-                      padding: "10px 12px",
-                      border: "1px solid var(--border)",
-                      borderRadius: 10,
-                      background: "var(--card-bg)",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                        title={t.text}
-                      >
+                  <li key={t.id} className="progress-entry-item">
+                    <div className="progress-entry-main">
+                      <div className="progress-entry-title" title={t.text}>
                         {t.text}
                       </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "var(--muted)",
-                          marginTop: 2,
-                          display: "flex",
-                          gap: 10,
-                        }}
-                      >
-                        <span>
-                          締切: {t.deadline ? format(t.deadline, "M/d HH:mm") : "—"}
+                      <div className="progress-entry-meta">
+                        <span className="progress-entry-chip progress-entry-chip--deadline">
+                          <span className="chip-label">締切</span>
+                          <strong>{t.deadline ? format(t.deadline, "M/d HH:mm") : "—"}</strong>
                         </span>
-                        <span>E: {t.E}分</span>
-                        <span>実績: {t.A}分</span>
-                        <span>進捗: {prog != null ? percent(prog) : "—"}</span>
-                        <span>残り: {t.remaining}分</span>
+                        <span className="progress-entry-chip">
+                          <span className="chip-label">見積</span>
+                          <strong>{t.E}分</strong>
+                        </span>
+                        <span className="progress-entry-chip">
+                          <span className="chip-label">実績</span>
+                          <strong>{t.A}分</strong>
+                        </span>
+                        <span className="progress-entry-chip progress-entry-chip--remaining">
+                          <span className="chip-label">残り</span>
+                          <strong>{t.remaining}分</strong>
+                        </span>
+                        <span className="progress-entry-chip progress-entry-chip--progress">
+                          <span className="chip-label">進捗</span>
+                          <strong>{prog != null ? percent(prog) : "—"}</strong>
+                        </span>
                       </div>
                     </div>
 
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      placeholder="例: 30"
-                      value={inputs[t.id] ?? ""}
-                      onChange={(e) => handleChange(t.id, e.target.value)}
-                      style={{
-                        padding: 8,
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        background: "var(--surface)",
-                        color: "var(--text)",
-                      }}
-                    />
+                    <div className="progress-entry-inputs">
+                      <label className="progress-input-block">
+                        <span className="progress-input-label">今日の追加分</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          placeholder="例: 30"
+                          value={inputs[t.id] ?? ""}
+                          onChange={(e) => handleChange(t.id, e.target.value)}
+                          className="progress-entry-input"
+                        />
+                      </label>
+                    </div>
 
-                    <div
-                      style={{
-                        textAlign: "right",
-                        color: "var(--text)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      今日の合計:{" "}
-                      {Number.isFinite(Number(inputs[t.id]))
-                        ? `${Math.max(0, Math.round(Number(inputs[t.id])))} 分`
-                        : "—"}
+                    <div className="progress-entry-total">
+                      <span className="progress-total-label">今日の合計</span>
+                      <span className="progress-total-value">
+                        {Number.isFinite(Number(inputs[t.id]))
+                          ? `${Math.max(0, Math.round(Number(inputs[t.id])))} 分`
+                          : "—"}
+                      </span>
                     </div>
                   </li>
                 );
@@ -499,26 +477,16 @@ export default function ProgressEntry({ todos = [], src }) {
             </ul>
           )}
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: 14,
-            }}
-          >
-            <div style={{ color: "var(--muted)", fontSize: 13 }}>
+          <div className="progress-save-row">
+            <div className="progress-save-meta">
               入力合計: <b>{totalEntered}</b> 分
             </div>
             <button
               onClick={saveAll}
               disabled={saving || totalEntered <= 0}
-              className="btn-primary"
+              className="btn-primary progress-save-button"
               style={{
-                padding: "8px 14px",
-                borderRadius: 10,
                 background: totalEntered > 0 ? "#2563eb" : "#9ca3af",
-                color: "#fff",
-                border: "none",
                 cursor: totalEntered > 0 && !saving ? "pointer" : "default",
               }}
             >
@@ -527,99 +495,52 @@ export default function ProgressEntry({ todos = [], src }) {
           </div>
         </section>
 
-        <section className="card" style={{ padding: 16 }}>
-          <header style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <h2 style={{ margin: 0, fontSize: 20 }}>日別ログ編集</h2>
+        <section className="card progress-log-card">
+          <header className="progress-card-header progress-card-header--stacked">
+            <div>
+              <h2 className="progress-card-title">日別ログ編集</h2>
+              <p className="progress-card-sub">
+                選択した日付の実績ログを編集・削除できます。ログのないタスクを追加することもできます。
+              </p>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => moveSelectedDate(-1)}
-                style={{
-                  border: "1px solid var(--border)",
-                  background: "var(--surface)",
-                  borderRadius: 8,
-                  padding: "6px 10px",
-                  cursor: "pointer",
-                  color: "var(--text)",
-                }}
-              >
-                ← 前日
-              </button>
-              <input
-                type="date"
-                value={selectedDateKey}
-                onChange={(e) => setSelectedDateKey(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  fontSize: 15,
-                  background: "var(--surface)",
-                  color: "var(--text)",
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => moveSelectedDate(1)}
-                style={{
-                  border: "1px solid var(--border)",
-                  background: "var(--surface)",
-                  borderRadius: 8,
-                  padding: "6px 10px",
-                  cursor: "pointer",
-                  color: "var(--text)",
-                }}
-              >
-                翌日 →
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedDateKey(todayKey)}
-                style={{
-                  border: "none",
-                  background: "#2563eb",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "6px 14px",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                今日に戻る
-              </button>
-            </div>
-            <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-              選択した日付の実績ログを編集・削除できます。ログのないタスクを追加することもできます。
-            </p>
           </header>
 
-          <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+          <div className="progress-log-controls">
+            <button type="button" onClick={() => moveSelectedDate(-1)} className="progress-chip-btn">
+              ← 前日
+            </button>
+            <input
+              type="date"
+              value={selectedDateKey}
+              onChange={(e) => setSelectedDateKey(e.target.value)}
+              className="progress-date-input"
+            />
+            <button type="button" onClick={() => moveSelectedDate(1)} className="progress-chip-btn">
+              翌日 →
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDateKey(todayKey)}
+              className="progress-chip-btn progress-chip-btn--primary"
+            >
+              今日に戻る
+            </button>
+          </div>
+
+          <div className="progress-log-list">
             {workedTodos.length === 0 ? (
-              <p style={{ color: "var(--muted)", margin: 0 }}>
+              <p className="progress-empty">
                 この日はまだログがありません。下の「未作業タスクを検索して追加」から登録できます。
               </p>
             ) : (
               workedTodos.map((todo) => {
                 const deadline = toDate(todo.deadline);
                 return (
-                  <div
-                    key={todo.id}
-                    style={{
-                      border: "1px solid var(--border)",
-                      borderRadius: 12,
-                      padding: 14,
-                      background: "var(--card-bg)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>{todo.text}</div>
-                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                  <div key={todo.id} className="progress-log-row">
+                    <div className="progress-log-row__top">
+                      <div className="progress-log-row__text">
+                        <div className="progress-log-title">{todo.text}</div>
+                        <div className="progress-log-meta">
                           この日の実績: {todo.minutes} 分
                           {deadline ? ` ｜ 締切: ${format(deadline, "yyyy/MM/dd HH:mm")}` : ""}
                         </div>
@@ -627,15 +548,7 @@ export default function ProgressEntry({ todos = [], src }) {
                       <button
                         type="button"
                         onClick={() => openEditor(todo, selectedDateKey)}
-                        style={{
-                          border: "none",
-                          background: "#2563eb",
-                          color: "#fff",
-                          borderRadius: 8,
-                          padding: "8px 14px",
-                          cursor: "pointer",
-                          fontWeight: 600,
-                        }}
+                        className="progress-edit-btn"
                       >
                         編集
                       </button>
@@ -646,19 +559,11 @@ export default function ProgressEntry({ todos = [], src }) {
             )}
           </div>
 
-          <div style={{ marginTop: 20 }}>
+          <div className="progress-missing-row">
             <button
               type="button"
               onClick={() => setMissingModalOpen(true)}
-              style={{
-                border: "1px solid #2563eb",
-                background: "var(--surface)",
-                color: "#2563eb",
-                borderRadius: 10,
-                padding: "10px 18px",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
+              className="progress-missing-btn"
             >
               未作業タスクを検索して追加
             </button>
