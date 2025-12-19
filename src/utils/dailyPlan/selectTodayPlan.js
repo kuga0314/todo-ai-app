@@ -6,6 +6,25 @@ export function selectTodayPlan(todos, appSettings, _todayKey, options = {}) {
     ? Number(appSettings.dailyCap)
     : capDefault;
 
+  const toDateValue = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value;
+    }
+    if (typeof value.toDate === "function") {
+      const converted = value.toDate();
+      return converted instanceof Date && !Number.isNaN(converted.getTime())
+        ? converted
+        : null;
+    }
+    if (typeof value === "object" && typeof value.seconds === "number") {
+      const tsDate = new Date(value.seconds * 1000);
+      return Number.isNaN(tsDate.getTime()) ? null : tsDate;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   let cap;
   if (mode === "initial") {
     cap = baseCap;
@@ -22,6 +41,9 @@ export function selectTodayPlan(todos, appSettings, _todayKey, options = {}) {
   // 候補抽出：遅れているタスク（actual < ideal）
   const candidates = [];
   for (const t of todos) {
+    const plannedStartAt = toDateValue(t.plannedStart);
+    if (plannedStartAt && plannedStartAt.getTime() > today.getTime()) continue;
+
     const E = Number(t.estimatedMinutes) || 0;
     const A = Number(t.actualTotalMinutes) || 0;
     if (E <= 0 || A >= E) continue;
@@ -93,6 +115,9 @@ export function selectTodayPlan(todos, appSettings, _todayKey, options = {}) {
   if (plan.length === 0) {
     const pending = todos
       .map((t) => {
+        const plannedStartAt = toDateValue(t.plannedStart);
+        if (plannedStartAt && plannedStartAt.getTime() > today.getTime()) return null;
+
         const E = Number(t.estimatedMinutes) || 0;
         const A = Number(t.actualTotalMinutes) || 0;
         if (E <= 0 || A >= E) return null;
