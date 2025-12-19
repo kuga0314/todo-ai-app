@@ -1,4 +1,5 @@
 // src/components/DailyPlan.jsx
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -12,6 +13,7 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { db } from "../firebase/firebaseConfig";
 import { useDailyPlan } from "../hooks/useDailyPlan";
+import { isEacOverDeadline } from "../utils/calendarHelpers";
 
 export default function DailyPlan({ todos: propTodos = [], plans: propPlans = [] }) {
   const { user } = useAuth();
@@ -29,6 +31,15 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
     chartTotals,
     chartDataWithSummary,
   } = useDailyPlan({ propTodos, propPlans, user, db });
+  const todoMap = useMemo(() => {
+    const map = new Map();
+    propTodos.forEach((todo) => {
+      if (todo?.id) {
+        map.set(todo.id, todo);
+      }
+    });
+    return map;
+  }, [propTodos]);
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
@@ -114,47 +125,61 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                       margin: 0,
                     }}
                   >
-                    {activePlan.items.map((it, idx) => (
-                      <li
-                        key={it.id}
-                        className="daily-plan-item"
-                        style={{
-                          "--item-index": idx,
-                          display: "flex",
-                          alignItems: "center",
-                          padding: "6px 0",
-                          borderTop:
-                            idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
-                        }}
-                      >
-                        <span
+                    {activePlan.items.map((it, idx) => {
+                      const todo = todoMap.get(it.id);
+                      const shouldWarn = todo && !todo.completed && isEacOverDeadline(todo);
+
+                      return (
+                        <li
+                          key={it.id}
+                          className="daily-plan-item"
                           style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background: it.labelColor || "transparent",
-                            display: "inline-block",
-                            marginRight: 8,
-                            border: "1px solid rgba(0,0,0,0.1)",
+                            "--item-index": idx,
+                            display: "flex",
+                            alignItems: "center",
+                            padding: "6px 0",
+                            borderTop:
+                              idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
                           }}
-                        />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
+                        >
+                          <span
                             style={{
-                              fontWeight: 600,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              background: it.labelColor || "transparent",
+                              display: "inline-block",
+                              marginRight: 8,
+                              border: "1px solid rgba(0,0,0,0.1)",
                             }}
-                          >
-                            {idx + 1}. {it.text}
+                          />
+                          {shouldWarn && (
+                            <span
+                              className="cal-warn-badge"
+                              aria-label="完了予測日が締切以降です"
+                              title="完了予測日が締切以降です"
+                            >
+                              !
+                            </span>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {idx + 1}. {it.text}
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.7 }}>
+                              目安 {it.todayMinutes} 分
+                            </div>
                           </div>
-                          <div style={{ fontSize: 12, opacity: 0.7 }}>
-                            目安 {it.todayMinutes} 分
-                          </div>
-                        </div>
-                      </li>
-                    ))}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </>
               )}
