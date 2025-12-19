@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import {
   Bar,
@@ -21,6 +22,8 @@ export default function AnalyticsTaskCard({
   buildTaskSeries,
   onOpenLogEditor,
 }) {
+  const [isMobile, setIsMobile] = useState(false);
+  const chartScrollRefs = [useRef(null), useRef(null)];
   const {
     todo,
     estimated,
@@ -62,6 +65,209 @@ export default function AnalyticsTaskCard({
       improvementMessages.push(`今日 ${requiredMinutesForOk} 分で🟢良好へ`);
     }
   }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const query = window.matchMedia("(max-width: 640px)");
+    const handleChange = (event) => setIsMobile(event.matches);
+
+    handleChange(query);
+    query.addEventListener?.("change", handleChange);
+
+    return () => {
+      query.removeEventListener?.("change", handleChange);
+    };
+  }, []);
+
+  const mobileChartWidth = useMemo(() => {
+    const mobileViewportDays = 7;
+    const dayWidth = 56;
+
+    if (!Array.isArray(displaySeries) || displaySeries.length === 0) {
+      return dayWidth * mobileViewportDays;
+    }
+
+    return Math.max(displaySeries.length * dayWidth, dayWidth * mobileViewportDays);
+  }, [displaySeries]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+
+    chartScrollRefs.forEach((ref) => {
+      if (ref.current) {
+        ref.current.scrollLeft = ref.current.scrollWidth;
+      }
+    });
+  }, [isMobile, mobileChartWidth, refreshTick]);
+
+  const renderPerformanceChart = (chartProps = {}) => (
+    <ComposedChart
+      key={`${todo.id}:${refreshTick}:chart`}
+      data={displaySeries}
+      margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
+      {...chartProps}
+    >
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis
+        dataKey="date"
+        tick={{ fontSize: 12 }}
+        angle={-30}
+        textAnchor="end"
+        height={70}
+        interval="preserveStartEnd"
+      />
+      <YAxis
+        yAxisId="left"
+        tick={{ fontSize: 12 }}
+        label={{
+          value: "分",
+          angle: -90,
+          position: "insideLeft",
+          style: { textAnchor: "middle" },
+        }}
+      />
+      <YAxis
+        yAxisId="right"
+        orientation="right"
+        tick={{ fontSize: 12 }}
+        domain={[0, 1.5]}
+        label={{
+          value: "SPI",
+          angle: 90,
+          position: "insideRight",
+          style: { textAnchor: "middle" },
+        }}
+      />
+      <Tooltip
+        formatter={(value, _name, entry) => {
+          const key = entry?.dataKey || _name;
+          if (key === "minutes") return [`${value} 分`, "日別実績"];
+          if (key === "cum") return [`${value} 分`, "累積実績"];
+          if (key === "spi")
+            return [
+              Number.isFinite(Number(value)) ? Number(value).toFixed(2) : value,
+              "SPI",
+            ];
+          return value;
+        }}
+      />
+      <Legend />
+      <Bar yAxisId="left" dataKey="minutes" name="日別実績(分)" fill="#38bdf8" />
+      <Line
+        yAxisId="left"
+        type="monotone"
+        dataKey="cum"
+        name="累積実績(分)"
+        stroke="#f97316"
+        strokeWidth={2}
+        dot={false}
+      />
+      <Line
+        yAxisId="right"
+        type="monotone"
+        dataKey="spi"
+        name="SPI"
+        stroke="#10b981"
+        strokeWidth={2}
+        dot={false}
+        strokeDasharray="3 3"
+      />
+    </ComposedChart>
+  );
+
+  const renderEacChart = (chartProps = {}) => (
+    <ComposedChart
+      key={`${todo.id}:${refreshTick}:chart-eac`}
+      data={displaySeries}
+      margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
+      {...chartProps}
+    >
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis
+        dataKey="date"
+        tick={{ fontSize: 12 }}
+        angle={-30}
+        textAnchor="end"
+        height={70}
+        interval="preserveStartEnd"
+      />
+      <YAxis
+        yAxisId="left"
+        tick={{ fontSize: 12 }}
+        label={{
+          value: "残り(分)",
+          angle: -90,
+          position: "insideLeft",
+          style: { textAnchor: "middle" },
+        }}
+      />
+      <YAxis
+        yAxisId="right"
+        orientation="right"
+        tick={{ fontSize: 12 }}
+        domain={["dataMin", "dataMax"]}
+        tickFormatter={(value) => (value ? format(new Date(value), "MM/dd") : "—")}
+        label={{
+          value: "EAC予測日",
+          angle: 90,
+          position: "insideRight",
+          style: { textAnchor: "middle" },
+        }}
+      />
+      <Tooltip
+        formatter={(value, _name, entry) => {
+          const key = entry?.dataKey || _name;
+          if (key === "remaining") return [`残り: ${value} 分`, "残り作業"];
+          if (key === "eacTs") {
+            if (value == null) return ["—", "EAC予測日"];
+            return [format(new Date(value), "yyyy-MM-dd"), "EAC予測日"];
+          }
+          return value;
+        }}
+      />
+      <Legend />
+      <Line
+        yAxisId="left"
+        type="monotone"
+        dataKey="remaining"
+        name="残り(分)"
+        stroke="#6366f1"
+        strokeWidth={2}
+        dot
+      />
+      <Line
+        yAxisId="right"
+        type="monotone"
+        dataKey="eacTs"
+        name="EAC予測日"
+        stroke="#ef4444"
+        strokeWidth={2}
+        dot={false}
+        strokeDasharray="4 2"
+      />
+    </ComposedChart>
+  );
+
+  const renderChartWrapper = ({ refIndex, children, style }) => {
+    if (!isMobile) {
+      return (
+        <div className="ana-chart ana-chart--task" style={style}>
+          {children}
+        </div>
+      );
+    }
+
+    return (
+      <div className="ana-chart ana-chart--task ana-chart--scroll" style={style}>
+        <div ref={chartScrollRefs[refIndex]} className="ana-chart__scroller">
+          <div className="ana-chart__inner" style={{ width: `${mobileChartWidth}px`, height: "280px" }}>
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div key={todo.id} className={`card ana-card ana-card--risk-${cardRiskKey}`}>
@@ -154,154 +360,27 @@ export default function AnalyticsTaskCard({
         <div className={`ana-card__chart${isExpanded ? " is-open" : ""}`}>
           {hasTaskLogs ? (
             <>
-              <div className="ana-chart ana-chart--task">
-                <ResponsiveContainer key={`${todo.id}:${refreshTick}`}>
-                  <ComposedChart
-                    key={`${todo.id}:${refreshTick}:chart`}
-                    data={displaySeries}
-                    margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 12 }}
-                      angle={-30}
-                      textAnchor="end"
-                      height={70}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fontSize: 12 }}
-                      label={{
-                        value: "分",
-                        angle: -90,
-                        position: "insideLeft",
-                        style: { textAnchor: "middle" },
-                      }}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 12 }}
-                      domain={[0, 1.5]}
-                      label={{
-                        value: "SPI",
-                        angle: 90,
-                        position: "insideRight",
-                        style: { textAnchor: "middle" },
-                      }}
-                    />
-                    <Tooltip
-                      formatter={(value, _name, entry) => {
-                        const key = entry?.dataKey || _name;
-                        if (key === "minutes") return [`${value} 分`, "日別実績"];
-                        if (key === "cum") return [`${value} 分`, "累積実績"];
-                        if (key === "spi")
-                          return [
-                            Number.isFinite(Number(value)) ? Number(value).toFixed(2) : value,
-                            "SPI",
-                          ];
-                        return value;
-                      }}
-                    />
-                    <Legend />
-                    <Bar yAxisId="left" dataKey="minutes" name="日別実績(分)" fill="#38bdf8" />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="cum"
-                      name="累積実績(分)"
-                      stroke="#f97316"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="spi"
-                      name="SPI"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      dot={false}
-                      strokeDasharray="3 3"
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="ana-chart ana-chart--task" style={{ marginTop: 16 }}>
-                <ResponsiveContainer key={`${todo.id}:${refreshTick}:eac`}>
-                  <ComposedChart
-                    key={`${todo.id}:${refreshTick}:chart-eac`}
-                    data={displaySeries}
-                    margin={{ left: 16, right: 24, top: 12, bottom: 12 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 12 }}
-                      angle={-30}
-                      textAnchor="end"
-                      height={70}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fontSize: 12 }}
-                      label={{
-                        value: "残り(分)",
-                        angle: -90,
-                        position: "insideLeft",
-                        style: { textAnchor: "middle" },
-                      }}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 12 }}
-                      domain={["dataMin", "dataMax"]}
-                      tickFormatter={(value) => (value ? format(new Date(value), "MM/dd") : "—")}
-                      label={{
-                        value: "EAC予測日",
-                        angle: 90,
-                        position: "insideRight",
-                        style: { textAnchor: "middle" },
-                      }}
-                    />
-                    <Tooltip
-                      formatter={(value, _name, entry) => {
-                        const key = entry?.dataKey || _name;
-                        if (key === "remaining") return [`残り: ${value} 分`, "残り作業"];
-                        if (key === "eacTs") {
-                          if (value == null) return ["—", "EAC予測日"];
-                          return [format(new Date(value), "yyyy-MM-dd"), "EAC予測日"];
-                        }
-                        return value;
-                      }}
-                    />
-                    <Legend />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="remaining"
-                      name="残り(分)"
-                      stroke="#6366f1"
-                      strokeWidth={2}
-                      dot
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="eacTs"
-                      name="EAC予測日"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      dot={false}
-                      strokeDasharray="4 2"
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+              {renderChartWrapper({
+                refIndex: 0,
+                children: isMobile ? (
+                  renderPerformanceChart({ width: mobileChartWidth, height: 280 })
+                ) : (
+                  <ResponsiveContainer key={`${todo.id}:${refreshTick}`}>
+                    {renderPerformanceChart()}
+                  </ResponsiveContainer>
+                ),
+              })}
+              {renderChartWrapper({
+                refIndex: 1,
+                style: { marginTop: 16 },
+                children: isMobile ? (
+                  renderEacChart({ width: mobileChartWidth, height: 280 })
+                ) : (
+                  <ResponsiveContainer key={`${todo.id}:${refreshTick}:eac`}>
+                    {renderEacChart()}
+                  </ResponsiveContainer>
+                ),
+              })}
             </>
           ) : (
             <p className="ana-text-muted ana-text-muted--spaced">ログがありません</p>
