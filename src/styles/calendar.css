@@ -32,6 +32,7 @@
 /* ===== ツールバー（コンパクト） ===== */
 .calendar-box {
   max-width: 420px;         /* ← スマホ幅に合わせて中央寄せ */
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -140,6 +141,14 @@
     font-size: .75rem;
     line-height: 1.2;
     padding: 2px 3px;
+  }
+}
+
+/* デスクトップでは横幅をしっかり確保して余白を埋める */
+@media (min-width: 900px) {
+  .calendar-wrapper { width: 100%; }
+  .calendar-box {
+    max-width: min(1280px, 96vw);
   }
 }
 
