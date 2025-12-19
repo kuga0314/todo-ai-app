@@ -132,38 +132,45 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                       return (
                         <li
                           key={it.id}
-                          className="daily-plan-item"
+                          className="daily-plan-item plan-row"
                           style={{
                             "--item-index": idx,
-                            display: "flex",
-                            alignItems: "center",
                             padding: "6px 0",
                             borderTop:
                               idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
                           }}
                         >
-                          <span
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              background: it.labelColor || "transparent",
-                              display: "inline-block",
-                              marginRight: 8,
-                              border: "1px solid rgba(0,0,0,0.1)",
-                            }}
-                          />
-                          {shouldWarn && (
+                          <div className="plan-left">
                             <span
-                              className="cal-warn-badge"
-                              aria-label="完了予測日が締切以降です"
-                              title="完了予測日が締切以降です"
-                            >
-                              !
-                            </span>
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: "50%",
+                                background: it.labelColor || "transparent",
+                                display: "inline-block",
+                                border: "1px solid rgba(0,0,0,0.1)",
+                              }}
+                            />
+                            {shouldWarn ? (
+                              <span
+                                className="plan-warn-badge"
+                                aria-label="完了予測日が締切以降です"
+                                title="完了予測日が締切以降です"
+                              >
+                                !
+                              </span>
+                            ) : (
+                              <span
+                                className="plan-warn-badge plan-warn-badge--placeholder"
+                                aria-hidden="true"
+                              >
+                                !
+                              </span>
+                            )}
+                          </div>
+                          <div className="plan-body">
                             <div
+                              className="plan-title"
                               style={{
                                 fontWeight: 600,
                                 whiteSpace: "nowrap",
@@ -173,7 +180,7 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                             >
                               {idx + 1}. {it.text}
                             </div>
-                            <div style={{ fontSize: 12, opacity: 0.7 }}>
+                            <div className="plan-meta" style={{ fontSize: 12, opacity: 0.7 }}>
                               目安 {it.todayMinutes} 分
                             </div>
                           </div>

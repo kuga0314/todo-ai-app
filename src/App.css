@@ -379,6 +379,49 @@ body {
   animation-delay: calc(var(--item-index, 0) * 60ms);
 }
 
+.plan-row{
+  display:flex;
+  align-items:flex-start; /* タイトル行の上端に揃える */
+  gap: 10px;
+}
+
+.plan-left{
+  width: 52px;            /* チェック丸 + バッジが入る固定幅（必要に応じて微調整） */
+  display:flex;
+  align-items:center;     /* 丸とバッジの縦位置を揃える */
+  justify-content:flex-start;
+  gap: 8px;
+  padding-top: 2px;       /* タイトルのベースラインに合わせたい場合に微調整 */
+  flex: 0 0 auto;
+}
+
+.plan-body{
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.plan-warn-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:14px;
+  height:14px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  line-height:1;
+  background:#ff4d4f;
+  color:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,0.18);
+  pointer-events:none;
+  flex: 0 0 auto;
+}
+
+/* 警告が無い行でも幅だけ揃える（見えない） */
+.plan-warn-badge--placeholder{
+  visibility:hidden;
+}
+
 .daily-plan-item .cal-warn-badge {
   position: static;
   display: inline-flex;
