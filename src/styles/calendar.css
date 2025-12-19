@@ -30,42 +30,49 @@
 }
 
 /* ===== ツールバー（コンパクト） ===== */
+.calendar-box {
+  max-width: 420px;         /* ← スマホ幅に合わせて中央寄せ */
+  margin: 0 auto;
+}
+
 .calendar-box .rbc-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: .5rem;
-  margin: 0 0 6px;
+  gap: .35rem;
+  margin: 0 0 4px;
 }
 .calendar-box .rbc-toolbar-label {
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--text);
 }
 .calendar-box .rbc-btn-group { display: inline-flex; align-items: center; gap: .25rem; }
 .calendar-box .rbc-btn-group button {
-  background: rgba(79,154,255,.15);
+  background: rgba(79,154,255,.12);
   color: var(--text);
   border: none;
-  border-radius: 8px;
-  padding: 4px 10px;
+  border-radius: 6px;
+  padding: 3px 8px;
   font-weight: 600;
+  font-size: .9rem;
+  min-height: 30px;
   cursor: pointer;
   transition: background .18s ease, transform .12s ease;
 }
-.calendar-box .rbc-btn-group button:hover     { background: rgba(79,154,255,.30); }
+.calendar-box .rbc-btn-group button:hover     { background: rgba(79,154,255,.24); }
 .calendar-box .rbc-btn-group button.rbc-active{ background: var(--primary); color: #fff; }
 .calendar-box .rbc-btn-group button:active    { transform: translateY(1px); }
 
 /* ===== 曜日ヘッダー ===== */
 .calendar-box .rbc-header {
   background: var(--bg);
-  padding: 6px 4px;
+  padding: 4px 2px;
   font-weight: 700;
   text-align: center;
   border-bottom: 1px solid #e5e7eb;
   color: var(--text);
-  font-size: .9rem;
+  font-size: .86rem;
 }
 .calendar-box .rbc-header + .rbc-header { border-left: 1px solid #e5e7eb; }
 .calendar-box .rbc-header:nth-child(1) { color: #d33; } /* 日 */
@@ -78,7 +85,7 @@
 /* ===== 日付番号 & 当日ハイライト ===== */
 .calendar-box .rbc-date-cell {
   text-align: right;
-  padding: 2px 4px 0;
+  padding: 2px 2px 0;
   font-weight: 700;
   font-size: .8rem;
   color: var(--text);
@@ -97,16 +104,17 @@
 
 /* ===== イベント（カレンダー内のToDo） ===== */
 .calendar-box .rbc-event {
-  padding: 4px 6px;       /* ← 縦幅拡大 */
-  border-radius: 6px;
-  font-size: .85rem;      /* ← 少し大きく */
-  line-height: 1.4;       /* ← 行間を広げる */
+  padding: 2px 4px;        /* ← ピルをコンパクトにして表示領域を稼ぐ */
+  border-radius: 5px;
+  font-size: .78rem;       /* ← 文字を小さくして6文字程度入る余白を確保 */
+  line-height: 1.2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   border: none;
   box-shadow: 0 1px 2px rgba(0,0,0,.06);
-  color: #fff;            /* ← 白文字をデフォルト */
+  color: #fff;             /* ← 白文字をデフォルト */
+  white-space: normal;     /* ← 折り返しを許可 */
+  word-break: break-word;  /* ← 単語境界で折り返し */
+  width: calc(100% - 4px); /* ← セル左右に少し余白を残しつつ最大幅を活用 */
 }
 /* デフォルトの見た目（JSで色を当てない時） */
 .calendar-box .event-default   { background: var(--primary); color: #fff; }
@@ -117,6 +125,23 @@
 /* ===== セル選択・リンク色 ===== */
 .calendar-box .rbc-selected-cell { background: rgba(79,154,255,.12); }
 .calendar-box .rbc-date-cell a { color: inherit; text-decoration: none; }
+.calendar-box .rbc-event-content {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;    /* 2行まで表示して文字数を確保 */
+  overflow: hidden;
+  word-break: inherit;
+  text-overflow: clip;      /* ← 省略記号ではなく本文優先 */
+}
+
+@media (max-width: 520px) {
+  .calendar-box { max-width: 100%; }
+  .calendar-box .rbc-event {
+    font-size: .75rem;
+    line-height: 1.2;
+    padding: 2px 3px;
+  }
+}
 
 /* ===== ダークモード ===== */
 @media (prefers-color-scheme: dark) {
