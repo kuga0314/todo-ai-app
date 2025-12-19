@@ -506,7 +506,11 @@ export default function ProgressEntry({ todos = [], src }) {
           </header>
 
           <div className="progress-log-controls">
-            <button type="button" onClick={() => moveSelectedDate(-1)} className="progress-chip-btn">
+            <button
+              type="button"
+              onClick={() => moveSelectedDate(-1)}
+              className="progress-chip-btn progress-log-nav"
+            >
               ← 前日
             </button>
             <input
@@ -515,13 +519,17 @@ export default function ProgressEntry({ todos = [], src }) {
               onChange={(e) => setSelectedDateKey(e.target.value)}
               className="progress-date-input"
             />
-            <button type="button" onClick={() => moveSelectedDate(1)} className="progress-chip-btn">
+            <button
+              type="button"
+              onClick={() => moveSelectedDate(1)}
+              className="progress-chip-btn progress-log-nav"
+            >
               翌日 →
             </button>
             <button
               type="button"
               onClick={() => setSelectedDateKey(todayKey)}
-              className="progress-chip-btn progress-chip-btn--primary"
+              className="progress-chip-btn progress-chip-btn--primary progress-log-nav"
             >
               今日に戻る
             </button>
