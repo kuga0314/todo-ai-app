@@ -32,20 +32,12 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div
-        className="card-header"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
+      <div className="card-header daily-plan-header">
         <div>
           <h3 style={{ margin: 0 }}>今日のプラン</h3>
           <div style={{ fontSize: 12, opacity: 0.7 }}>{todayKey}</div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="daily-plan-actions">
           <button
             type="button"
             onClick={handleRefreshPlan}

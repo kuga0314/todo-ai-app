@@ -24,7 +24,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase/firebaseConfig";
-import { CalendarCheck, ChatCircleDots, Question, SignOut } from "phosphor-react";
+import { CalendarCheck, ChatCircleDots, List, Question, SignOut } from "phosphor-react";
 
 import { useAuth } from "./hooks/useAuth.jsx";
 import { useFcm } from "./hooks/useFcm.jsx";
@@ -134,13 +134,14 @@ const Layout = ({ logout, loginCount, user }) => {
 
   const [showChangelog, setShowChangelog] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <>
       <header className="app-header">
         <div className="container hdr-inner">
           <h1 className="brand">進捗マネジメントアプリ</h1>
-          <div className="hdr-actions">
+          <div className="hdr-actions hdr-actions--inline">
             <button
               className="hdr-chip hdr-chip--primary"
               onClick={() => setShowFeedback(true)}
@@ -170,13 +171,72 @@ const Layout = ({ logout, loginCount, user }) => {
             </Link>
             <VersionBadge
               onClick={() => setShowChangelog(true)}
-              className="hdr-chip--ghost"
+              className="hdr-chip hdr-chip--ghost version-badge"
             />
             <button onClick={logout} className="hdr-chip hdr-chip--warn">
               <SignOut size={18} weight="bold" className="hdr-chip__icon" aria-hidden />
               <span>ログアウト</span>
             </button>
           </div>
+
+          <button
+            className="hdr-menu-btn"
+            aria-label="メニューを開く"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <List size={22} weight="bold" aria-hidden />
+          </button>
+          {menuOpen && (
+            <>
+              <div className="hdr-menu-backdrop" onClick={() => setMenuOpen(false)} />
+              <div className="hdr-menu">
+                <button
+                  className="hdr-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setShowFeedback(true);
+                  }}
+                >
+                  <ChatCircleDots size={18} weight="fill" aria-hidden />
+                  <span>意見を送る</span>
+                </button>
+                <button
+                  className="hdr-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setShowChangelog(true);
+                  }}
+                >
+                  <VersionBadge className="hdr-menu-version" />
+                </button>
+                <Link
+                  to="/help"
+                  className="hdr-menu-item"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Question size={18} weight="bold" aria-hidden />
+                  <span>ヘルプ</span>
+                </Link>
+                {typeof loginCount === "number" && (
+                  <div className="hdr-menu-item hdr-menu-item--muted" role="status">
+                    <CalendarCheck size={18} weight="bold" aria-hidden />
+                    <span>ログイン {loginCount}回</span>
+                  </div>
+                )}
+                <button
+                  className="hdr-menu-item hdr-menu-item--warn"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    logout();
+                  }}
+                >
+                  <SignOut size={18} weight="bold" aria-hidden />
+                  <span>ログアウト</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
