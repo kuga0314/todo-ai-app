@@ -131,6 +131,7 @@
 .calendar-box .rbc-event-content {
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  line-clamp: 2;
   -webkit-line-clamp: 2;    /* 2行まで表示して文字数を確保 */
   overflow: hidden;
   word-break: inherit;
