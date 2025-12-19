@@ -110,6 +110,22 @@
   height: 320px;
 }
 
+.ana-chart--scroll {
+  overflow: hidden;
+}
+
+.ana-chart__scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  margin: 0 -8px;
+  padding-inline: 8px;
+}
+
+.ana-chart__inner {
+  min-width: 100%;
+}
+
 .ana-task-section {
   display: flex;
   flex-direction: column;
