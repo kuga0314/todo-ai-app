@@ -194,11 +194,10 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
   const { chartData, totals: chartTotals } = useMemo(() => {
     const rows = (incompleteTodos || [])
       .map((t) => {
-        const assigned = Number(t?.assigned?.[todayKey]) || 0;
-        const fallbackAssigned = planTodayMinutesMap.get(t.id) || 0;
-        const plannedMinutes = assigned > 0 ? assigned : fallbackAssigned;
+        const plannedMinutes = planTodayMinutesMap.get(t.id) || 0;
         const actual = Number(t?.actualLogs?.[todayKey]) || 0;
-        if (plannedMinutes <= 0 && actual <= 0) return null;
+        const shouldInclude = plannedMinutes > 0 || actual > 0;
+        if (!shouldInclude) return null;
         return {
           id: t.id,
           name: t.text || "（無題）",
