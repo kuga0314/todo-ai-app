@@ -274,6 +274,24 @@ const AppWithRouter = ({ logout, user }) => {
     setSrcParam(initialSrc);
   }, []);
 
+  // 0時での強制ログアウト
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const msUntilMidnight = Math.max(nextMidnight.getTime() - now.getTime(), 0);
+
+    const timerId = setTimeout(() => {
+      logout().catch((error) => {
+        console.error("auto logout at midnight failed", error);
+      });
+    }, msUntilMidnight || 1000);
+
+    return () => clearTimeout(timerId);
+  }, [logout, user?.uid]);
+
   // ✅ ログイン回数の加算とログ記録
   useEffect(() => {
     if (!user?.uid) {
