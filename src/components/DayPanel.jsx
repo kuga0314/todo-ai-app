@@ -96,7 +96,7 @@ export default function DayPanel({
 
   // ───── UIスタイル ─────
   const overlayStyle = {
-    position: "fixed",
+    position: "absolute",
     inset: 0,
     background: "rgba(0,0,0,0.20)",
     zIndex: 1000,
