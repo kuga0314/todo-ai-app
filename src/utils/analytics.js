@@ -1,4 +1,5 @@
 import { jstDateKey } from "./logUpdates";
+import * as guidance from "../../shared/analyticsGuidance";
 
 export const DATE_CAP = 365;
 
@@ -61,45 +62,12 @@ export const formatProgress = (ratio) => {
   return `${Math.round(Math.max(0, ratio) * 100)}%`;
 };
 
-const toDate = (value) => {
-  if (!value) return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-  if (typeof value.toDate === "function") {
-    const converted = value.toDate();
-    return converted instanceof Date && !Number.isNaN(converted.getTime())
-      ? converted
-      : null;
-  }
-  if (typeof value.seconds === "number") {
-    return new Date(value.seconds * 1000);
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-const roundUpToFiveMinutes = (value) => {
-  if (!Number.isFinite(value)) return null;
-  return Math.ceil(Math.ceil(value) / 5) * 5;
-};
-
 export const resolveRiskDisplay = (todo, series, options = {}) => {
-  const normalizeRisk = (value) => {
-    if (!value) return null;
-    const trimmed = String(value).trim();
-    if (!trimmed) return null;
-    if (["ok", "warn", "late"].includes(trimmed)) return trimmed;
-    if (trimmed === "良好") return "ok";
-    if (trimmed === "注意") return "warn";
-    if (trimmed === "遅延" || trimmed === "危険" || trimmed === "警戒") return "late";
-    return null;
-  };
-
+  const { normalizeRisk, resolveRiskGuidance, roundUpToFiveMinutes, toDateSafe } = guidance;
   const risk = normalizeRisk(todo.riskLevel);
 
-  const deadline = toDate(todo.deadline);
-  const plannedStart = toDate(todo.plannedStart);
+  const deadline = toDateSafe(todo.deadline);
+  const plannedStart = toDateSafe(todo.plannedStart);
   const now = options.now instanceof Date ? options.now : new Date();
   if (plannedStart && now.getTime() < plannedStart.getTime()) {
     return { riskKey: "none", riskText: "—", isBeforeStart: true };
@@ -138,40 +106,16 @@ export const resolveRiskDisplay = (todo, series, options = {}) => {
   const remainingMinutes =
     estimatedMinutes != null ? Math.max(0, Math.round(estimatedMinutes - actualTotal)) : null;
 
-  let requiredMinutesForWarn = null;
-  let requiredMinutesForOk = null;
-  let requiredPerDay = null;
-
-  const canCalculateGuidance = remainingMinutes != null && remainingMinutes > 0 && !!deadline;
-
-  if (canCalculateGuidance) {
-    const today = parseDateKey(jstDateKey(now));
-    const diffMs = deadline.getTime() - today.getTime();
-    const diffDaysRaw = diffMs / MS_PER_DAY;
-    const daysLeft = Math.max(1, Math.ceil(diffDaysRaw));
-
-    const basePerDay = remainingMinutes / daysLeft;
-    requiredPerDay = basePerDay;
-
-    const clampToRemaining = (value) => {
-      const rounded = roundUpToFiveMinutes(value);
-      if (rounded == null) return null;
-      return Math.min(rounded, remainingMinutes);
-    };
-
-    const okFactor = riskKey === "late" ? 2 : riskKey === "warn" ? 1.5 : 1;
-
-    if (riskKey === "late") {
-      requiredMinutesForWarn = clampToRemaining(basePerDay);
-      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
-    } else if (riskKey === "warn") {
-      requiredMinutesForWarn = 0;
-      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
-    } else {
-      requiredMinutesForWarn = clampToRemaining(basePerDay);
-      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
-    }
-  }
+  const {
+    requiredPerDay,
+    requiredMinutesForWarn,
+    requiredMinutesForOk,
+  } = resolveRiskGuidance({
+    deadline,
+    remainingMinutes,
+    riskKey,
+    now,
+  });
 
   return {
     riskKey,
