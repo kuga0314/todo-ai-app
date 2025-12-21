@@ -1,5 +1,5 @@
 // src/components/DailyPlan.jsx
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -10,6 +10,13 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import {
+  addDoc,
+  collection,
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { useAuth } from "../hooks/useAuth";
 import { db } from "../firebase/firebaseConfig";
 import { useDailyPlan } from "../hooks/useDailyPlan";
@@ -31,6 +38,14 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
     chartTotals,
     chartDataWithSummary,
   } = useDailyPlan({ propTodos, propPlans, user, db });
+  const [inputs, setInputs] = useState({});
+  const [saving, setSaving] = useState(false);
+  const completionRate =
+    chartTotals?.planned > 0
+      ? Math.min(100, Math.round((chartTotals.actual / chartTotals.planned) * 100))
+      : 0;
+  const progressRadius = 36;
+  const progressCircumference = 2 * Math.PI * progressRadius;
   const todoMap = useMemo(() => {
     const map = new Map();
     propTodos.forEach((todo) => {
@@ -40,6 +55,71 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
     });
     return map;
   }, [propTodos]);
+
+  const totalEntered = useMemo(
+    () =>
+      Object.values(inputs).reduce((acc, v) => {
+        const n = Math.round(Number(v));
+        return acc + (Number.isFinite(n) && n > 0 ? n : 0);
+      }, 0),
+    [inputs]
+  );
+
+  const handleChange = (id, v) => {
+    setInputs((m) => ({ ...m, [id]: v }));
+  };
+
+  const saveAllInline = async () => {
+    if (saving) return;
+    const targets = activePlan?.items
+      ?.map((it) => {
+        const minutes = Math.round(Number(inputs[it.id]));
+        const todo = todoMap.get(it.id);
+        return {
+          todo,
+          minutes,
+        };
+      })
+      .filter((t) => t.todo && Number.isFinite(t.minutes) && t.minutes > 0);
+
+    if (!targets || targets.length === 0) return;
+
+    setSaving(true);
+    try {
+      await Promise.all(
+        targets.map(async ({ todo, minutes }) => {
+          const currentTotal = Number.isFinite(Number(todo?.actualTotalMinutes))
+            ? Number(todo.actualTotalMinutes)
+            : 0;
+          const oldValue = Math.max(
+            0,
+            Math.round(Number(todo?.actualLogs?.[todayKey]) || 0)
+          );
+          const delta = minutes - oldValue;
+          await updateDoc(doc(db, "todos", todo.id), {
+            actualTotalMinutes: currentTotal + delta,
+            [`actualLogs.${todayKey}`]: minutes,
+            lastProgressAt: serverTimestamp(),
+          });
+          await addDoc(collection(db, "todos", todo.id, "sessions"), {
+            date: todayKey,
+            minutes: delta,
+            source: "daily-plan-inline",
+            trigger: "daily-plan-inline",
+            createdAt: serverTimestamp(),
+          });
+        })
+      );
+      setInputs({});
+      handleRefreshPlan({ skipConfirm: true });
+      alert("保存しました！");
+    } catch (e) {
+      console.error("inline save failed", e);
+      alert("保存に失敗しました。通信状況をご確認ください。");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
@@ -109,161 +189,207 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
               {!activePlan.items || activePlan.items.length === 0 ? (
                 <div>今日は予定された日次プランがありません。</div>
               ) : (
-                <>
-                  <div style={{ marginBottom: 8 }}>
-                    合計 <b>{activePlan.used}</b> 分
-                    {Number.isFinite(activePlan.cap) && (
-                      <span style={{ marginLeft: 6, opacity: 0.7 }}>
-                        （上限 {activePlan.cap} 分）
-                      </span>
+                <div className="daily-plan-grid">
+                  <div className="daily-plan-summary">
+                    <div className="daily-plan-total">
+                      合計 <b>{activePlan.used}</b> 分
+                      {Number.isFinite(activePlan.cap) && (
+                        <span className="daily-plan-cap">（上限 {activePlan.cap} 分）</span>
+                      )}
+                    </div>
+
+                    <div className="daily-plan-progress">
+                      <div className="daily-plan-meter" aria-label={`実績達成率 ${completionRate}%`}>
+                        <svg viewBox="0 0 96 96" className="daily-plan-meter-graph">
+                          <circle
+                            className="daily-plan-meter-track"
+                            cx="48"
+                            cy="48"
+                            r={progressRadius}
+                            strokeDasharray={progressCircumference}
+                          />
+                          <circle
+                            className="daily-plan-meter-value"
+                            cx="48"
+                            cy="48"
+                            r={progressRadius}
+                            strokeDasharray={progressCircumference}
+                            style={{
+                              strokeDashoffset:
+                                progressCircumference * (1 - completionRate / 100),
+                            }}
+                          />
+                        </svg>
+                        <div className="daily-plan-meter-center">
+                          <span className="daily-plan-meter-percent">{completionRate}%</span>
+                          <span className="daily-plan-meter-label">達成</span>
+                        </div>
+                      </div>
+                      <div className="daily-plan-meter-caption">
+                        <div className="daily-plan-meter-title">Plannedに対する実績</div>
+                        <div className="daily-plan-meter-sub">
+                          予定 <strong>{chartTotals.planned}</strong> 分 / 実績{" "}
+                          <strong>{chartTotals.actual}</strong> 分
+                        </div>
+                      </div>
+                    </div>
+
+                    <ul className="daily-plan-list">
+                      {activePlan.items.map((it, idx) => {
+                        const todo = todoMap.get(it.id);
+                        const shouldWarn = todo && !todo.completed && isEacOverDeadline(todo);
+
+                        return (
+                          <li
+                            key={it.id}
+                            className="daily-plan-item plan-row"
+                            style={{
+                              "--item-index": idx,
+                              borderTop:
+                                idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
+                            }}
+                          >
+                            <div className="plan-left">
+                              <span
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: "50%",
+                                  background: it.labelColor || "transparent",
+                                  display: "inline-block",
+                                  border: "1px solid rgba(0,0,0,0.1)",
+                                }}
+                              />
+                              {shouldWarn ? (
+                                <span
+                                  className="plan-warn-badge"
+                                  aria-label="完了予測日が締切以降です"
+                                  title="完了予測日が締切以降です"
+                                >
+                                  !
+                                </span>
+                              ) : (
+                                <span
+                                  className="plan-warn-badge plan-warn-badge--placeholder"
+                                  aria-hidden="true"
+                                >
+                                  !
+                                </span>
+                              )}
+                            </div>
+                            <div className="plan-body">
+                              <div className="plan-title-row">
+                                <div className="plan-title">
+                                  {idx + 1}. {it.text}
+                                </div>
+                                <label className="plan-log-input">
+                                  <span className="plan-log-input__label">今日の実績</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    placeholder="例: 30"
+                                    value={inputs[it.id] ?? ""}
+                                    onChange={(e) => handleChange(it.id, e.target.value)}
+                                  />
+                                  <span className="plan-log-input__suffix">分</span>
+                                </label>
+                              </div>
+                              <div className="plan-meta">目安 {it.todayMinutes} 分</div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="daily-plan-save-row">
+                      <div className="daily-plan-save-meta">
+                        今日の入力合計: <b>{totalEntered}</b> 分
+                      </div>
+                      <button
+                        type="button"
+                        className="plan-save-btn"
+                        onClick={saveAllInline}
+                        disabled={saving || totalEntered <= 0}
+                      >
+                        {saving ? "保存中…" : "一括保存"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="daily-plan-analytics">
+                    <div className="daily-plan-chart-card">
+                      <div className="daily-plan-chart-header">
+                        <h4 style={{ margin: 0 }}>Planned vs Actual</h4>
+                        {chartTotals.hasData && (
+                          <div className="daily-plan-chart-pills">
+                            <span className="daily-plan-pill daily-plan-pill--planned">
+                              予定 <strong>{chartTotals.planned}</strong> 分
+                            </span>
+                            <span className="daily-plan-pill daily-plan-pill--actual">
+                              実績 <strong>{chartTotals.actual}</strong> 分
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {!chartTotals.hasData ? (
+                        <p className="daily-plan-chart-empty">
+                          今日の割当と実績データはまだありません。
+                        </p>
+                      ) : (
+                        <div className="daily-plan-chart">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartDataWithSummary} margin={{ bottom: 36 }}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis
+                                dataKey="name"
+                                interval={0}
+                                angle={-30}
+                                textAnchor="end"
+                                height={60}
+                                tick={{ fontSize: 11 }}
+                              />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="planned" name="Planned" fill="#8884d8" />
+                              <Bar dataKey="actual" name="Actual" fill="#82ca9d" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+
+                    {chartTotals.hasData && (
+                      <div className="daily-plan-table-wrapper">
+                        <table className="daily-plan-table">
+                          <thead>
+                            <tr>
+                              <th>タスク</th>
+                              <th>予定 (分)</th>
+                              <th>実績 (分)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {chartData.map((row) => (
+                              <tr key={row.id}>
+                                <td>{row.name}</td>
+                                <td>{row.planned}</td>
+                                <td>{row.actual}</td>
+                              </tr>
+                            ))}
+                            <tr className="daily-plan-table-total">
+                              <td>合計</td>
+                              <td>{chartTotals.planned}</td>
+                              <td>{chartTotals.actual}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
-                  <ul
-                    style={{
-                      listStyle: "none",
-                      padding: 0,
-                      margin: 0,
-                    }}
-                  >
-                    {activePlan.items.map((it, idx) => {
-                      const todo = todoMap.get(it.id);
-                      const shouldWarn = todo && !todo.completed && isEacOverDeadline(todo);
-
-                      return (
-                        <li
-                          key={it.id}
-                          className="daily-plan-item plan-row"
-                          style={{
-                            "--item-index": idx,
-                            padding: "6px 0",
-                            borderTop:
-                              idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
-                          }}
-                        >
-                          <div className="plan-left">
-                            <span
-                              style={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: "50%",
-                                background: it.labelColor || "transparent",
-                                display: "inline-block",
-                                border: "1px solid rgba(0,0,0,0.1)",
-                              }}
-                            />
-                            {shouldWarn ? (
-                              <span
-                                className="plan-warn-badge"
-                                aria-label="完了予測日が締切以降です"
-                                title="完了予測日が締切以降です"
-                              >
-                                !
-                              </span>
-                            ) : (
-                              <span
-                                className="plan-warn-badge plan-warn-badge--placeholder"
-                                aria-hidden="true"
-                              >
-                                !
-                              </span>
-                            )}
-                          </div>
-                          <div className="plan-body">
-                            <div
-                              className="plan-title"
-                              style={{
-                                fontWeight: 600,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {idx + 1}. {it.text}
-                            </div>
-                            <div className="plan-meta" style={{ fontSize: 12, opacity: 0.7 }}>
-                              目安 {it.todayMinutes} 分
-                            </div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </>
+                </div>
               )}
-
-              <div style={{ marginTop: 24 }}>
-                <h4 style={{ margin: "16px 0 8px" }}>Planned vs Actual</h4>
-                {!chartTotals.hasData ? (
-                  <p style={{ color: "#666", fontSize: 13 }}>
-                    今日の割当と実績データはまだありません。
-                  </p>
-                ) : (
-                  <>
-                    <div style={{ width: "100%", height: 260 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartDataWithSummary} margin={{ bottom: 40 }}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis
-                            dataKey="name"
-                            interval={0}
-                            angle={-30}
-                            textAnchor="end"
-                            height={60}
-                            tick={{ fontSize: 11 }}
-                          />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="planned" name="Planned" fill="#8884d8" />
-                          <Bar dataKey="actual" name="Actual" fill="#82ca9d" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <table
-                      style={{
-                        width: "100%",
-                        marginTop: 12,
-                        borderCollapse: "collapse",
-                        fontSize: 13,
-                      }}
-                    >
-                      <thead>
-                        <tr style={{ textAlign: "left" }}>
-                          <th style={{ padding: "6px 4px" }}>タスク</th>
-                          <th style={{ padding: "6px 4px", textAlign: "right" }}>
-                            予定 (分)
-                          </th>
-                          <th style={{ padding: "6px 4px", textAlign: "right" }}>
-                            実績 (分)
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {chartData.map((row) => (
-                          <tr key={row.id} style={{ borderTop: "1px solid #eee" }}>
-                            <td style={{ padding: "6px 4px" }}>{row.name}</td>
-                            <td style={{ padding: "6px 4px", textAlign: "right" }}>
-                              {row.planned}
-                            </td>
-                            <td style={{ padding: "6px 4px", textAlign: "right" }}>
-                              {row.actual}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr style={{ borderTop: "2px solid #ccc", fontWeight: 600 }}>
-                          <td style={{ padding: "6px 4px" }}>合計</td>
-                          <td style={{ padding: "6px 4px", textAlign: "right" }}>
-                            {chartTotals.planned}
-                          </td>
-                          <td style={{ padding: "6px 4px", textAlign: "right" }}>
-                            {chartTotals.actual}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </div>
             </>
           )}
         </div>

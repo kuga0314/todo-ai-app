@@ -331,13 +331,16 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
     setCollapsed((prev) => !prev);
   }, []);
 
-  const handleRefreshPlan = useCallback(async () => {
+  const handleRefreshPlan = useCallback(async (options = {}) => {
     if (!user?.uid) return;
-    const ok =
-      typeof window !== "undefined"
-        ? window.confirm("今日のプランを更新しますか？")
-        : true;
-    if (!ok) return;
+    const { skipConfirm = false } = options;
+    if (!skipConfirm) {
+      const ok =
+        typeof window !== "undefined"
+          ? window.confirm("今日のプランを更新しますか？")
+          : true;
+      if (!ok) return;
+    }
 
     try {
       const freshTodos = (await fetchTodos({ db, uid: user.uid })).filter(
