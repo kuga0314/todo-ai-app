@@ -4,6 +4,14 @@ const admin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { extractFcmTokens, isInvalidFcmTokenError, removeFcmToken } = require("./fcmTokens");
 
+let planEngineModulePromise = null;
+async function getPlanEngine() {
+  if (!planEngineModulePromise) {
+    planEngineModulePromise = import("../shared/planEngine.js");
+  }
+  return planEngineModulePromise;
+}
+
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 const msg = admin.messaging();
@@ -31,106 +39,6 @@ function todayKeyTokyo() {
     day: "2-digit",
   });
   return f.format(new Date());
-}
-
-function selectMorningPlan(tasks, appSettings) {
-  const capDefault = 120;
-  const cap = Number.isFinite(Number(appSettings?.dailyCap))
-    ? Number(appSettings.dailyCap)
-    : capDefault;
-
-  const today = new Date();
-  const candidates = [];
-
-  for (const t of tasks) {
-    const E = Number(t.estimatedMinutes) || 0;
-    const A = Number(t.actualTotalMinutes) || 0;
-    if (E <= 0 || A >= E) continue;
-
-    const R = Math.max(0, E - A);
-    const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0) || 0;
-
-    const deadline = t.deadline instanceof Date ? t.deadline : null;
-    if (!deadline) continue;
-
-    const createdAt = t.createdAt instanceof Date ? t.createdAt : today;
-    const totalDays = Math.max(1, Math.ceil((deadline - createdAt) / 86400000));
-    const elapsed = Math.max(0, Math.ceil((today - createdAt) / 86400000));
-    const ideal = Math.min(1, elapsed / totalDays);
-    const actual = Math.min(1, A / E);
-    const lag = ideal - actual;
-
-    if (lag <= 0) continue;
-
-    candidates.push({
-      id: t.id,
-      text: t.text || "（無題）",
-      R,
-      required,
-      lag,
-      deadlineTs: deadline.getTime(),
-    });
-  }
-
-  candidates.sort(
-    (a, b) =>
-      b.lag - a.lag ||
-      b.required - a.required ||
-      a.deadlineTs - b.deadlineTs
-  );
-
-  let used = 0;
-  const plan = [];
-  for (const c of candidates) {
-    const required = Math.max(0, c.required);
-    const R = c.R;
-    const need = Math.min(required, R, Math.max(0, cap - used));
-    if (need <= 0) continue;
-    plan.push({
-      id: c.id,
-      text: c.text,
-      todayMinutes: Math.round(need),
-      required: c.required,
-      deadlineTs: c.deadlineTs,
-    });
-    used += need;
-    if (used >= cap || plan.length >= 3) break;
-  }
-
-  if (plan.length === 0) {
-    const pending = tasks
-      .map((t) => {
-        const E = Number(t.estimatedMinutes) || 0;
-        const A = Number(t.actualTotalMinutes) || 0;
-        if (E <= 0 || A >= E) return null;
-        const required = Number(t.requiredPaceAdj ?? t.requiredPace ?? 0) || 0;
-        const deadline = t.deadline instanceof Date ? t.deadline : null;
-        if (!deadline) return null;
-        return {
-          id: t.id,
-          text: t.text || "（無題）",
-          required,
-          deadlineTs: deadline.getTime(),
-        };
-      })
-      .filter(Boolean);
-
-    pending.sort((a, b) => a.deadlineTs - b.deadlineTs || b.required - a.required);
-    const sliced = pending.slice(0, 3);
-    return {
-      items: sliced.map((x) => ({
-        id: x.id,
-        text: x.text,
-        todayMinutes: Math.round(x.required),
-        required: x.required,
-        deadlineTs: x.deadlineTs,
-      })),
-      cap,
-      used: Math.round(sliced.reduce((s, x) => s + x.required, 0)),
-    };
-  }
-
-  return { items: plan, cap, used: Math.round(used) };
 }
 
 async function buildMorningBody(uid) {
@@ -163,7 +71,8 @@ async function buildMorningBody(uid) {
     console.warn("read dailyCap failed", e);
   }
 
-  const plan = selectMorningPlan(tasks, appSettings);
+  const { buildDailyPlan } = await getPlanEngine();
+  const plan = buildDailyPlan({ todos: tasks, appSettings, todayKey, now: new Date() });
 
   const body = "今日取り組むおすすめのタスクを確認してみましょう！";
   return { title: "朝プラン", body, dateKey: todayKey, plan };
