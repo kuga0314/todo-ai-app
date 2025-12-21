@@ -888,6 +888,51 @@ body {
     padding: var(--main-pad) 0
       calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 6px);
   }
+
+  .plan-title {
+    font-size: 14px;
+  }
+
+  .plan-title-row {
+    gap: 6px;
+  }
+
+  .plan-meta {
+    font-size: 11px;
+  }
+
+  .plan-log-input {
+    gap: 4px;
+    padding: 5px 8px;
+  }
+
+  .plan-log-input input {
+    width: 82px;
+    padding: 6px 8px;
+    font-size: 12px;
+    height: 34px;
+  }
+
+  .plan-log-input__label,
+  .plan-log-input__suffix {
+    font-size: 11px;
+  }
+
+  .daily-plan-chart {
+    height: 180px;
+  }
+
+  .daily-plan-grid {
+    gap: 10px;
+  }
+
+  .daily-plan-chart .recharts-cartesian-axis-tick-value {
+    font-size: 10px;
+  }
+
+  .daily-plan-chart .recharts-legend-item-text {
+    font-size: 11px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
