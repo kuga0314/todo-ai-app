@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import "./TodoList.css";
 import LogEditorModal from "./LogEditorModal";
 import { jstDateKey } from "../utils/logUpdates";
@@ -25,6 +25,17 @@ const toDateValue = (v) => {
   if (typeof v.seconds === "number") return new Date(v.seconds * 1000);
   const parsed = new Date(v);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const computeShortWindowFlag = (logs = {}) => {
+  const today = new Date();
+  let daysWorked = 0;
+  for (let i = 0; i < 7; i += 1) {
+    const key = jstDateKey(addDays(today, -i));
+    const value = Number(logs[key]) || 0;
+    if (value > 0) daysWorked += 1;
+  }
+  return { daysWorked7: daysWorked, isShortWindow: daysWorked < 3 };
 };
 
 function percent(n) {
@@ -300,6 +311,7 @@ export default function TodoList({
     });
     const spiNum = Number(todo.spi);
     const spiText = Number.isFinite(spiNum) && !isBeforeStart ? spiNum.toFixed(2) : "—";
+    const { daysWorked7, isShortWindow } = computeShortWindowFlag(todo.actualLogs || {});
     const eacText = !isBeforeStart && actualMinutes > 0 && todo.eacDate
       ? todo.eacDate
       : "—";
@@ -329,6 +341,8 @@ export default function TodoList({
       riskMode,
       isBeforeStart,
       createdAt,
+      isShortWindow,
+      daysWorked7,
     };
   });
 
@@ -518,6 +532,7 @@ export default function TodoList({
             riskText,
             isBeforeStart,
             createdAt,
+            isShortWindow,
           } = item;
 
           const borderColor =
@@ -641,6 +656,14 @@ export default function TodoList({
                       title="SPI（進捗指数）＝ 過去7日間の実績ペース ÷ 締切までに必要なペース。1以上なら計画通り、それ未満だとこのままだと締切に間に合わない可能性があります"
                     >
                       {spiText}
+                      {isShortWindow && (
+                        <span
+                          style={{ marginLeft: 8, fontSize: 12, color: "#475569" }}
+                          title="直近7日で実績が3日未満のため、SPIは短期評価（実働日数で平均化）です。3日目以降は通常の週間ペース(÷7)に切り替わります。"
+                        >
+                          （短期評価）
+                        </span>
+                      )}
                     </span>
 
                     <span className="spacer" />

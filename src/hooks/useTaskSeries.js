@@ -63,7 +63,12 @@ export function useTaskSeries({ dateRange, refreshTick }) {
           }
         }
         const denominator = Math.max(1, daysWorked < 3 ? daysWorked || 1 : 7);
-        return sum / denominator;
+        return {
+          pace7: sum / denominator,
+          daysWorked,
+          paceDenominator: denominator,
+          isShortWindow: daysWorked < 3,
+        };
       };
 
       return effectiveRange.map((date, index) => {
@@ -72,7 +77,7 @@ export function useTaskSeries({ dateRange, refreshTick }) {
         cumulative += adjustedMinutes;
 
         const remaining = Math.max(0, estimated - cumulative);
-        const pace7 = get7DayPace(index);
+        const { pace7, daysWorked, paceDenominator, isShortWindow } = get7DayPace(index);
 
         // Estimated completion timestamp based on recent pace.
         let eacTs = null;
@@ -110,6 +115,9 @@ export function useTaskSeries({ dateRange, refreshTick }) {
           }
         }
 
+        const spiStable = isShortWindow ? null : spi;
+        const spiShort = isShortWindow ? spi : null;
+
         return {
           date,
           minutes: adjustedMinutes,
@@ -118,6 +126,12 @@ export function useTaskSeries({ dateRange, refreshTick }) {
           remaining,
           // Recent 7-day pace used for SPI and EAC calculations.
           pace7,
+          pace7d: pace7,
+          daysWorked7: daysWorked,
+          paceDenom: paceDenominator,
+          isShortWindow,
+          spiStable,
+          spiShort,
           // Predicted completion date in ms since epoch based on remaining/pace.
           eacTs,
           spi,
