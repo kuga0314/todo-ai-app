@@ -144,10 +144,15 @@ export default function AnalyticsTaskCard({
           const key = entry?.dataKey || _name;
           if (key === "minutes") return [`${value} 分`, "日別実績"];
           if (key === "cum") return [`${value} 分`, "累積実績"];
-          if (key === "spi")
+          if (key === "spiStable")
             return [
               Number.isFinite(Number(value)) ? Number(value).toFixed(2) : value,
-              "SPI",
+              "SPI（週間ペース）",
+            ];
+          if (key === "spiShort")
+            return [
+              Number.isFinite(Number(value)) ? Number(value).toFixed(2) : value,
+              "SPI（短期評価：直近7日で実績<3日）",
             ];
           return value;
         }}
@@ -166,12 +171,22 @@ export default function AnalyticsTaskCard({
       <Line
         yAxisId="right"
         type="monotone"
-        dataKey="spi"
-        name="SPI"
+        dataKey="spiStable"
+        name="SPI（週間ペース）"
         stroke="#10b981"
         strokeWidth={2}
         dot={false}
-        strokeDasharray="3 3"
+      />
+      <Line
+        yAxisId="right"
+        type="monotone"
+        dataKey="spiShort"
+        name="SPI（短期評価）"
+        stroke="#94a3b8"
+        strokeWidth={2}
+        dot={false}
+        strokeDasharray="4 2"
+        opacity={0.9}
       />
     </ComposedChart>
   );
