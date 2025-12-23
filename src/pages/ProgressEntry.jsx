@@ -11,6 +11,7 @@ import {
 import { db } from "../firebase/firebaseConfig";
 import LogEditorModal from "../components/LogEditorModal";
 import { applyLogDiff, jstDateKey } from "../utils/logUpdates";
+import { flagAnalyticsAttention } from "../utils/analyticsAlert";
 import "../styles/progress.css";
 
 const toDate = (v) => v?.toDate?.() ?? (v instanceof Date ? v : null);
@@ -353,6 +354,7 @@ export default function ProgressEntry({ todos = [], src }) {
       });
 
       await Promise.all(ops);
+      flagAnalyticsAttention();
       setInputs({});
       alert("保存しました！");
     } catch (e) {

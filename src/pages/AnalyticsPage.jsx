@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth.jsx";
 import LogEditorModal from "../components/LogEditorModal";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
 import AnalyticsView from "../components/analytics/AnalyticsView";
 import useTaskSeries from "../hooks/useTaskSeries";
 import { jstDateKey } from "../utils/logUpdates";
+import { clearAnalyticsAttention } from "../utils/analyticsAlert";
 import "./Analytics.css";
 
 export default function AnalyticsPage() {
@@ -31,6 +32,10 @@ export default function AnalyticsPage() {
     [dateRange, todayKey]
   );
 
+  useEffect(() => {
+    clearAnalyticsAttention();
+  }, []);
+
   const openLogEditorForTodo = (todo) => {
     if (!todo) return;
     setLogEditorState({ open: true, todo, date: latestRangeDate });
@@ -44,6 +49,7 @@ export default function AnalyticsPage() {
     setRefreshTick((t) => t + 1);
     if (!payload?.todoId) return;
     invalidateSeries(payload.todoId);
+    clearAnalyticsAttention();
   }
 
   return (

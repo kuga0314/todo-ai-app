@@ -7,6 +7,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
+import { flagAnalyticsAttention } from "./analyticsAlert";
 
 export const jstDateKey = (date = new Date()) =>
   new Intl.DateTimeFormat("sv-SE", {
@@ -63,6 +64,8 @@ export async function applyLogDiff({
     trigger,
     createdAt: serverTimestamp(),
   });
+
+  flagAnalyticsAttention();
 
   return { delta, nextTotal };
 }
