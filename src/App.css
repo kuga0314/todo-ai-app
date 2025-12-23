@@ -416,6 +416,7 @@ body {
   box-shadow:0 1px 2px rgba(0,0,0,0.18);
   pointer-events:none;
   flex: 0 0 auto;
+  animation: warnWiggle 1s ease-in-out infinite;
 }
 
 /* 警告が無い行でも幅だけ揃える（見えない） */
@@ -442,6 +443,7 @@ body {
   pointer-events: auto;
   cursor: help;
   flex: 0 0 auto;
+  animation: warnWiggle 1s ease-in-out infinite;
 }
 
 @keyframes daily-plan-drop {
@@ -463,6 +465,22 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes warnWiggle {
+  0%   { transform: rotate(0deg)   scale(1); }
+  20%  { transform: rotate(-8deg)  scale(1.02); }
+  40%  { transform: rotate(8deg)   scale(1.02); }
+  60%  { transform: rotate(-6deg)  scale(1.02); }
+  80%  { transform: rotate(6deg)   scale(1.02); }
+  100% { transform: rotate(0deg)   scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .plan-warn-badge,
+  .daily-plan-item .cal-warn-badge{
+    animation: none;
   }
 }
 

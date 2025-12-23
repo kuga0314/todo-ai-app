@@ -100,4 +100,20 @@
   font-weight: 700;
   line-height: 1;
   box-shadow: 0 0 0 2px var(--card-bg, #ffffff);
+  animation: tabAlertShake 1s ease-in-out infinite;
+}
+
+@keyframes tabAlertShake {
+  0%   { transform: rotate(0deg)   scale(1); }
+  20%  { transform: rotate(-8deg)  scale(1.04); }
+  40%  { transform: rotate(8deg)   scale(1.04); }
+  60%  { transform: rotate(-6deg)  scale(1.04); }
+  80%  { transform: rotate(6deg)   scale(1.04); }
+  100% { transform: rotate(0deg)   scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .bottom-nav .tab-alert{
+    animation: none;
+  }
 }
