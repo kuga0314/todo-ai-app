@@ -37,6 +37,7 @@
   flex: 1 1 0;
   height: 100%;
   min-width: 0;
+  position: relative;
 
   display: flex;
   flex-direction: column;
@@ -80,4 +81,23 @@
   text-overflow: ellipsis;
   max-width: 90%;
   text-align: center;
+}
+
+.bottom-nav .tab-alert {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--card-bg, #ffffff);
 }

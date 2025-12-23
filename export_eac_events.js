@@ -39,7 +39,7 @@ const db = admin.firestore();
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const options = { userId: null, start: null, end: null, preview: false };
+  const options = { userId: null, start: null, end: null, preview: false, allUsers: false };
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg.startsWith("--userId")) {
@@ -48,6 +48,8 @@ function parseArgs() {
         options.userId = value;
         if (!arg.includes("=") && args[i + 1]) i += 1;
       }
+    } else if (arg === "--allUsers") {
+      options.allUsers = true;
     } else if (arg.startsWith("--start")) {
       const value = arg.includes("=") ? arg.split("=")[1] : args[i + 1];
       if (value) {
@@ -65,8 +67,13 @@ function parseArgs() {
     }
   }
 
-  if (!options.userId || !options.start || !options.end) {
-    console.error("Usage: node export_eac_events.js --userId=XXX --start=YYYY-MM-DD --end=YYYY-MM-DD [--preview]");
+  if (options.userId && options.allUsers) {
+    console.error("Specify either --userId or --allUsers, not both.");
+    process.exit(1);
+  }
+
+  if ((!options.userId && !options.allUsers) || !options.start || !options.end) {
+    console.error("Usage: node export_eac_events.js (--userId=XXX | --allUsers) --start=YYYY-MM-DD --end=YYYY-MM-DD [--preview]");
     process.exit(1);
   }
   return options;
@@ -197,6 +204,19 @@ async function fetchTodos(userId) {
   return snap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
 }
 
+async function fetchTodosForAllUsers() {
+  const snap = await db.collection("todos").get();
+  const byUser = new Map();
+  snap.forEach((doc) => {
+    const data = doc.data() || {};
+    const uid = data.userId;
+    if (!uid) return;
+    if (!byUser.has(uid)) byUser.set(uid, []);
+    byUser.get(uid).push({ id: doc.id, data });
+  });
+  return byUser;
+}
+
 async function fetchDailyPlans(userId, startKey, endKey) {
   const plansRef = db.collection(`users/${userId}/dailyPlans`);
   const snap = await plansRef.get();
@@ -237,13 +257,19 @@ function extractPlanInfo(plan, todoId) {
 
 async function main() {
   const options = parseArgs();
-  const { userId, start, end, preview } = options;
+  const { userId, start, end, preview, allUsers } = options;
 
   const dateRange = buildDateRange(start, end);
-  const todos = await fetchTodos(userId);
-  const plansByDate = await fetchDailyPlans(userId, start, end);
+  const todosByUser = allUsers
+    ? await fetchTodosForAllUsers()
+    : new Map([[userId, await fetchTodos(userId)]]);
 
-  console.log(`[info] fetched todos: ${todos.length}`);
+  const totalTodos = Array.from(todosByUser.values()).reduce(
+    (sum, list) => sum + list.length,
+    0
+  );
+
+  console.log(`[info] fetched todos: ${totalTodos}`);
   console.log(`[info] dateRange length: ${dateRange.length}`);
 
   const dailyHeaders = [
@@ -285,7 +311,11 @@ async function main() {
   const eventRows = [];
   let nullEacCount = 0;
 
-  for (const { id: todoId, data } of todos) {
+  for (const [currentUserId, todos] of todosByUser.entries()) {
+    const plansByDate = await fetchDailyPlans(currentUserId, start, end);
+    console.log(`[info] processing user ${currentUserId}: todos=${todos.length}, plans=${plansByDate.size}`);
+
+    for (const { id: todoId, data } of todos) {
     const estimatedMinutes = Number(data.estimatedMinutes) || 0;
     const deadlineDate = toDate(data.deadline);
     const deadlineKey = deadlineDate ? toDateKey(deadlineDate) : "";
@@ -327,7 +357,7 @@ async function main() {
       const planInfo = extractPlanInfo(plan, todoId);
 
       dailyRows.push({
-        userId,
+        userId: currentUserId,
         todoId,
         dateKey,
         deadlineKey,
@@ -352,7 +382,7 @@ async function main() {
             beforeAvg !== null && afterAvg !== null ? afterAvg - beforeAvg : "";
 
           eventRows.push({
-            userId,
+            userId: currentUserId,
             todoId,
             eventDateKey: dateKey,
             deadlineKey,
@@ -372,6 +402,7 @@ async function main() {
         prevOverDeadline = eacOverDeadline === true;
       }
     }
+  }
   }
 
   const outDir = ensureExportsDir();

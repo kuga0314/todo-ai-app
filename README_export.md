@@ -15,9 +15,14 @@ Firestore に保存されている todos の日時実績 (`actualLogs`) から�
 
 ## 実行方法
 ```bash
+# 単一ユーザー
 node export_eac_events.js --userId=USER_UID --start=2025-10-01 --end=2025-12-31 [--preview]
+
+# すべてのユーザー
+node export_eac_events.js --allUsers --start=2025-10-01 --end=2025-12-31 [--preview]
 ```
-- `--userId` : 対象ユーザーの UID（必須）
+- `--userId` : 対象ユーザーの UID（単一ユーザー出力時に必須）
+- `--allUsers` : 全ユーザー分をまとめて出力する場合に指定
 - `--start` / `--end` : 期間（YYYY-MM-DD、両端を含む、Asia/Tokyo 基準）
 - `--preview` : 生成した CSV の先頭 5 行をコンソール表示
 
