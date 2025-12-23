@@ -21,6 +21,7 @@ import { useAuth } from "../hooks/useAuth";
 import { db } from "../firebase/firebaseConfig";
 import { useDailyPlan } from "../hooks/useDailyPlan";
 import { isEacOverDeadline } from "../utils/calendarHelpers";
+import { flagAnalyticsAttention } from "../utils/analyticsAlert";
 
 export default function DailyPlan({ todos: propTodos = [], plans: propPlans = [] }) {
   const { user } = useAuth();
@@ -110,6 +111,7 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
           });
         })
       );
+      flagAnalyticsAttention();
       setInputs({});
       handleRefreshPlan({ skipConfirm: true });
       alert("保存しました！");
