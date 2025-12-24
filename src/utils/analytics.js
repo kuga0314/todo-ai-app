@@ -63,12 +63,13 @@ export const formatProgress = (ratio) => {
 };
 
 export const resolveRiskDisplay = (todo, series, options = {}) => {
-  const { normalizeRisk, resolveRiskGuidance, roundUpToFiveMinutes, toDateSafe } = guidance;
+  const { normalizeRisk, resolveRiskGuidance, toDateSafe } = guidance;
   const risk = normalizeRisk(todo.riskLevel);
 
   const deadline = toDateSafe(todo.deadline);
   const plannedStart = toDateSafe(todo.plannedStart);
   const now = options.now instanceof Date ? options.now : new Date();
+  const spiValue = toNumberOrNull(options.spi ?? todo.spi);
   if (plannedStart && now.getTime() < plannedStart.getTime()) {
     return { riskKey: "none", riskText: "—", isBeforeStart: true };
   }
@@ -114,6 +115,7 @@ export const resolveRiskDisplay = (todo, series, options = {}) => {
     deadline,
     remainingMinutes,
     riskKey,
+    spi: spiValue,
     now,
   });
 

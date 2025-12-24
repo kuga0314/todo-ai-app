@@ -81,6 +81,7 @@ export default function AnalyticsView({
       const deadlineAt = todo.deadline?.toDate?.() ? todo.deadline.toDate() : null;
       const labelInfo = todo.labelId ? labelMap.get(todo.labelId) : null;
       const minutesToday = Number(todo.actualLogs?.[todayKey] || 0);
+      const spiValue = toNumberOrNull(todo.spi);
       const logKeys = Object.keys(todo.actualLogs || {});
       const lastProgressKey = logKeys.length
         ? logKeys.reduce((latest, key) => (latest > key ? latest : key))
@@ -90,6 +91,7 @@ export default function AnalyticsView({
       const riskInfo = resolveRiskDisplay(todo, undefined, {
         estimatedMinutes: estimated,
         actualMinutes: actualTotal,
+        spi: spiValue,
         now,
       });
 
@@ -108,6 +110,7 @@ export default function AnalyticsView({
         requiredPerDay: riskInfo.requiredPerDay,
         requiredMinutesForWarn: riskInfo.requiredMinutesForWarn,
         requiredMinutesForOk: riskInfo.requiredMinutesForOk,
+        spi: spiValue,
       };
     });
     return refreshTick ? [...result] : result;

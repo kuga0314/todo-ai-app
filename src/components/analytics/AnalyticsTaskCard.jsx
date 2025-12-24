@@ -54,14 +54,10 @@ export default function AnalyticsTaskCard({
   const todayBadgeClass = `ana-badge ana-badge--today${minutesToday > 0 ? " is-active" : ""}`;
   const improvementMessages = [];
   if (!isBeforeStart) {
-    if (cardRiskKey === "late" && Number.isFinite(requiredMinutesForWarn) && requiredMinutesForWarn > 0) {
+    if (Number.isFinite(requiredMinutesForWarn) && requiredMinutesForWarn > 0) {
       improvementMessages.push(`今日 ${requiredMinutesForWarn} 分で🟡注意まで`);
     }
-    if (
-      (cardRiskKey === "late" || cardRiskKey === "warn") &&
-      Number.isFinite(requiredMinutesForOk) &&
-      requiredMinutesForOk > 0
-    ) {
+    if (Number.isFinite(requiredMinutesForOk) && requiredMinutesForOk > 0) {
       improvementMessages.push(`今日 ${requiredMinutesForOk} 分で🟢良好へ`);
     }
   }

@@ -28,10 +28,12 @@ const calcScore = ({ lag, R, D }) => {
 
 const calcRecoverMinutes = ({ todo, E, A, R, D, lag, now }) => {
   const riskKey = normalizeRisk(todo?.riskLevel);
+  const spiValue = Number.isFinite(Number(todo?.spi)) ? Number(todo.spi) : null;
   const guidance = resolveRiskGuidance({
     deadline: todo?.deadline,
     remainingMinutes: R,
     riskKey,
+    spi: spiValue,
     now,
   });
   const guidanceRecover = guidance?.requiredMinutesForOk;
