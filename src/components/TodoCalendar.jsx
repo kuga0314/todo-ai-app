@@ -208,8 +208,8 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
   };
 
   return (
-    <div className="calendar-wrapper" style={{ flex: 1, display: "flex" }}>
-      <div className="calendar-box" style={{ flex: 1, position: "relative" }}>
+    <div className="calendar-wrapper">
+      <div className="calendar-box">
         <Calendar
           localizer={localizer}
           date={currentDate}
@@ -244,7 +244,7 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
             };
           }}
           components={{ event: CalendarEvent }}
-          style={{ height: "100%" }}
+          className="calendar-root"
         />
 
         {selectedDate && (
