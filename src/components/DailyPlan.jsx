@@ -113,7 +113,6 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
       );
       flagAnalyticsAttention();
       setInputs({});
-      handleRefreshPlan({ skipConfirm: true });
       alert("保存しました！");
     } catch (e) {
       console.error("inline save failed", e);
@@ -240,6 +239,10 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                       {activePlan.items.map((it, idx) => {
                         const todo = todoMap.get(it.id);
                         const shouldWarn = todo && !todo.completed && isEacOverDeadline(todo);
+                        const actualToday = Math.max(
+                          0,
+                          Math.round(Number(todo?.actualLogs?.[todayKey]) || 0)
+                        );
 
                         return (
                           <li
@@ -284,18 +287,25 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                                 <div className="plan-title">
                                   {idx + 1}. {it.text}
                                 </div>
-                                <label className="plan-log-input">
-                                  <span className="plan-log-input__label">今日の実績</span>
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    step={1}
-                                    placeholder="例: 30"
-                                    value={inputs[it.id] ?? ""}
-                                    onChange={(e) => handleChange(it.id, e.target.value)}
-                                  />
-                                  <span className="plan-log-input__suffix">分</span>
-                                </label>
+                                {actualToday > 0 ? (
+                                  <div className="plan-log-input plan-log-input--readonly">
+                                    <span className="plan-log-input__label">今日の実績</span>
+                                    <span className="plan-log-input__value">{actualToday} 分</span>
+                                  </div>
+                                ) : (
+                                  <label className="plan-log-input">
+                                    <span className="plan-log-input__label">今日の実績</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      placeholder="例: 30"
+                                      value={inputs[it.id] ?? ""}
+                                      onChange={(e) => handleChange(it.id, e.target.value)}
+                                    />
+                                    <span className="plan-log-input__suffix">分</span>
+                                  </label>
+                                )}
                               </div>
                               <div className="plan-meta">目安 {it.todayMinutes} 分</div>
                             </div>
