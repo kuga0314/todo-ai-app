@@ -14,7 +14,7 @@ import { addDays, format } from "date-fns";
 import "./TodoList.css";
 import LogEditorModal from "./LogEditorModal";
 import { jstDateKey } from "../utils/logUpdates";
-import { resolveRiskDisplay } from "../utils/analytics";
+import { resolveRiskDisplay, toNumberOrNull } from "../utils/analytics";
 import { logTodoHistory } from "../utils/todoHistory";
 
 const toTime = (v) => v?.toDate?.()?.getTime?.() ?? null;
@@ -300,6 +300,7 @@ export default function TodoList({
       estimatedMinutes != null
         ? Math.max(0, estimatedMinutes - actualMinutes)
         : null;
+    const spiValue = toNumberOrNull(todo.spi);
 
     const nowTs = now.getTime();
     const isBeforeStart = plannedStartAt ? plannedStartAt.getTime() > nowTs : false;
@@ -307,6 +308,7 @@ export default function TodoList({
     const riskInfo = resolveRiskDisplay(todo, undefined, {
       estimatedMinutes,
       actualMinutes,
+      spi: spiValue,
       now,
     });
     const spiNum = Number(todo.spi);
@@ -335,6 +337,7 @@ export default function TodoList({
       requiredMinutesForWarn,
       requiredMinutesForOk,
       spiText,
+      spi: spiValue,
       eacText,
       riskKey,
       riskText,

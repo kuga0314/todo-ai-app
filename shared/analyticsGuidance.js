@@ -51,7 +51,13 @@ const normalizeRisk = (value) => {
   return null;
 };
 
-const resolveRiskGuidance = ({ deadline, remainingMinutes, riskKey, now = new Date() }) => {
+const resolveRiskGuidance = ({
+  deadline,
+  remainingMinutes,
+  riskKey,
+  spi,
+  now = new Date(),
+}) => {
   const deadlineDate = toDateSafe(deadline);
   const remaining = Number.isFinite(remainingMinutes) ? Math.max(0, Math.round(remainingMinutes)) : null;
   const canCalculateGuidance = remaining != null && remaining > 0 && !!deadlineDate;
@@ -75,18 +81,31 @@ const resolveRiskGuidance = ({ deadline, remainingMinutes, riskKey, now = new Da
       return Math.min(rounded, remaining);
     };
 
-    const okFactor = riskKey === "late" ? 2 : riskKey === "warn" ? 1.5 : 1;
+    const spiValue = Number.isFinite(spi) ? spi : null;
+    let targetWarnSpi = null;
+    let targetOkSpi = null;
 
-    if (riskKey === "late") {
-      requiredMinutesForWarn = clampToRemaining(basePerDay);
-      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
+    if (spiValue != null) {
+      if (spiValue < 0.8) {
+        targetWarnSpi = 0.8;
+        targetOkSpi = 1;
+      } else if (spiValue < 1) {
+        targetOkSpi = 1;
+      }
+    } else if (riskKey === "late") {
+      targetWarnSpi = 0.8;
+      targetOkSpi = 1;
     } else if (riskKey === "warn") {
-      requiredMinutesForWarn = 0;
-      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
-    } else {
-      requiredMinutesForWarn = clampToRemaining(basePerDay);
-      requiredMinutesForOk = clampToRemaining(basePerDay * okFactor);
+      targetOkSpi = 1;
     }
+
+    const computeRequired = (targetSpi) => {
+      if (!Number.isFinite(targetSpi) || targetSpi <= 0) return null;
+      return clampToRemaining(basePerDay * targetSpi);
+    };
+
+    requiredMinutesForWarn = computeRequired(targetWarnSpi);
+    requiredMinutesForOk = computeRequired(targetOkSpi);
   }
 
   return {
