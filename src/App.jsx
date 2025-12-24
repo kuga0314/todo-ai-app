@@ -483,7 +483,7 @@ const AppWithRouter = ({ logout, user }) => {
             element={
               <main className="app-main">
                 <div className="container">
-                  <section style={{ marginBottom: 16 }}>
+                  <section className="home-section">
                     <DailyPlan
                       plans={dailyPlans}
                       todos={todosWithId}

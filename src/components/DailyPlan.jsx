@@ -23,6 +23,7 @@ import { db } from "../firebase/firebaseConfig";
 import { useDailyPlan } from "../hooks/useDailyPlan";
 import { isEacOverDeadline } from "../utils/calendarHelpers";
 import { flagAnalyticsAttention } from "../utils/analyticsAlert";
+import "./DailyPlan.css";
 
 export default function DailyPlan({ todos: propTodos = [], plans: propPlans = [] }) {
   const { user } = useAuth();
@@ -154,38 +155,24 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
   };
 
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
+    <div className="card card--spaced daily-plan-card">
       <div className="card-header daily-plan-header">
         <div>
-          <h3 style={{ margin: 0 }}>今日のプラン</h3>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{todayKey}</div>
+          <h3 className="daily-plan-title-heading">今日のプラン</h3>
+          <div className="daily-plan-date">{todayKey}</div>
         </div>
         <div className="daily-plan-actions">
           <button
             type="button"
             onClick={handleRefreshPlan}
-            style={{
-              background: "#fff",
-              border: "1px solid #d0d0d0",
-              borderRadius: 4,
-              padding: "4px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
+            className="daily-plan-btn"
           >
             今日のプランを更新
           </button>
           <button
             type="button"
             onClick={toggleCollapsed}
-            style={{
-              background: "#fff",
-              border: "1px solid #d0d0d0",
-              borderRadius: 4,
-              padding: "4px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
+            className="daily-plan-btn"
           >
             {collapsed ? "表示 ▼" : "非表示 ▲"}
           </button>
@@ -193,17 +180,7 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
       </div>
 
       {refreshMessage && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: "8px 10px",
-            background: "#f5f7ff",
-            border: "1px solid #d9e2ff",
-            color: "#2d3a8c",
-            borderRadius: 4,
-            fontSize: 13,
-          }}
-        >
+        <div className="daily-plan-refresh">
           {refreshMessage}
         </div>
       )}
@@ -258,38 +235,35 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                           <span className="daily-plan-meter-label">達成</span>
                         </div>
                       </div>
-                        <div className="daily-plan-meter-caption">
-                          <div className="daily-plan-meter-title">Plannedに対する実績</div>
-                          <div className="daily-plan-meter-sub">
-                            予定 <strong>{chartTotals.planned}</strong> 分 / 実績{" "}
-                            <strong>{chartTotals.actual}</strong> 分
-                          </div>
-                          {chartTotals.actual !== chartTotals.effectiveActual && (
-                            <div
-                              className="daily-plan-meter-sub"
-                              style={{ fontSize: 12, color: "rgba(0,0,0,0.6)", marginTop: 2 }}
-                            >
-                              達成率計算上の実績:{" "}
-                              <strong>{chartTotals.effectiveActual}</strong> 分（各タスクの目安を上限に集計）
-                            </div>
-                          )}
-                          {legendRows.length > 0 && (
-                            <div className="daily-plan-meter-legend" aria-label="タスク別の実績内訳">
-                              {legendRows.map((row) => (
-                                <span className="daily-plan-meter-legend-item" key={row.id}>
-                                  <span
-                                    className="daily-plan-meter-legend-swatch"
-                                    style={{ background: row.color || "#5c55b6" }}
-                                    aria-hidden="true"
-                                  />
-                                  <span className="daily-plan-meter-legend-label">
-                                    {row.name}（{row.effectiveActual} 分）
-                                  </span>
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                      <div className="daily-plan-meter-caption">
+                        <div className="daily-plan-meter-title">Plannedに対する実績</div>
+                        <div className="daily-plan-meter-sub">
+                          予定 <strong>{chartTotals.planned}</strong> 分 / 実績{" "}
+                          <strong>{chartTotals.actual}</strong> 分
                         </div>
+                        {chartTotals.actual !== chartTotals.effectiveActual && (
+                          <div className="daily-plan-meter-sub daily-plan-meter-sub--note">
+                            達成率計算上の実績:{" "}
+                            <strong>{chartTotals.effectiveActual}</strong> 分（各タスクの目安を上限に集計）
+                          </div>
+                        )}
+                        {legendRows.length > 0 && (
+                          <div className="daily-plan-meter-legend" aria-label="タスク別の実績内訳">
+                            {legendRows.map((row) => (
+                              <span className="daily-plan-meter-legend-item" key={row.id}>
+                                <span
+                                  className="daily-plan-meter-legend-swatch"
+                                  style={{ background: row.color || "#5c55b6" }}
+                                  aria-hidden="true"
+                                />
+                                <span className="daily-plan-meter-legend-label">
+                                  {row.name}（{row.effectiveActual} 分）
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <ul className="daily-plan-list">
@@ -305,21 +279,13 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                           <li
                             key={it.id}
                             className="daily-plan-item plan-row"
-                            style={{
-                              "--item-index": idx,
-                              borderTop:
-                                idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
-                            }}
+                            style={{ "--item-index": idx }}
                           >
                             <div className="plan-left">
                               <span
+                                className="plan-dot"
                                 style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: "50%",
                                   background: it.labelColor || "transparent",
-                                  display: "inline-block",
-                                  border: "1px solid rgba(0,0,0,0.1)",
                                 }}
                               />
                               {shouldWarn ? (
@@ -386,11 +352,11 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                   </div>
 
                   <div className="daily-plan-analytics">
-                    <div className="daily-plan-chart-card">
-                      <div className="daily-plan-chart-header">
-                        <h4 style={{ margin: 0 }}>Planned vs Actual</h4>
-                        {chartTotals.hasData && (
-                          <div className="daily-plan-chart-pills">
+                        <div className="daily-plan-chart-card">
+                          <div className="daily-plan-chart-header">
+                            <h4 className="daily-plan-chart-title">Planned vs Actual</h4>
+                            {chartTotals.hasData && (
+                              <div className="daily-plan-chart-pills">
                             <span className="daily-plan-pill daily-plan-pill--planned">
                               予定 <strong>{chartTotals.planned}</strong> 分
                             </span>
