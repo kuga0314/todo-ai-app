@@ -421,7 +421,7 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                               <YAxis />
                               <Tooltip />
                               <Legend />
-                              <Bar dataKey="planned" name="Planned">
+                              <Bar dataKey="planned" name="Planned" fill="#cbd0da">
                                 {chartDataWithSummary.map((entry) => (
                                   <Cell
                                     key={`${entry.id}-planned`}
@@ -432,7 +432,7 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                                   />
                                 ))}
                               </Bar>
-                              <Bar dataKey="actual" name="Actual">
+                              <Bar dataKey="actual" name="Actual" fill="#9aa0a6">
                                 {chartDataWithSummary.map((entry) => (
                                   <Cell
                                     key={`${entry.id}-actual`}
