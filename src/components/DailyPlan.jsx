@@ -9,6 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
   CartesianGrid,
+  Cell,
 } from "recharts";
 import {
   addDoc,
@@ -41,12 +42,42 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
   } = useDailyPlan({ propTodos, propPlans, user, db });
   const [inputs, setInputs] = useState({});
   const [saving, setSaving] = useState(false);
+  const effectiveActualForRate =
+    Number.isFinite(chartTotals?.effectiveActual) && chartTotals.effectiveActual > 0
+      ? chartTotals.effectiveActual
+      : 0;
   const completionRate =
     chartTotals?.planned > 0
-      ? Math.min(100, Math.round((chartTotals.actual / chartTotals.planned) * 100))
+      ? Math.min(100, Math.round((effectiveActualForRate / chartTotals.planned) * 100))
       : 0;
   const progressRadius = 36;
   const progressCircumference = 2 * Math.PI * progressRadius;
+  const progressSegments = useMemo(() => {
+    if (!chartTotals?.planned || chartTotals.planned <= 0) return [];
+    const total = chartTotals.planned;
+    let accumulated = 0;
+    return chartData
+      .filter((row) => row.effectiveActual > 0)
+      .map((row) => {
+        const fraction = Math.min(Math.max(row.effectiveActual / total, 0), 1);
+        const start = accumulated;
+        accumulated += fraction;
+        const arcLength = fraction * progressCircumference;
+        const gapLength = Math.max(progressCircumference - arcLength, 0);
+        return {
+          id: row.id,
+          color: row.color || "#5c55b6",
+          dasharray: `${arcLength} ${gapLength}`,
+          dashoffset: progressCircumference * (1 - start),
+          name: row.name,
+          minutes: row.effectiveActual,
+        };
+      });
+  }, [chartData, chartTotals?.planned, progressCircumference]);
+  const legendRows = useMemo(
+    () => chartData.filter((row) => row.effectiveActual > 0),
+    [chartData]
+  );
   const todoMap = useMemo(() => {
     const map = new Map();
     propTodos.forEach((todo) => {
@@ -209,30 +240,56 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                             r={progressRadius}
                             strokeDasharray={progressCircumference}
                           />
-                          <circle
-                            className="daily-plan-meter-value"
-                            cx="48"
-                            cy="48"
-                            r={progressRadius}
-                            strokeDasharray={progressCircumference}
-                            style={{
-                              strokeDashoffset:
-                                progressCircumference * (1 - completionRate / 100),
-                            }}
-                          />
+                          {progressSegments.map((segment) => (
+                            <circle
+                              key={segment.id}
+                              className="daily-plan-meter-segment"
+                              cx="48"
+                              cy="48"
+                              r={progressRadius}
+                              stroke={segment.color}
+                              strokeDasharray={segment.dasharray}
+                              style={{ strokeDashoffset: segment.dashoffset }}
+                            />
+                          ))}
                         </svg>
                         <div className="daily-plan-meter-center">
                           <span className="daily-plan-meter-percent">{completionRate}%</span>
                           <span className="daily-plan-meter-label">達成</span>
                         </div>
                       </div>
-                      <div className="daily-plan-meter-caption">
-                        <div className="daily-plan-meter-title">Plannedに対する実績</div>
-                        <div className="daily-plan-meter-sub">
-                          予定 <strong>{chartTotals.planned}</strong> 分 / 実績{" "}
-                          <strong>{chartTotals.actual}</strong> 分
+                        <div className="daily-plan-meter-caption">
+                          <div className="daily-plan-meter-title">Plannedに対する実績</div>
+                          <div className="daily-plan-meter-sub">
+                            予定 <strong>{chartTotals.planned}</strong> 分 / 実績{" "}
+                            <strong>{chartTotals.actual}</strong> 分
+                          </div>
+                          {chartTotals.actual !== chartTotals.effectiveActual && (
+                            <div
+                              className="daily-plan-meter-sub"
+                              style={{ fontSize: 12, color: "rgba(0,0,0,0.6)", marginTop: 2 }}
+                            >
+                              達成率計算上の実績:{" "}
+                              <strong>{chartTotals.effectiveActual}</strong> 分（各タスクの目安を上限に集計）
+                            </div>
+                          )}
+                          {legendRows.length > 0 && (
+                            <div className="daily-plan-meter-legend" aria-label="タスク別の実績内訳">
+                              {legendRows.map((row) => (
+                                <span className="daily-plan-meter-legend-item" key={row.id}>
+                                  <span
+                                    className="daily-plan-meter-legend-swatch"
+                                    style={{ background: row.color || "#5c55b6" }}
+                                    aria-hidden="true"
+                                  />
+                                  <span className="daily-plan-meter-legend-label">
+                                    {row.name}（{row.effectiveActual} 分）
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
                     </div>
 
                     <ul className="daily-plan-list">
@@ -364,8 +421,26 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                               <YAxis />
                               <Tooltip />
                               <Legend />
-                              <Bar dataKey="planned" name="Planned" fill="#8884d8" />
-                              <Bar dataKey="actual" name="Actual" fill="#82ca9d" />
+                              <Bar dataKey="planned" name="Planned">
+                                {chartDataWithSummary.map((entry) => (
+                                  <Cell
+                                    key={`${entry.id}-planned`}
+                                    fill={entry.isSummary ? "#cbd0da" : entry.color || "#8884d8"}
+                                    fillOpacity={entry.isSummary ? 0.6 : 0.32}
+                                    stroke={entry.isSummary ? "#aab0bc" : entry.color || "#8884d8"}
+                                    strokeOpacity={entry.isSummary ? 0.8 : 0.6}
+                                  />
+                                ))}
+                              </Bar>
+                              <Bar dataKey="actual" name="Actual">
+                                {chartDataWithSummary.map((entry) => (
+                                  <Cell
+                                    key={`${entry.id}-actual`}
+                                    fill={entry.isSummary ? "#9aa0a6" : entry.color || "#82ca9d"}
+                                    fillOpacity={entry.isSummary ? 0.9 : 0.9}
+                                  />
+                                ))}
+                              </Bar>
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
