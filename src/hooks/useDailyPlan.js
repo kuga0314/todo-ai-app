@@ -192,17 +192,33 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
   }, [activePlan?.items]);
 
   const { chartData, totals: chartTotals } = useMemo(() => {
+    const fallbackColors = [
+      "#6c5ce7",
+      "#00b894",
+      "#0984e3",
+      "#e17055",
+      "#fdcb6e",
+      "#00cec9",
+      "#f39c12",
+    ];
+    let colorCursor = 0;
     const rows = (incompleteTodos || [])
       .map((t) => {
         const plannedMinutes = planTodayMinutesMap.get(t.id) || 0;
         const actual = Number(t?.actualLogs?.[todayKey]) || 0;
         const shouldInclude = plannedMinutes > 0 || actual > 0;
         if (!shouldInclude) return null;
+        const effectiveActual =
+          plannedMinutes > 0 ? Math.min(Math.round(actual), Math.round(plannedMinutes)) : 0;
+        const color = t.labelColor || fallbackColors[colorCursor % fallbackColors.length];
+        colorCursor += 1;
         return {
           id: t.id,
           name: t.text || "（無題）",
           planned: Math.round(plannedMinutes),
           actual: Math.round(actual),
+          effectiveActual,
+          color,
         };
       })
       .filter(Boolean);
@@ -213,12 +229,16 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
     const actualTotal = Math.round(
       rows.reduce((sum, row) => sum + (Number(row.actual) || 0), 0)
     );
+    const effectiveActualTotal = Math.round(
+      rows.reduce((sum, row) => sum + (Number(row.effectiveActual) || 0), 0)
+    );
 
     return {
       chartData: rows,
       totals: {
         planned: plannedTotal,
         actual: actualTotal,
+        effectiveActual: effectiveActualTotal,
         hasData: rows.length > 0,
       },
     };
@@ -233,6 +253,7 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
         name: "合計",
         planned: chartTotals.planned,
         actual: chartTotals.actual,
+        color: "#9aa0a6",
         isSummary: true,
       },
     ];
