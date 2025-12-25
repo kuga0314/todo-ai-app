@@ -108,9 +108,14 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
     // consume propPlans to keep props aligned without altering behavior
   }, [propPlans]);
 
-  const incompleteTodos = useMemo(
-    () => (todos || []).filter((t) => !t.completed),
+  const visibleTodos = useMemo(
+    () => (todos || []).filter((t) => t.deleted !== true),
     [todos]
+  );
+
+  const incompleteTodos = useMemo(
+    () => visibleTodos.filter((t) => !t.completed),
+    [visibleTodos]
   );
 
   const initialPlanCandidate = useMemo(
@@ -119,8 +124,7 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
   );
 
   const assignedPlan = useMemo(() => {
-    const items = (todos || [])
-      .filter((t) => t.deleted !== true && !t.completed)
+    const items = visibleTodos
       .map((t, index) => {
         const minutes = Number(t?.assigned?.[todayKey]) || 0;
         if (minutes <= 0) return null;
@@ -141,16 +145,12 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
     );
 
     return { items, used, cap: null };
-  }, [todos, todayKey]);
+  }, [visibleTodos, todayKey]);
 
   const visiblePlanState = useMemo(() => {
     if (!planState) return null;
 
-    const visibleIds = new Set(
-      (todos || [])
-        .filter((t) => t.deleted !== true && !t.completed)
-        .map((t) => t.id)
-    );
+    const visibleIds = new Set(visibleTodos.map((t) => t.id));
 
     const filteredItems = (planState.items || []).filter((item) =>
       visibleIds.has(item.id)
@@ -173,7 +173,7 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
     );
 
     return { ...planState, items: normalizedItems, used };
-  }, [planState, todos]);
+  }, [planState, visibleTodos]);
 
   const activePlan = useMemo(
     () => visiblePlanState || assignedPlan || normalizePlanResult(initialPlanCandidate),
@@ -202,7 +202,7 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
       "#f39c12",
     ];
     let colorCursor = 0;
-    const rows = (incompleteTodos || [])
+    const rows = (visibleTodos || [])
       .map((t) => {
         const plannedMinutes = planTodayMinutesMap.get(t.id) || 0;
         const actual = Number(t?.actualLogs?.[todayKey]) || 0;
@@ -242,7 +242,7 @@ export function useDailyPlan({ propTodos = [], propPlans = [], user, db }) {
         hasData: rows.length > 0,
       },
     };
-  }, [incompleteTodos, todayKey, planTodayMinutesMap]);
+  }, [visibleTodos, todayKey, planTodayMinutesMap]);
 
   const chartDataWithSummary = useMemo(() => {
     if (!chartTotals.hasData) return [];
