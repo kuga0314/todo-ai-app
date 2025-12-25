@@ -20,7 +20,7 @@ const overlayStyle = {
 };
 
 const modalStyle = {
-  background: "#fff",
+  background: "var(--card-bg)",
   padding: 20,
   borderRadius: 12,
   width: "min(640px, 90vw)",
@@ -28,6 +28,8 @@ const modalStyle = {
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",
+  color: "var(--text)",
+  border: "1px solid var(--border)",
   boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
 };
 
@@ -40,27 +42,30 @@ const headerStyle = {
 };
 
 const sectionTitleStyle = {
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 700,
-  color: "#334155",
+  color: "var(--text)",
   margin: "16px 0 8px",
 };
 
 const buttonStyle = {
-  background: "#2563eb",
+  background: "var(--primary)",
   color: "#fff",
   border: "none",
   borderRadius: 8,
   padding: "10px 16px",
   fontWeight: 700,
+  fontSize: 14,
   cursor: "pointer",
 };
 
 const ghostButtonStyle = {
-  background: "transparent",
-  border: "none",
-  color: "#475569",
-  padding: 6,
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  color: "var(--text)",
+  padding: 8,
+  borderRadius: 8,
+  fontSize: 14,
   cursor: "pointer",
 };
 
@@ -153,8 +158,10 @@ const FeedbackModal = ({ open, onClose, user }) => {
       >
         <div style={headerStyle}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 18 }}>開発者へのフィードバック</div>
-            <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text)" }}>
+              開発者へのフィードバック
+            </div>
+            <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>
               使い心地や改善案、気になった点などをお聞かせください。
             </p>
           </div>
@@ -165,7 +172,7 @@ const FeedbackModal = ({ open, onClose, user }) => {
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
-            <label style={{ fontWeight: 700, fontSize: 13, color: "#334155" }}>
+            <label style={{ fontWeight: 700, fontSize: 13, color: "var(--text)" }}>
               タイトル
             </label>
             <input
@@ -175,16 +182,19 @@ const FeedbackModal = ({ open, onClose, user }) => {
               placeholder="例）通知のタイミングについて"
               style={{
                 width: "100%",
-                border: "1px solid #e2e8f0",
+                border: "1px solid var(--border)",
                 borderRadius: 8,
                 padding: "10px 12px",
                 marginTop: 6,
+                background: "var(--surface)",
+                color: "var(--text)",
+                fontSize: 14,
               }}
             />
           </div>
 
           <div>
-            <label style={{ fontWeight: 700, fontSize: 13, color: "#334155" }}>
+            <label style={{ fontWeight: 700, fontSize: 13, color: "var(--text)" }}>
               内容
             </label>
             <textarea
@@ -194,11 +204,14 @@ const FeedbackModal = ({ open, onClose, user }) => {
               rows={5}
               style={{
                 width: "100%",
-                border: "1px solid #e2e8f0",
+                border: "1px solid var(--border)",
                 borderRadius: 8,
                 padding: 12,
                 marginTop: 6,
                 resize: "vertical",
+                background: "var(--surface)",
+                color: "var(--text)",
+                fontSize: 14,
               }}
             />
           </div>
@@ -208,10 +221,23 @@ const FeedbackModal = ({ open, onClose, user }) => {
           )}
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button type="button" onClick={onClose} style={{ ...ghostButtonStyle, padding: "10px 12px" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ ...ghostButtonStyle, padding: "10px 12px" }}
+            >
               キャンセル
             </button>
-            <button type="submit" style={buttonStyle} disabled={!canSubmit}>
+            <button
+              type="submit"
+              style={{
+                ...buttonStyle,
+                background: "var(--primary)",
+                opacity: canSubmit ? 1 : 0.65,
+                cursor: canSubmit ? "pointer" : "not-allowed",
+              }}
+              disabled={!canSubmit}
+            >
               {submitting ? "送信中..." : "送信する"}
             </button>
           </div>
@@ -220,24 +246,25 @@ const FeedbackModal = ({ open, onClose, user }) => {
         <div style={{ overflowY: "auto", marginTop: 8, paddingRight: 4 }}>
           <div style={sectionTitleStyle}>これまでの送信履歴</div>
           {feedbacks.length === 0 && (
-            <p style={{ color: "#94a3b8", fontSize: 13 }}>まだ送信履歴はありません。</p>
+            <p style={{ color: "var(--muted)", fontSize: 13 }}>まだ送信履歴はありません。</p>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {feedbacks.map((row) => (
               <div
                 key={row.id}
                 style={{
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid var(--border)",
                   borderRadius: 10,
                   padding: 10,
-                  background: "#f8fafc",
+                  background: "var(--surface)",
+                  color: "var(--text)",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontWeight: 700 }}>{row.title}</div>
-                  <span style={{ fontSize: 12, color: "#64748b" }}>{formatDate(row.createdAt)}</span>
+                  <span style={{ fontSize: 12, color: "var(--muted)" }}>{formatDate(row.createdAt)}</span>
                 </div>
-                <p style={{ whiteSpace: "pre-wrap", marginTop: 6, color: "#334155" }}>{row.content}</p>
+                <p style={{ whiteSpace: "pre-wrap", marginTop: 6, color: "var(--text)" }}>{row.content}</p>
               </div>
             ))}
           </div>

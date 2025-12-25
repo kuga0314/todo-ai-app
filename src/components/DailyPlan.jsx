@@ -387,23 +387,35 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
                               <YAxis />
                               <Tooltip />
                               <Legend />
-                              <Bar dataKey="planned" name="Planned" fill="#cbd0da">
+                              <Bar dataKey="planned" name="Planned" fill="var(--chart-planned)">
                                 {chartDataWithSummary.map((entry) => (
                                   <Cell
                                     key={`${entry.id}-planned`}
-                                    fill={entry.isSummary ? "#cbd0da" : entry.color || "#8884d8"}
-                                    fillOpacity={entry.isSummary ? 0.6 : 0.32}
-                                    stroke={entry.isSummary ? "#aab0bc" : entry.color || "#8884d8"}
-                                    strokeOpacity={entry.isSummary ? 0.8 : 0.6}
+                                    fill={
+                                      entry.isSummary
+                                        ? "var(--chart-planned)"
+                                        : entry.color || "var(--chart-planned)"
+                                    }
+                                    fillOpacity={entry.isSummary ? 0.7 : 0.4}
+                                    stroke={
+                                      entry.isSummary
+                                        ? "var(--chart-planned)"
+                                        : entry.color || "var(--chart-planned)"
+                                    }
+                                    strokeOpacity={entry.isSummary ? 0.9 : 0.6}
                                   />
                                 ))}
                               </Bar>
-                              <Bar dataKey="actual" name="Actual" fill="#9aa0a6">
+                              <Bar dataKey="actual" name="Actual" fill="var(--chart-actual)">
                                 {chartDataWithSummary.map((entry) => (
                                   <Cell
                                     key={`${entry.id}-actual`}
-                                    fill={entry.isSummary ? "#9aa0a6" : entry.color || "#82ca9d"}
-                                    fillOpacity={entry.isSummary ? 0.9 : 0.9}
+                                    fill={
+                                      entry.isSummary
+                                        ? "var(--chart-actual)"
+                                        : entry.color || "var(--chart-actual)"
+                                    }
+                                    fillOpacity={entry.isSummary ? 0.95 : 0.9}
                                   />
                                 ))}
                               </Bar>

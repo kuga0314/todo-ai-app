@@ -13,6 +13,7 @@ import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../hooks/useAuth";
 import VersionInfo from "./VersionInfo";
 import "../styles/settings.css";
+import { useTheme } from "../hooks/useTheme.jsx";
 
 /**
  * 設定ページ
@@ -23,6 +24,7 @@ export default function Settings() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [appMsg, setAppMsg] = useState("");
+  const { themeId, setThemeId, options: themeOptions } = useTheme();
 
   /* ───── 通知設定 ───── */
   const [progressReminderEnabled, setProgressReminderEnabled] = useState(true);
@@ -35,6 +37,7 @@ export default function Settings() {
 
   /* ───── アプリ設定 ───── */
   const [dailyCap, setDailyCap] = useState("");
+  const [selectedTheme, setSelectedTheme] = useState(themeId);
 
   /* ───── ラベル管理 ───── */
   const [labels, setLabels] = useState([]);
@@ -94,6 +97,7 @@ export default function Settings() {
     getDoc(ref).then((snap) => {
       if (!snap.exists()) {
         setDailyCap("");
+        setSelectedTheme((prev) => prev || themeId);
         return;
       }
       const data = snap.data();
@@ -103,19 +107,24 @@ export default function Settings() {
       } else {
         setDailyCap("");
       }
+      const storedTheme = typeof data?.theme === "string" ? data.theme : themeId;
+      setSelectedTheme(storedTheme);
+      setThemeId(storedTheme);
     });
-  }, [user?.uid]);
+  }, [user?.uid, setThemeId]);
 
   const saveAppSettings = async () => {
     if (!user?.uid) return;
     setAppMsg("");
+    const payload = { theme: selectedTheme };
     const ref = doc(db, "users", user.uid, "settings", "app");
     const trimmed = dailyCap.trim();
 
     if (!trimmed) {
       try {
-        await setDoc(ref, { dailyCap: null }, { merge: true });
+        await setDoc(ref, { ...payload, dailyCap: null }, { merge: true });
         setAppMsg("保存しました");
+        setThemeId(selectedTheme);
       } catch (e) {
         console.error("save app settings failed", e);
         setAppMsg("保存に失敗しました");
@@ -132,9 +141,10 @@ export default function Settings() {
     const rounded = Math.round(parsed);
 
     try {
-      await setDoc(ref, { dailyCap: rounded }, { merge: true });
+      await setDoc(ref, { ...payload, dailyCap: rounded }, { merge: true });
       setDailyCap(String(rounded));
       setAppMsg("保存しました");
+      setThemeId(selectedTheme);
     } catch (e) {
       console.error("save app settings failed", e);
       setAppMsg("保存に失敗しました");
@@ -184,6 +194,46 @@ export default function Settings() {
         <h2>設定</h2>
         <p className="text-muted">通知や上限時間、ラベルをまとめて管理できます。</p>
       </div>
+
+      {/* テーマ */}
+      <section className="settings-card">
+        <div className="section-title">
+          <h3>テーマ</h3>
+          <p className="text-muted">アプリ全体のアクセントカラーを選択できます。</p>
+        </div>
+        <div className="settings-grid single-column">
+          <div className="field">
+            <label className="field-label" htmlFor="theme">
+              テーマカラー
+            </label>
+            <select
+              id="theme"
+              value={selectedTheme}
+              onChange={(e) => {
+                setSelectedTheme(e.target.value);
+                setThemeId(e.target.value);
+              }}
+            >
+              {themeOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="hint">6色から選択でき、保存すると端末に記憶されます。</p>
+          </div>
+        </div>
+        <div className="settings-actions">
+          <button className="btn-primary" onClick={saveAppSettings}>
+            テーマを保存
+          </button>
+          {appMsg && (
+            <p className={`save-feedback ${appMsg === "保存しました" ? "success" : "error"}`}>
+              {appMsg}
+            </p>
+          )}
+        </div>
+      </section>
 
       {/* 通知設定 */}
       <section className="settings-card">
@@ -247,10 +297,10 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* 日次キャパ */}
+      {/* アプリ設定 */}
       <section className="settings-card">
         <div className="section-title">
-          <h3>日次キャパ（上限分数）</h3>
+          <h3>アプリ設定</h3>
           <p className="text-muted">1日に割り当てるタスク量の目安を設定できます。</p>
         </div>
         <div className="settings-grid single-column">
@@ -274,7 +324,7 @@ export default function Settings() {
         </div>
         <div className="settings-actions">
           <button className="btn-primary" onClick={saveAppSettings}>
-            日次キャパを保存
+            アプリ設定を保存
           </button>
           {appMsg && (
             <p className={`save-feedback ${appMsg === "保存しました" ? "success" : "error"}`}>

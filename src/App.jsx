@@ -39,12 +39,13 @@ import ProgressEntry from "./pages/ProgressEntry";
 import VersionBadge from "./components/VersionBadge";
 import ChangelogModal from "./components/ChangelogModal";
 import FeedbackModal from "./components/FeedbackModal";
+import { ThemeProvider } from "./hooks/useTheme.jsx";
 import "./App.css";
 
 function App() {
   const { user, logout } = useAuth();
-  if (!user) return <AuthPage />;
-  return <AppWithRouter logout={logout} user={user} />;
+  const content = !user ? <AuthPage /> : <AppWithRouter logout={logout} user={user} />;
+  return <ThemeProvider>{content}</ThemeProvider>;
 }
 export default App;
 
@@ -212,7 +213,7 @@ const Layout = ({ logout, loginCount, user }) => {
                     setShowChangelog(true);
                   }}
                 >
-                  <VersionBadge className="hdr-menu-version" />
+                  <VersionBadge className="hdr-menu-version" as="div" />
                 </button>
                 <Link
                   to="/help"

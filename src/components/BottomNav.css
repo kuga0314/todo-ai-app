@@ -60,10 +60,10 @@
 }
 
 .bottom-nav .tab-item.active {
-  color: var(--primary, #2563eb);
+  color: var(--primary, #16a34a);
   font-weight: 600;
   box-shadow: inset 0 3px 0 0 currentColor;
-  background: var(--surface-strong, #e2e8f0);
+  background: color-mix(in srgb, var(--primary, #16a34a) 12%, var(--surface-strong, #e2e8f0));
 }
 
 .bottom-nav .tab-item .tab-icon {
