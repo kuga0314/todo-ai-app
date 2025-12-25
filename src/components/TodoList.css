@@ -227,7 +227,7 @@
 
 /* バッジ */
 .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; color:#fff; }
-.badge-priority-1 { background:#16a34a; }
+.badge-priority-1 { background: var(--primary); }
 .badge-priority-2 { background:#f59e0b; }
 .badge-priority-3 { background:#dc2626; }
 .badge-scale-1,

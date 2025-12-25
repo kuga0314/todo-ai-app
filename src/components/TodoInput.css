@@ -10,7 +10,7 @@
   transition:border .2s, box-shadow .2s;
   color: var(--text, #0f172a);
 }
-.ti-input:focus{ outline:none; border-color:var(--primary, #2563eb); box-shadow:0 0 0 2px rgba(37,99,235,.18); }
+.ti-input:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 22%, transparent); }
 
 /* 下段：基本1行、狭い時のみ折り返し */
 .ti-row{
@@ -28,7 +28,7 @@
   transition:border .2s, box-shadow .2s;
   color: var(--text, #0f172a);
 }
-.ti-datetime:focus{ outline:none; border-color:var(--primary, #2563eb); box-shadow:0 0 0 2px rgba(37,99,235,.16); }
+.ti-datetime:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent); }
 
 /* ラベル（横並び・省スペース） */
 .ti-field{
@@ -44,16 +44,16 @@
   transition:border .2s, box-shadow .2s;
   color: var(--text, #0f172a);
 }
-.ti-select:focus{ outline:none; border-color:var(--primary, #2563eb); box-shadow:0 0 0 2px rgba(37,99,235,.16); }
+.ti-select:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent); }
 
 /* 追加ボタン（右端） */
 .ti-submit{
   margin-left:auto; min-width:104px;
   padding:.5rem .9rem;
-  border:none; border-radius:9px; background:var(--primary, #2563eb); color:#fff; font-weight:600; cursor:pointer;
+  border:none; border-radius:9px; background:var(--primary); color:#fff; font-weight:600; cursor:pointer;
   transition:transform .12s, box-shadow .12s, opacity .2s;
 }
-.ti-submit:hover:not(:disabled){ box-shadow:0 3px 8px rgba(37,99,235,.28); transform:translateY(-1px); }
+.ti-submit:hover:not(:disabled){ box-shadow:0 3px 8px color-mix(in srgb, var(--primary) 26%, transparent); transform:translateY(-1px); }
 .ti-submit:disabled{ opacity:.6; cursor:default; }
 
 /* レスポンシブ */

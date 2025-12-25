@@ -256,7 +256,7 @@ const AddMissingLogModal = ({ open, onClose, todos, dateKey }) => {
               disabled={saving}
               style={{
                 border: "none",
-                background: "#2563eb",
+                background: "var(--primary)",
                 color: "#fff",
                 borderRadius: 10,
                 padding: "10px 18px",
@@ -488,7 +488,9 @@ export default function ProgressEntry({ todos = [], src }) {
               disabled={saving || totalEntered <= 0}
               className="btn-primary progress-save-button"
               style={{
-                background: totalEntered > 0 ? "#2563eb" : "#9ca3af",
+                background:
+                  totalEntered > 0 ? "var(--primary)" : "var(--surface-strong)",
+                color: totalEntered > 0 ? "#fff" : "var(--muted)",
                 cursor: totalEntered > 0 && !saving ? "pointer" : "default",
               }}
             >
