@@ -8,6 +8,10 @@ import {
   setDoc,
   updateDoc,
   where,
+  orderBy,
+  startAt,
+  endAt,
+  documentId,
 } from "firebase/firestore";
 
 export async function fetchAppSettings({ db, uid }) {
@@ -52,4 +56,19 @@ export async function updateTodoAssignments({ db, items, todayKey, todos }) {
       return updateDoc(ref, { assigned: newAssigned });
     })
   );
+}
+
+export async function fetchDailyPlansInRange({ db, uid, startKey, endKey }) {
+  const plansRef = collection(db, "users", uid, "dailyPlans");
+  const q = query(
+    plansRef,
+    orderBy(documentId()),
+    startAt(startKey),
+    endAt(endKey)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...(docSnap.data() || {}),
+  }));
 }

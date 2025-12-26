@@ -1,5 +1,5 @@
 // src/components/DailyPlan.jsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -23,7 +23,144 @@ import { db } from "../firebase/firebaseConfig";
 import { useDailyPlan } from "../hooks/useDailyPlan";
 import { isEacOverDeadline } from "../utils/calendarHelpers";
 import { flagAnalyticsAttention } from "../utils/analyticsAlert";
+import { fetchDailyPlansInRange, fetchTodos } from "../repositories/dailyPlanRepo";
 import "./DailyPlan.css";
+
+function PastPlansModal({
+  open,
+  onClose,
+  monthValue,
+  onMonthChange,
+  data,
+  selectedDate,
+  onSelectDate,
+  loading,
+  error,
+}) {
+  if (!open) return null;
+
+  const hasData = data && data.length > 0;
+  const selectedRow = hasData ? data.find((row) => row.dateKey === selectedDate) : null;
+  const chartRows = selectedRow?.chartRows ?? [];
+
+  return (
+    <div className="daily-plan-history-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div
+        className="daily-plan-history-modal"
+        onClick={(e) => e.stopPropagation()}
+        aria-label="過去のプラン"
+      >
+        <div className="daily-plan-history-header">
+          <div>
+            <div className="daily-plan-history-title">過去のプランを見る</div>
+            <div className="daily-plan-history-subtitle">
+              月を選んで、提案されたプランと実績を比較できます。
+            </div>
+          </div>
+          <button type="button" className="daily-plan-history-close" onClick={onClose} aria-label="閉じる">
+            ✕
+          </button>
+        </div>
+
+        <div className="daily-plan-history-controls">
+          <label className="daily-plan-history-label" htmlFor="history-month">
+            表示する月
+          </label>
+          <input
+            id="history-month"
+            type="month"
+            value={monthValue}
+            onChange={(e) => onMonthChange(e.target.value)}
+            className="daily-plan-history-month"
+          />
+        </div>
+
+        {hasData && (
+          <div className="daily-plan-history-controls">
+            <label className="daily-plan-history-label" htmlFor="history-day">
+              表示する日
+            </label>
+            <select
+              id="history-day"
+              value={selectedDate ?? ""}
+              onChange={(e) => onSelectDate(e.target.value)}
+              className="daily-plan-history-day"
+            >
+              {data.map((row) => (
+                <option key={row.dateKey} value={row.dateKey}>
+                  {row.dateKey}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {error && <div className="daily-plan-history-error">{error}</div>}
+
+        {loading ? (
+          <div className="daily-plan-history-loading">読み込み中…</div>
+        ) : hasData && selectedRow ? (
+          <div className="daily-plan-history-chart">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={chartRows} margin={{ bottom: 32 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="name"
+                  interval={0}
+                  angle={-20}
+                  textAnchor="end"
+                  height={60}
+                  tick={{ fontSize: 11 }}
+                />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="planned" name="Planned" fill="var(--chart-planned)">
+                  {chartRows.map((entry) => (
+                    <Cell
+                      key={`${entry.id}-planned`}
+                      fill={
+                        entry.isSummary
+                          ? "var(--chart-planned)"
+                          : entry.color || "var(--chart-planned)"
+                      }
+                      fillOpacity={entry.isSummary ? 0.7 : 0.4}
+                      stroke={
+                        entry.isSummary
+                          ? "var(--chart-planned)"
+                          : entry.color || "var(--chart-planned)"
+                      }
+                      strokeOpacity={entry.isSummary ? 0.9 : 0.6}
+                    />
+                  ))}
+                </Bar>
+                <Bar dataKey="actual" name="Actual" fill="var(--chart-actual)">
+                  {chartRows.map((entry) => (
+                    <Cell
+                      key={`${entry.id}-actual`}
+                      fill={
+                        entry.isSummary
+                          ? "var(--chart-actual)"
+                          : entry.color || "var(--chart-actual)"
+                      }
+                      fillOpacity={entry.isSummary ? 0.95 : 0.9}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : hasData ? (
+          <div className="daily-plan-history-empty">日付を選択してください。</div>
+        ) : (
+          <div className="daily-plan-history-empty">
+            この月には表示できるプランがありません。
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function DailyPlan({ todos: propTodos = [], plans: propPlans = [] }) {
   const { user } = useAuth();
@@ -43,6 +180,166 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
   } = useDailyPlan({ propTodos, propPlans, user, db });
   const [inputs, setInputs] = useState({});
   const [saving, setSaving] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyMonth, setHistoryMonth] = useState(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}`;
+  });
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historySelectedDate, setHistorySelectedDate] = useState("");
+
+  useEffect(() => {
+    if (!historyOpen || !user?.uid) return;
+
+    const makeRange = (value) => {
+      const [y, m] = value.split("-").map((v) => Number(v));
+      if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return null;
+      const startKey = `${y}-${String(m).padStart(2, "0")}-01`;
+      const endDate = new Date(y, m, 0);
+      const endKey = `${y}-${String(m).padStart(2, "0")}-${String(endDate.getDate()).padStart(
+        2,
+        "0"
+      )}`;
+      return { startKey, endKey };
+    };
+
+    const range = makeRange(historyMonth);
+    if (!range) {
+      setHistoryError("月の形式が正しくありません");
+      setHistoryData([]);
+      return;
+    }
+
+    let canceled = false;
+    setHistoryLoading(true);
+    setHistoryError("");
+
+    (async () => {
+      try {
+        const [plans, todos] = await Promise.all([
+          fetchDailyPlansInRange({
+            db,
+            uid: user.uid,
+            startKey: range.startKey,
+            endKey: range.endKey,
+          }),
+          fetchTodos({ db, uid: user.uid }),
+        ]);
+
+        const todoMap = new Map(
+          (todos || []).map((t) => [
+            t.id,
+            {
+              ...t,
+              actualLogs: t.actualLogs || {},
+            },
+          ])
+        );
+
+        const fallbackColors = [
+          "#6c5ce7",
+          "#00b894",
+          "#0984e3",
+          "#e17055",
+          "#fdcb6e",
+          "#00cec9",
+          "#f39c12",
+        ];
+
+        const rows = (plans || [])
+          .map((plan) => {
+            const dateKey = plan.date || plan.id || "";
+            if (!dateKey) return null;
+            const items =
+              Array.isArray(plan?.lastChange?.after?.items) && plan.lastChange?.after?.items.length > 0
+                ? plan.lastChange.after.items
+                : Array.isArray(plan.items)
+                  ? plan.items
+                  : [];
+            let colorCursor = 0;
+
+            const tasks = items
+              .map((item) => {
+                const todoId = item?.todoId || item?.id;
+                if (!todoId) return null;
+                const todo = todoMap.get(todoId);
+                const plannedValue = item?.plannedMinutes ?? item?.todayMinutes ?? item?.requiredMinutes;
+                const planned = Math.max(0, Math.round(Number(plannedValue) || 0));
+                const actual = todo
+                  ? Math.max(0, Math.round(Number(todo.actualLogs?.[dateKey]) || 0))
+                  : 0;
+                const shouldInclude = planned > 0 || actual > 0;
+                if (!shouldInclude) return null;
+                const color =
+                  item?.labelColor || todo?.labelColor || fallbackColors[colorCursor % fallbackColors.length];
+                colorCursor += 1;
+                return {
+                  id: todoId,
+                  name: item?.title || item?.text || todo?.text || "（無題）",
+                  planned,
+                  actual,
+                  color,
+                };
+              })
+              .filter(Boolean);
+
+            if (tasks.length === 0) return null;
+
+            const plannedTotal = tasks.reduce((sum, t) => sum + (Number(t.planned) || 0), 0);
+            const actualTotal = tasks.reduce((sum, t) => sum + (Number(t.actual) || 0), 0);
+
+            const chartRows = [
+              ...tasks,
+              {
+                id: "__summary__",
+                name: "合計",
+                planned: plannedTotal,
+                actual: actualTotal,
+                color: "#9aa0a6",
+                isSummary: true,
+              },
+            ];
+
+            return {
+              dateKey,
+              label: dateKey.slice(5),
+              chartRows,
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+        if (!canceled) {
+          setHistoryData(rows);
+          setHistoryError("");
+          setHistorySelectedDate((prev) => {
+            if (rows.some((row) => row.dateKey === prev)) return prev;
+            return rows[0]?.dateKey || "";
+          });
+        }
+      } catch (error) {
+        console.error("failed to load plan history", error);
+        if (!canceled) {
+          setHistoryError("履歴の読み込みに失敗しました。時間をおいて再度お試しください。");
+          setHistoryData([]);
+          setHistorySelectedDate("");
+        }
+      } finally {
+        if (!canceled) {
+          setHistoryLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [historyOpen, historyMonth, user?.uid, db]);
+
   const effectiveActualForRate =
     Number.isFinite(chartTotals?.effectiveActual) && chartTotals.effectiveActual > 0
       ? chartTotals.effectiveActual
@@ -162,6 +459,13 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
           <div className="daily-plan-date">{todayKey}</div>
         </div>
         <div className="daily-plan-actions">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="daily-plan-btn daily-plan-btn--ghost"
+          >
+            過去のプランを見る
+          </button>
           <button
             type="button"
             onClick={handleRefreshPlan}
@@ -459,6 +763,18 @@ export default function DailyPlan({ todos: propTodos = [], plans: propPlans = []
           )}
         </div>
       )}
+
+      <PastPlansModal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        monthValue={historyMonth}
+        onMonthChange={setHistoryMonth}
+        data={historyData}
+        selectedDate={historySelectedDate}
+        onSelectDate={setHistorySelectedDate}
+        loading={historyLoading}
+        error={historyError}
+      />
     </div>
   );
 }
