@@ -169,6 +169,7 @@
 .ana-card--risk-warn { --ana-risk-color: #f59e0b; }
 .ana-card--risk-late { --ana-risk-color: #ef4444; }
 .ana-card--risk-none { --ana-risk-color: #cbd5e1; }
+.ana-card--risk-done { --ana-risk-color: #fbbf24; }
 
 .ana-card--risk-high {
   --ana-risk-color: rgba(239, 68, 68, 0.9);
@@ -187,6 +188,14 @@
     to right,
     rgba(234, 179, 8, 0.05),
     rgba(234, 179, 8, 0)
+  );
+}
+
+.ana-card--risk-done {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, #fbbf24 16%, transparent),
+    rgba(255, 255, 255, 0)
   );
 }
 
@@ -224,6 +233,21 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--text, #0f172a);
+}
+
+.ana-complete-mark {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  background: color-mix(in srgb, #fbbf24 32%, transparent);
+  color: #6b4e07;
+  border: 1px solid color-mix(in srgb, #fbbf24 60%, transparent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .ana-label {
@@ -276,6 +300,12 @@
     background: var(--surface-strong, #e2e8f0);
     color: var(--muted, #475569);
     border-color: var(--border, #cbd5e1);
+  }
+
+  .ana-badge--risk-done {
+    background: color-mix(in srgb, #fbbf24 28%, transparent);
+    color: #5e4604;
+    border-color: color-mix(in srgb, #fbbf24 55%, transparent);
   }
 
   .ana-badge--today {

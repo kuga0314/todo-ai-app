@@ -39,6 +39,7 @@ export default function AnalyticsTaskCard({
     requiredMinutesForOk,
     isBeforeStart,
   } = task;
+  const isCompleted = !!todo.completed;
   const displaySeries = series || buildTaskSeries(task.todo);
   const hasTaskLogs = displaySeries.some((item) => Number(item.minutes) > 0);
   const latestEacTs = (() => {
@@ -48,12 +49,12 @@ export default function AnalyticsTaskCard({
     return null;
   })();
   const latestEacText = latestEacTs ? format(new Date(latestEacTs), "yyyy-MM-dd") : "—";
-  const displayRisk = isBeforeStart ? "⏳ 開始前" : riskText;
-  const cardRiskKey = isBeforeStart ? "none" : riskKey || "none";
+  const displayRisk = isCompleted ? "✅ 完了" : isBeforeStart ? "⏳ 開始前" : riskText;
+  const cardRiskKey = isCompleted ? "done" : isBeforeStart ? "none" : riskKey || "none";
   const deadlineText = deadlineAt ? format(deadlineAt, "yyyy-MM-dd HH:mm") : "—";
   const todayBadgeClass = `ana-badge ana-badge--today${minutesToday > 0 ? " is-active" : ""}`;
   const improvementMessages = [];
-  if (!isBeforeStart) {
+  if (!isBeforeStart && !isCompleted) {
     if (Number.isFinite(requiredMinutesForWarn) && requiredMinutesForWarn > 0) {
       improvementMessages.push(`今日 ${requiredMinutesForWarn} 分で🟡注意まで`);
     }
@@ -296,6 +297,11 @@ export default function AnalyticsTaskCard({
       >
         <div className="ana-card__head">
           <div className="ana-card__title" title={todo.text || "(名称未設定)"}>
+            {isCompleted ? (
+              <span className="ana-complete-mark" aria-label="完了済み" title="完了済みタスク">
+                ✓
+              </span>
+            ) : null}
             {todo.text || "(名称未設定)"}
             {labelInfo ? (
               <span
@@ -359,7 +365,9 @@ export default function AnalyticsTaskCard({
           </div>
           <div>
             今日の目安:
-            {improvementMessages.length
+            {isCompleted
+              ? " 完了済み"
+              : improvementMessages.length
               ? ` ${improvementMessages.join(" / ")}`
               : requiredPerDay != null && !isBeforeStart
               ? ` ${Math.ceil(requiredPerDay)} 分/日`
