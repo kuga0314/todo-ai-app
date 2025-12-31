@@ -69,7 +69,7 @@ export default function AnalyticsTotalSummary({ totalSeries, totalMinutes, avg7,
         type="monotone"
         dataKey="minutes"
         name="日別合計(分)"
-        stroke="#4f46e5"
+        stroke="var(--chart-actual)"
         strokeWidth={2}
         dot={false}
       />
