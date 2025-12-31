@@ -50,9 +50,29 @@ export default function AnalyticsView({
     return incompleteOnly ? list.filter((todo) => !todo?.completed) : list;
   }, [rawTodos, incompleteOnly]);
 
+  const effectiveDateRange = useMemo(() => {
+    if (!incompleteOnly || !dateRange.length) return dateRange;
+
+    let minLogKey = null;
+    baseTodos.forEach((todo) => {
+      Object.keys(todo.actualLogs || {}).forEach((key) => {
+        if (minLogKey === null || key < minLogKey) {
+          minLogKey = key;
+        }
+      });
+    });
+
+    if (!minLogKey) return dateRange;
+
+    const startIndex = dateRange.findIndex((date) => date >= minLogKey);
+    if (startIndex <= 0) return dateRange;
+
+    return dateRange.slice(startIndex);
+  }, [baseTodos, dateRange, incompleteOnly]);
+
   const totalSeries = useMemo(() => {
-    if (!dateRange.length) return [];
-    const totalsMap = new Map(dateRange.map((date) => [date, 0]));
+    if (!effectiveDateRange.length) return [];
+    const totalsMap = new Map(effectiveDateRange.map((date) => [date, 0]));
 
     baseTodos.forEach((todo) => {
       Object.entries(todo.actualLogs || {}).forEach(([key, value]) => {
@@ -63,11 +83,11 @@ export default function AnalyticsView({
       });
     });
 
-    return dateRange.map((date) => ({
+    return effectiveDateRange.map((date) => ({
       date,
       minutes: totalsMap.get(date) || 0,
     }));
-  }, [baseTodos, dateRange]);
+  }, [baseTodos, effectiveDateRange]);
 
   const decoratedTodos = useMemo(() => {
     const now = new Date();
