@@ -1,38 +1,32 @@
 \documentclass[a4j]{jarticle}
-
-\usepackage[deluxe]{otf}
-\usepackage{amsmath}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{tabularx}
-\usepackage{longtable}
-\usepackage{here}
-\usepackage{ulem}
-
+\usepackage{listings}
 \usepackage[dvipdfmx]{graphicx}
 \usepackage[dvipdfmx]{xcolor}
-
-
 \usepackage{listings}
-\lstset{
-  basicstyle={\small\ttfamily},
-  frame=single,
-  breaklines=true,
-  numbers=left,
-  numberstyle={\scriptsize},
-  xleftmargin=4zw,
-  xrightmargin=4zw,
-  columns=[l]{fullflexible}
-}
-
+\usepackage{here}
+\usepackage{longtable}
+\usepackage{ulem}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{booktabs}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning}
 %\usepackage{color}
 \newcommand{\ins}[1]{【追加】#1【/追加】}
 \newcommand{\kome}{※}
 \newcommand{\del}[1]{\sout{#1}}
-\newcommand{\modc}[2]{\sout{#1}【変更 #2 ／変更】}
-
+\newcommand{\modc}[2]{\sout{#1}【変更 #2 ／【変更】}
+\lstset{
+basicstyle={\small\ttfamily},
+frame={tblr},
+breaklines=true,
+numbers=left,
+numberstyle={\scriptsize},
+xleftmargin=4zw,
+xrightmargin=4zw,
+columns=[l]{fullflexible}
+}
 
 % 論文中で使う用語はなるべく定義する（あとでネーミングが気に食わないときに一括置き換え可能）
 \newcommand{\yougo}{用語}
@@ -575,7 +569,6 @@ EVM 指標を日次ベースで再計算するための基盤となっている�
     createdAt & タスク登録日時。 \\
     lastProgressAt & 最後に実績が記録された日時。 \\
     userId & タスク所有ユーザ ID。 \\
-    eacHistory & 日次で再計算された EAC の履歴を保持し，進捗推移分析に利用する。 \\
 
     \hline
   \end{tabularx}
@@ -631,17 +624,28 @@ Firestore 上の指標値が常に最新状態となるよう維持される。
 計算後，Cloud Functions は各指標を Firestore の該当フィールドに書き戻し，
 フロントエンドの表示および後続処理で参照可能な状態とする。
 
-\paragraph{EAC 予測日の履歴更新}
-本研究では EAC を最新値として保持するだけでなく，
-日次の実績ペースに応じて変化する予測完了日を履歴として保存するため，
-\texttt{eacHistory} を導入した。
-updateStats.js は再計算の実行時に，当日付の EAC を
-\texttt{eacHistory[YYYY-MM-DD]} として記録することで，
-予測完了日の変化を時系列データとして蓄積する。
+\paragraph{EAC 予測日の算出と履歴的可視化}
 
-また，実績ログの編集により過去の \texttt{actualLogs} が変更された場合には，
-全期間の pace7d，requiredPaceAdj，SPI，EAC を再計算し，
-\texttt{eacHistory} を含む関連フィールドを整合的に更新するように設計している。
+本研究では，EAC を単一の固定値として保持するのではなく，
+日次の実績ログに基づいて動的に再計算される予測完了日として扱う。
+updateStats.js は，実績ログ（\texttt{actualLogs}）が更新されるたびに，
+その時点の実績ペースに基づいて EAC を再算出し，
+Firestore 上の \texttt{eacDate} フィールドとして最新値を保持する。
+
+EAC の時系列的な変化については，
+Firestore に履歴として永続化するのではなく，
+日次実績ログを基にフロントエンドおよび分析処理において
+必要に応じて再計算・可視化する方式を採用している。
+この設計により，
+過去ログの編集や修正が行われた場合でも，
+全期間にわたる EAC の整合性を常に保った状態で
+再評価を行うことが可能となる。
+
+このように，本研究では，
+EAC の履歴管理を「値の保存」ではなく
+「日次ログに基づく再計算可能性」によって担保する設計とし，
+動的な進捗評価を重視した。
+
 
 
 
