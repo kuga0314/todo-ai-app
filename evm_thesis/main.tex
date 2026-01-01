@@ -1549,7 +1549,7 @@ short$\to$weekly  &  6 &  22 & -0.988 \\
 weekly$\to$weekly の到達率は 0.725 と最も高く，
 尺度の一貫性が保たれる条件下では，入力後に進捗評価が改善方向へ変化するケースが多いことが示された。
 
-\begin{table}[t]
+\begin{table}[H]
 \centering
 \caption{モード遷移別の $SPI_{\text{after}}\ge 1$ 到達率}
 \label{tab:spi_after_ge1_rate}
@@ -1569,6 +1569,24 @@ weekly$\to$weekly を主対象とした結果，
 $\Delta SPI$ は正の方向に有意に偏っており，
 実績入力後に SPI が改善方向へ変化する事例が多く観測された。
 short モードやモード遷移を含む結果は算出ルールの影響が残るため，補足的解釈に留める。
+
+なお，ログインの有無でイベントを分けて確認したところ，ログイン後に入力された 152 件のイベントでは，$\tilde{\Delta \mathrm{SPI}}=0.239$，平均 $1.40$ となり，全体（中央値 0.256，平均 1.06）よりも改善幅が大きかった。
+表\ref{tab:analysis1_login} に，ログイン有無別の指標を示す。
+
+\begin{table}[H]
+\centering
+\caption{ログイン有無別の $\Delta \mathrm{SPI}$ 集計（weekly モード中心）}
+\label{tab:analysis1_login}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+ラベル & $n$ & $\tilde{\Delta \mathrm{SPI}}$ & 平均 $\Delta \mathrm{SPI}$ & $\tilde{\mathrm{SPI}}_{\mathrm{before}}$ & $\tilde{\mathrm{SPI}}_{\mathrm{after}}$ \\
+\midrule
+全イベント & 223 & 0.256 & 1.06 & 0.83 & 1.40 \\
+ログイン有り & 152 & 0.239 & 1.40 & 0.63 & 1.31 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{分析2：EACに基づく将来予測と行動変化}
 \subsubsection{遅延予測イベントの概要}
@@ -1607,6 +1625,24 @@ short モードやモード遷移を含む結果は算出ルールの影響が�
 イベント前（before） & 29.39 & 37.74 & 0.00 & 8.57 & 142.86 \\
 イベント後（after）  & 24.36 & 35.74 & 0.00 & 5.79 & 125.71 \\
 差分（after--before） & -6.00 & 24.15 & -60.00 & -5.00 & 65.71 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+加えて，ログインが確認された 21 件のイベントに絞ると，イベント前後の平均作業時間は 31.93 分から 23.08 分へ低下し，平均差分は -8.84 分，中央値は -5.0 分であった。
+ログイン有無別の集計を表\ref{tab:analysis2_login} に示す。
+
+\begin{table}[t]
+\centering
+\caption{遅延予測イベントのログイン有無別記述統計}
+\label{tab:analysis2_login}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+ラベル & $n$ & 平均 before & 中央値 before & 平均 after & 中央値 after & 平均差分 \\
+\midrule
+全イベント & 27 & 29.39 & 8.57 & 24.36 & 5.79 & -6.11 \\
+ログイン有り & 21 & 31.93 & 9.29 & 23.08 & 8.57 & -8.84 \\
 \bottomrule
 \end{tabular}
 \end{table}
