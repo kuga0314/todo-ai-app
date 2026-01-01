@@ -182,6 +182,7 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
   const actualProgressRounded =
     actualProgress != null ? round2(actualProgress) : null;
 
+  const WARN_SPI_THRESHOLD = 0.8; // 卒論仕様に合わせたしきい値
   // 既存の riskLevel ロジック（締切超過を最優先で late）
   const spi = spi7d; // 既存フィールド名に合わせて採用
   let riskLevel = null;
@@ -197,11 +198,17 @@ exports.onTodoStats = onDocumentWritten("todos/{id}", async (event) => {
     } else if (isLateByEac) {
       riskLevel = "late";
     } else {
-      // 既存のSPIしきい値ロジック（ウォームアップ緩和は維持）
+      // SPIしきい値ロジック（ウォームアップ緩和は維持）
       if (workedDays < 3) {
-        riskLevel = spi < 0.9 ? "warn" : "ok";
+        riskLevel = spi < WARN_SPI_THRESHOLD ? "late" : "ok";
       } else {
-        riskLevel = spi < 0.9 ? "warn" : "ok";
+        if (spi >= 1) {
+          riskLevel = "ok";
+        } else if (spi >= WARN_SPI_THRESHOLD) {
+          riskLevel = "warn";
+        } else {
+          riskLevel = "late";
+        }
       }
     }
   }
