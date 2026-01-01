@@ -31,3 +31,13 @@ firestore-export/*.json
 # Build metadata
 /public/build-meta.json
 serviceAccountKey.json
+
+# LaTeX build files (evm_thesis)
+*.aux
+*.log
+*.toc
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.dvi
