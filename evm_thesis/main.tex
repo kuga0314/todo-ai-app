@@ -1483,16 +1483,20 @@ weekly$\to$weekly（$n=78$）では，$\Delta SPI$ は平均 0.309（中央値 0
 
 \begin{table}[t]
 \centering
-\caption{$SPI_{\text{after}}\ge 1$ を満たすイベントの記述統計（モード遷移別）}
+\caption[$SPI_{\text{after}}\ge 1$ の記述統計]{$SPI_{\text{after}}\ge 1$ を満たすイベントの記述統計（モード遷移別）}
 \label{tab:spi_after_ge1_desc}
+
+\small
+\setlength{\tabcolsep}{4pt} % 列間の余白を詰める（標準は6pt程度）
+
 \begin{tabular}{lrrrrrr}
 \toprule
 モード遷移 & $n$ &
-\multicolumn{1}{c}{$SPI_{\text{before}}$ 平均} &
-\multicolumn{1}{c}{$SPI_{\text{after}}$ 平均} &
-\multicolumn{1}{c}{$\Delta SPI$ 平均} &
-\multicolumn{1}{c}{$\Delta SPI$ 中央値} &
-\multicolumn{1}{c}{$\Delta SPI$ 最大} \\
+\multicolumn{1}{c}{$SPI_{\text{before}}$} &
+\multicolumn{1}{c}{$SPI_{\text{after}}$} &
+\multicolumn{1}{c}{$\Delta SPI$} &
+\multicolumn{1}{c}{中央値} &
+\multicolumn{1}{c}{最大} \\
 \midrule
 weekly$\to$weekly & 78 & 1.699 & 2.008 & 0.309 & 0.274 & 1.429 \\
 short$\to$short   & 46 & 0.635 & 6.706 & 6.071 & 1.130 & 69.600 \\
@@ -1500,6 +1504,7 @@ short$\to$weekly  &  4 & 2.564 & 1.340 & -1.225 & -0.988 & -0.179 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
 
 次に，入力後に $SPI_{\text{after}}\ge 1$ を満たした割合（到達率）を表\ref{tab:spi_after_ge1_rate}に示す。
 weekly$\to$weekly の到達率は 0.8478 と最も高く，
@@ -2021,13 +2026,13 @@ DoD, 発行年:2018.
   \item 予定開始日時 $plannedStart_i$
   \item 必要ペース［分/日］
         （調整後必要ペース \texttt{requiredPaceAdj}，
-        または基本必要ペース \texttt{requiredPace}）
+        または基本必要ペース \\\texttt{requiredPace}）
   \item 理想進捗率および実進捗率
   \item ユーザー設定の日次キャパシティ $C$［分］
 \end{itemize}
 
 出力は，当日に取り組むタスク集合 $\mathcal{P}$ と，
-各タスクに割り当てられる推奨作業時間（\texttt{todayMinutes}）である。
+各タスクに割り当てられる推奨作業時間\\（\texttt{todayMinutes}）である。
 キャパシティ制約により割当が 0 分となるタスクは除外されるため，
 $\lvert \mathcal{P} \rvert$ は最大3件であるが，
 状況によっては 3 件未満となる場合がある。
