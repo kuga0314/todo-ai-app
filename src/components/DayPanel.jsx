@@ -1,5 +1,6 @@
 // src/components/DayPanel.jsx
 import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, NotePencil } from "phosphor-react";
 
 /**
  * カレンダー日付から開くクイック追加モーダル（最小構成版）
@@ -21,6 +22,9 @@ export default function DayPanel({
   const [qE, setQE] = useState("90");            // E（見積分）
   const [qLabelId, setQLabelId] = useState("");
   const [qPlannedStart, setQPlannedStart] = useState("");
+  const [memoText, setMemoText] = useState("");
+  const [isMemoPage, setIsMemoPage] = useState(false);
+  const [slideDirection, setSlideDirection] = useState(null); // forward: main -> memo, back: memo -> main
 
   // ラベルが削除されていた場合の安全対処
   useEffect(() => {
@@ -35,6 +39,9 @@ export default function DayPanel({
     setQE("90");
     setQLabelId("");
     setQPlannedStart("");
+    setMemoText("");
+    setIsMemoPage(false);
+    setSlideDirection(null);
   };
 
   const handleClose = useCallback(() => {
@@ -79,6 +86,7 @@ export default function DayPanel({
       estimatedMinutes: E,         // 見積所要時間E
       labelId: qLabelId || null,   // 任意
       actualTotalMinutes: 0,       // 実績は後から入力
+      memo: memoText.trim(),
     };
 
     try {
@@ -143,6 +151,17 @@ export default function DayPanel({
       style={overlayStyle}
       onMouseDown={handleBackdropClick}
     >
+      <style>{`
+        @keyframes memo-slide-from-left {
+          from { opacity: 0; transform: translateX(-12px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes memo-slide-from-right {
+          from { opacity: 0; transform: translateX(12px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+      `}
+      </style>
       <div
         className="quick-modal"
         style={modalStyle}
@@ -162,92 +181,200 @@ export default function DayPanel({
 
         {/* フォーム */}
         <form onSubmit={handleSubmit}>
-          {/* 1行目：テキスト & 時刻 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 10 }}>
-            <input
-              type="text"
-              placeholder="やること"
-              value={qText}
-              onChange={(e) => setQText(e.target.value)}
-              style={inputStyle}
-              required
-            />
-            <input
-              type="time"
-              value={qTime}
-              onChange={(e) => setQTime(e.target.value)}
-              style={inputStyle}
-              required
-            />
-          </div>
-
-          {/* 2行目：E・ラベル */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 10,
-              marginTop: 10,
-            }}
-          >
-            <div>
-              <label style={labelStyle}>E（見積分） *</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                placeholder="例: 90"
-                value={qE}
-                onChange={(e) => setQE(e.target.value)}
-                style={inputStyle}
-                required
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>開始予定日（任意）</label>
-              <input
-                type="date"
-                value={qPlannedStart}
-                onChange={(e) => setQPlannedStart(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>ラベル</label>
-              <select
-                value={qLabelId}
-                onChange={(e) => setQLabelId(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="">（ラベルなし）</option>
-                {labels.map((lb) => (
-                  <option key={lb.id} value={lb.id}>{lb.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* 送信 */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, gap: 8 }}>
-            <button type="button" onClick={handleClose} style={{ ...closeBtnStyle, background: "#fff" }}>
-              キャンセル
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
+          {isMemoPage ? (
+            <div
               style={{
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: "1px solid #2e7d32",
-                background: saving ? "#9ccc9c" : "#43a047",
-                color: "#fff",
-                cursor: saving ? "default" : "pointer",
-                fontWeight: 600,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                animation: slideDirection === "forward"
+                  ? "memo-slide-from-left 220ms ease"
+                  : "memo-slide-from-right 220ms ease",
               }}
             >
-              {saving ? "追加中…" : "追加"}
-            </button>
-          </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSlideDirection("back");
+                    setIsMemoPage(false);
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "6px 10px",
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    background: "#f1f5f9",
+                    color: "#0f172a",
+                    fontWeight: 600,
+                    width: "fit-content",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)",
+                  }}
+                >
+                  <ArrowLeft size={18} weight="bold" />
+                </button>
+                <span style={{ ...labelStyle, margin: 0, fontWeight: 700, color: "#0f172a" }}>タスクメモ</span>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <textarea
+                  value={memoText}
+                  onChange={(e) => setMemoText(e.target.value)}
+                  placeholder=""
+                  style={{
+                    ...inputStyle,
+                    minHeight: 140,
+                    resize: "vertical",
+                    fontSize: "0.95rem",
+                    lineHeight: 1.5,
+                    background: "#f8fafc",
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* 1行目：テキスト & 時刻 */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 160px",
+                  gap: 10,
+                  animation: slideDirection === "back" ? "memo-slide-from-right 220ms ease" : undefined,
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="やること"
+                  value={qText}
+                  onChange={(e) => setQText(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
+                <input
+                  type="time"
+                  value={qTime}
+                  onChange={(e) => setQTime(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
+              </div>
+
+              {/* 2行目：E・ラベル */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 10,
+                  marginTop: 10,
+                }}
+              >
+                <div>
+                  <label style={labelStyle}>E（見積分） *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="例: 90"
+                    value={qE}
+                    onChange={(e) => setQE(e.target.value)}
+                    style={inputStyle}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>開始予定日（任意）</label>
+                  <input
+                    type="date"
+                    value={qPlannedStart}
+                    onChange={(e) => setQPlannedStart(e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>ラベル</label>
+                  <select
+                    value={qLabelId}
+                    onChange={(e) => setQLabelId(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">（ラベルなし）</option>
+                    {labels.map((lb) => (
+                      <option key={lb.id} value={lb.id}>{lb.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 12,
+                  padding: "10px 12px",
+                  border: "1px dashed #cbd5e1",
+                  borderRadius: 10,
+                  background: "#f8fafc",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>メモ</span>
+                  <span style={{ fontSize: 13, color: memoText ? "#0f172a" : "#94a3b8" }}>
+                    {memoText ? `保存予定: ${memoText}` : "タスクに添えるメモを追加できます"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSlideDirection("forward");
+                    setIsMemoPage(true);
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #0ea5e9",
+                    background: "#e0f2fe",
+                    color: "#0b75c9",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  <NotePencil size={18} weight="fill" />
+                  メモを書く
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* 送信 */}
+          {!isMemoPage && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, gap: 8 }}>
+              <button type="button" onClick={handleClose} style={{ ...closeBtnStyle, background: "#fff" }}>
+                キャンセル
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #2e7d32",
+                  background: saving ? "#9ccc9c" : "#43a047",
+                  color: "#fff",
+                  cursor: saving ? "default" : "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                {saving ? "追加中…" : "追加"}
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>

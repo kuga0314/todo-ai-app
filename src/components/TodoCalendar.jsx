@@ -190,9 +190,13 @@ export default function TodoCalendar({ todos, onAdd, notificationMode = "justInT
     const shouldShake = shouldWarn && shakeIds?.[todo.id];
     const warnLabel = "完了予測日が締め切り以降です";
 
+    const hasMemo = !!(todo?.memo && String(todo.memo).trim());
+
     return (
       <div className="cal-event-content">
-        <span className="cal-event-title">{event.title}</span>
+        <span className={`cal-event-title${hasMemo ? " event-has-memo" : ""}`}>
+          {event.title}
+        </span>
         {shouldWarn ? (
           <span
             className={`cal-warn-badge${shouldShake ? " cal-warn-badge--shake" : ""}`}

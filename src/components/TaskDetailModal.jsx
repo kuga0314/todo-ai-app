@@ -1,5 +1,6 @@
 // src/components/TaskDetailModal.jsx
 import { useEffect, useMemo, useState } from "react";
+import { NotePencil } from "phosphor-react";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { addDays, format } from "date-fns";
 import { db } from "../firebase/firebaseConfig";
@@ -37,18 +38,23 @@ export default function TaskDetailModal({ todo, labels = [], onClose }) {
   const [savingLabel, setSavingLabel] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
+  const [savingMemo, setSavingMemo] = useState(false);
   const [labelValue, setLabelValue] = useState(todo?.labelId ?? "");
   const [titleValue, setTitleValue] = useState(todo?.text ?? "");
   const [deadlineValue, setDeadlineValue] = useState(() => {
     const d = toDateValue(todo?.deadline);
     return d ? format(d, "yyyy-MM-dd'T'HH:mm") : "";
   });
+  const [memoValue, setMemoValue] = useState(todo?.memo ?? "");
+  const [editingMemo, setEditingMemo] = useState(false);
 
   useEffect(() => {
     setLabelValue(todo?.labelId ?? "");
     setTitleValue(todo?.text ?? "");
     const d = toDateValue(todo?.deadline);
     setDeadlineValue(d ? format(d, "yyyy-MM-dd'T'HH:mm") : "");
+    setMemoValue(todo?.memo ?? "");
+    setEditingMemo(false);
   }, [todo]);
 
   const decorated = useMemo(() => {
@@ -167,6 +173,8 @@ export default function TaskDetailModal({ todo, labels = [], onClose }) {
     return { series, hasLogs };
   }, [decorated, todo]);
 
+  const memoText = (memoValue ?? "").trim();
+
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) onClose?.();
   };
@@ -250,6 +258,23 @@ export default function TaskDetailModal({ todo, labels = [], onClose }) {
     }
   };
 
+  const handleSaveMemo = async () => {
+    if (!todo) return;
+    const nextMemo = (memoValue ?? "").trim();
+
+    try {
+      setSavingMemo(true);
+      await updateDoc(doc(db, "todos", todo.id), { memo: nextMemo });
+      await logTodoHistory(todo, { memo: nextMemo }, "update-memo-from-calendar");
+      setEditingMemo(false);
+    } catch (error) {
+      console.error("update memo failed", error);
+      alert("メモの更新に失敗しました。通信環境を確認してください。");
+    } finally {
+      setSavingMemo(false);
+    }
+  };
+
   if (!todo || !decorated) return null;
 
   const overlayStyle = {
@@ -290,7 +315,7 @@ export default function TaskDetailModal({ todo, labels = [], onClose }) {
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
             <input type="checkbox" checked={!!todo.completed} readOnly />
             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
                 {todo.labelId && (
                   <span
                     className="label-pill"
@@ -311,6 +336,57 @@ export default function TaskDetailModal({ todo, labels = [], onClose }) {
                 <strong style={{ fontSize: "1.05rem", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
                   {titleValue || todo.text}
                 </strong>
+                {memoText ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingMemo(true)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "5px 10px",
+                      borderRadius: 999,
+                      background: "#e0f2fe",
+                      color: "#0f172a",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      maxWidth: "40%",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      border: "1px solid #bae6fd",
+                      cursor: "pointer",
+                    }}
+                    title={memoText}
+                  >
+                    <NotePencil size={14} weight="fill" color="#0ea5e9" />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {memoText}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditingMemo(true)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "5px 10px",
+                      borderRadius: 999,
+                      background: "#e2e8f0",
+                      color: "#0f172a",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      border: "1px solid #cbd5e1",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <NotePencil size={14} weight="fill" />
+                    メモを追加
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <span style={{ color: "#475569", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
@@ -392,6 +468,69 @@ export default function TaskDetailModal({ todo, labels = [], onClose }) {
                     background: "#f8fafc",
                   }}
                 />
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: "#475569", margin: 0 }}>メモ</label>
+                  {!editingMemo ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingMemo(true)}
+                      style={{
+                        fontSize: 13,
+                        color: memoText ? "#0f172a" : "#64748b",
+                        background: "transparent",
+                        border: "1px dashed #cbd5e1",
+                        padding: "6px 10px",
+                        borderRadius: 10,
+                        cursor: "pointer",
+                      }}
+                      title={memoText || "メモを入力"}
+                    >
+                      {memoText || "メモを追加"}
+                    </button>
+                  ) : null}
+                </div>
+                {editingMemo ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <textarea
+                      value={memoValue}
+                      onChange={(e) => setMemoValue(e.target.value)}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        minHeight: 120,
+                        fontSize: 14,
+                        background: "#f8fafc",
+                        resize: "vertical",
+                      }}
+                      placeholder="メモを入力できます"
+                    />
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        className="btn-mini"
+                        onClick={() => {
+                          setMemoValue(todo?.memo ?? "");
+                          setEditingMemo(false);
+                        }}
+                        disabled={savingMemo}
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={handleSaveMemo}
+                        disabled={savingMemo}
+                      >
+                        {savingMemo ? "保存中…" : "メモを保存"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

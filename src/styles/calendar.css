@@ -144,6 +144,7 @@
 /* ===== セル選択・リンク色 ===== */
 .calendar-box .rbc-selected-cell { background: rgba(79,154,255,.12); }
 .calendar-box .rbc-date-cell a { color: inherit; text-decoration: none; }
+.calendar-box .rbc-event { position: relative; }
 .calendar-box .rbc-event-content {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -156,6 +157,18 @@
 
 .cal-event-content { position: static; }
 .cal-event-title { display: inline; }
+.event-has-memo::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 14px 14px 0;
+  border-color: transparent rgba(255,255,255,0.7) transparent transparent;
+  box-shadow: -1px 1px 2px rgba(0,0,0,0.18);
+}
 .cal-warn-badge{
   position:absolute;
   top:2px;

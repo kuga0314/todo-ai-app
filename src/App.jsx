@@ -451,6 +451,7 @@ const AppWithRouter = ({ logout, user }) => {
     const plannedStart = payload.plannedStart
       ? Timestamp.fromDate(new Date(payload.plannedStart))
       : null;
+    const memo = payload.memo?.trim?.() || "";
 
     const body = {
       userId: user.uid,
@@ -460,6 +461,7 @@ const AppWithRouter = ({ logout, user }) => {
       estimatedMinutes: toNum(payload.estimatedMinutes, null),
       labelId: payload.labelId || null,
       actualTotalMinutes: 0,
+      memo,
       completed: false,
       createdAt: Timestamp.now(),
       dailyAssignments: [],
