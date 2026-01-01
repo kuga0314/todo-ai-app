@@ -91,6 +91,11 @@ exports.scheduleProgressReminder = onSchedule("every 1 minutes", async () => {
     // 本文生成
     const summary = await buildTodaySummary(uid, dateKey);
 
+    // すでに当日の実績がある場合は送信しない（未入力時のみ送信）
+    if (summary.minutesToday > 0) {
+      continue;
+    }
+
     // 通知ペイロード
     const sendPromise = (async () => {
       let delivered = false;
