@@ -1422,9 +1422,17 @@ $\mathrm{SPI}$ は required（当日朝時点の必要ペース）に対する 7
 短期モードとの切替（short$\to$weekly など）では分母となる期間が変わるため，負の値も生じ得る。
 図\ref{fig:dspi_hist_weekly} のように正方向の値が多い理由は，以上の算出手順とフィルタ条件（$\Delta \mathrm{SPI}\neq 0$）によるものであり，負の値を意図的に除外したわけではない。
 
-\subsubsection{データ概要}
-本分析では，提案システムの実利用により記録された日次作業ログを用いた。
-実験期間中に収集された日次ログは 229 件であり，対象タスク数は 60 件であった。
+\subsubsection{データ抽出と前処理}
+本分析では，提案システムの実利用により記録された日次作業ログを用いた。生データ 229 件に対し，以下の手順で分析用データを作成した。
+
+\begin{enumerate}
+  \item \textbf{欠損・異常除外}: 締切欠落，負の作業時間，ゼロ未満の見積りを除外。
+  \item \textbf{締切日に起因する着手の除外}: 「締切日以降の投入」「締切日と完了日が同日の投入」を除外（SPI に基づく行動と解釈しにくいため）。
+  \item \textbf{イベント抽出}: 1 日の実績入力で $\Delta \mathrm{SPI}\neq 0$ となった行のみを「入力イベント」として採用。
+  \item \textbf{評価モード付与}: 直近 7 日の実績日数が 3 日未満なら short，3 日以上なら weekly とし，before/after のモード遷移（例: weekly$\to$weekly）を付与。
+\end{enumerate}
+
+上記 1)–2) により 229 件$\to$186 件に減少し，3) の $\Delta \mathrm{SPI}\neq 0$ 抽出で 178 件の入力イベントが得られた。以降は，集計・検定対象を明記しながら結果を示す。
 
 \subsubsection{日次作業量および推定作業量の分布}
 表\ref{tab:daily_stats} に，分析対象（締切超過・締切日完了の除外後）における実績作業時間（minutes）および推定作業時間（estimateMinutes）の記述統計量を示す。
@@ -1474,6 +1482,27 @@ short$\to$weekly  & 16 \\
 \end{tabular}
 \end{table}
 
+\subsubsection{遅延状態（$\mathrm{SPI}_{\mathrm{before}}<1$）に絞った主分析}
+weekly$\to$weekly のうち，当日朝の $\mathrm{SPI}_{\mathrm{before}}<1$ を満たすイベントを主分析対象とした（遅延状態での認知・行動変化を捉えるため）。この条件を満たしたのは 38 件であり，$\Delta \mathrm{SPI}$ の統計量を表\ref{tab:analysis1_weekly_delay}に示す。中央値 0.081，平均 0.104 と小幅ながら全件で正方向（改善）であった。
+
+\begin{table}[t]
+\centering
+\caption{weekly$\to$weekly かつ $\mathrm{SPI}_{\mathrm{before}}<1$ に限定した $\Delta \mathrm{SPI}$（主分析対象）}
+\label{tab:analysis1_weekly_delay}
+\begin{tabular}{lrrr}
+\toprule
+指標 & 値 \\
+\midrule
+件数 $n$ & 38 \\
+平均 $\Delta \mathrm{SPI}$ & 0.104 \\
+中央値 $\Delta \mathrm{SPI}$ & 0.081 \\
+$\mathrm{pos\_rate}(\Delta \mathrm{SPI}>0)$ & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{検定の前提と方向}
+weekly$\to$weekly（遅延状態）の $\Delta \mathrm{SPI}$ が 0 より大きいかを，符号付順位和検定（Wilcoxon，片側，ゼロは除外）で評価した。サンプルサイズが十分でない short$\to$weekly（$n=16$）や分布が大きく歪む short$\to$short（$n=53$）は，効果量・中央値を参考値として提示し，主張の根拠とはしない。
 
 \subsubsection{モード別の $\Delta \mathrm{SPI}$ 傾向}
 モード別に $\Delta \mathrm{SPI}$ の偏りを集計した結果を表\ref{tab:analysis1_summary}に示す。
