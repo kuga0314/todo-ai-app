@@ -1242,7 +1242,6 @@ EAC（予測完了日）の日次推移を可視化した折れ線グラフを�
   \item 今日のプラン提示ログ（\texttt{dailyPlans\_export\_20251209\_044520.csv}）：9 レコード，1 ユーザ，期間 2025/12/09 のみ。
 \end{itemize}
 
-日次実績ログが全分析の基盤となるが，「今日のプラン」に関するデータは 1 ユーザ・9 件と小規模であるため，RQ3 の解釈には慎重を期す。データ取得時点での欠損や異常値（負の時間，締切の欠落）は除外し，時刻は日単位に正規化して集計する。また，分析1では「締切日以降の投入」と「締切日と完了日が同日の投入」（締切ゆえの着手で SPI に基づく行動と解釈しにくい）を除外し，分析対象ログは 229 件→186 件となる。
 日次実績ログが全分析の基盤となるが，「今日のプラン」に関するデータは 1 ユーザ・9 件と小規模であるため，RQ3 の解釈には慎重を期す。データ取得時点での欠損や異常値（負の時間，締切の欠落）は除外し，時刻は日単位に正規化して集計する。また，分析1では「締切日以降の投入」と「締切日と完了日が同日の投入」（締切ゆえの着手で SPI に基づく行動と解釈しにくい）を除外し，分析対象ログは 229 件→186 件となる。ログイン状態（\texttt{loginFlag}）は通知閲覧の近似として併記し，後述の分析1でログイン有無別の比較も行う。
 
 \subsection{評価指標と分析手順}
@@ -1426,6 +1425,26 @@ $\mathrm{SPI}$ は required（当日朝時点の必要ペース）に対する 7
 \end{enumerate}
 
 上記 1)–2) により 229 件$\to$186 件に減少し，3) の $\Delta \mathrm{SPI}\neq 0$ 抽出で 178 件の入力イベントが得られた。以降は，集計・検定対象を明記しながら結果を示す。
+フィルタの通過件数をまとめたものを表\ref{tab:analysis1_pipeline}に示す。サンプル数の減り方と，各表・節がどのサブセットを扱うかを明示することで，再現手順を追いやすくした。
+
+\begin{table}[t]
+\centering
+\caption{分析1におけるデータ抽出の段階別件数}
+\label{tab:analysis1_pipeline}
+\begin{tabular}{lr}
+\toprule
+抽出段階 & 件数 \\
+\midrule
+生データ（日次ログ） & 229 \\
+欠損・締切起因の除外後 & 186 \\
+$\Delta \mathrm{SPI}\neq 0$ の入力イベント & 178 \\
+　うち weekly$\to$weekly & 109 \\
+　\quad（$\mathrm{SPI}_{\mathrm{before}}<1$） & 38 \\
+　うち short$\to$short & 53 \\
+　うち short$\to$weekly & 16 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsubsection{日次作業量および推定作業量の分布}
 表\ref{tab:daily_stats} に，分析対象（締切超過・締切日完了の除外後）における実績作業時間（minutes）および推定作業時間（estimateMinutes）の記述統計量を示す。
@@ -1501,6 +1520,8 @@ weekly$\to$weekly（遅延状態）の $\Delta \mathrm{SPI}$ が 0 より大き�
 モード別に $\Delta \mathrm{SPI}$ の偏りを集計した結果を表\ref{tab:analysis1_summary}に示す。
 weekly$\to$weekly（$n=109$）では $\Delta \mathrm{SPI}$ の正方向が 0.954，中央値は 0.324（平均 0.730）であった。
 short$\to$short（$n=53$）では中央値 1.50（平均 1.89）とばらつきが大きく，short$\to$weekly（$n=16$）では中央値が -0.981 と負方向に偏っていた。
+表\ref{tab:analysis1_summary} の weekly$\to$weekly 行は「遅延状態に限定しない全 109 件」を集計しているため，$\tilde{\mathrm{SPI}}_{\mathrm{before}}=1.554$ と 1 を上回る値になっている。
+遅延状態に絞った結果は表\ref{tab:analysis1_weekly_delay} に示した 38 件のサブセットであり，そこで中央値 0.081，平均 0.104 と小幅な正方向に集中している。
 
 \begin{table}[t]
 \centering
@@ -1535,12 +1556,13 @@ weekly$\to$weekly における $\Delta\text{SPI}$ の分布を図\ref{fig:dspi_h
 \end{figure}
 
 \subsubsection{統計検定による $\Delta SPI$ の偏りの検証}
-weekly$\to$weekly（$n=120$）に対して，$\Delta \mathrm{SPI}$ が正の方向に偏っているかを検証するため，
+weekly$\to$weekly（$n=109$）に対して，$\Delta \mathrm{SPI}$ が正の方向に偏っているかを検証するため，
 Wilcoxon の符号付順位検定（片側検定）を行った。
-表\ref{tab:analysis1_summary} のとおり $p=3.46\times10^{-13}$，効果量 $r=0.66$ となり，改善方向への偏りが確認された。
+表\ref{tab:analysis1_summary} のとおり $p=9.56\times10^{-15}$，効果量 $r=0.73$ となり，改善方向への偏りが確認された。
+なお，遅延状態に限定した 38 件のサブセットでは全件で $\Delta \mathrm{SPI}>0$ であり，符号検定的にも正方向への集中が確認できる。
 
 \subsubsection{短期評価およびモード遷移ケースの特徴}
-short$\to$short（$n=81$）では $\Delta \mathrm{SPI}$ の分散が大きく，極端な値も観測された（図\ref{fig:dspi_hist_short}）。
+short$\to$short（$n=53$）では $\Delta \mathrm{SPI}$ の分散が大きく，極端な値も観測された（図\ref{fig:dspi_hist_short}）。
 また short$\to$weekly のような評価モード遷移を伴うケースでは，
 分母となる期間の切替により $\Delta \mathrm{SPI}$ が負方向に振れやすい。
 入力前後差に算出ルールの影響が含まれ得るため，差分解釈には注意が必要である。
