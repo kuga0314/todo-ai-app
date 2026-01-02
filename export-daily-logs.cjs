@@ -67,6 +67,10 @@ function toDate(value) {
     const milliseconds = value.seconds * 1000 + (value.nanoseconds || 0) / 1e6;
     return new Date(milliseconds);
   }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
   return null;
 }
 
@@ -184,6 +188,8 @@ function buildRows(todoId, data, loginMap) {
   const estimatedMinutesValue = Number.isFinite(estimatedMinutes) ? estimatedMinutes : "";
   const deadlineDate = timestampToDateString(data.deadline ?? data.deadlineDate ?? null);
   const createdDate = timestampToDateString(data.createdAt ?? data.createdDate ?? null);
+  const completedAt = timestampToDateString(data.completedAt ?? null);
+  const completedFlag = data.completed === true ? 1 : 0;
   const text = data.text ?? data.title ?? "";
   const logs = data.actualLogs && typeof data.actualLogs === "object" ? data.actualLogs : {};
 
@@ -208,6 +214,8 @@ function buildRows(todoId, data, loginMap) {
       text,
       loginFlag,
       firstLoginAtJst,
+      completedFlag,
+      completedAt,
     ]);
   }
 
@@ -281,6 +289,8 @@ async function main() {
     "text",
     "loginFlag",
     "firstLoginAtJst",
+    "completed",
+    "completedAt",
   ];
   const outputPath = writeCsv(sortedRows, outPath, header);
 
