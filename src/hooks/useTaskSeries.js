@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { formatDateKey, parseDateKey } from "../utils/analytics";
 import { addDays } from "date-fns";
+import { jstDateKey } from "../utils/logUpdates";
 
 export function useTaskSeries({ dateRange, refreshTick }) {
   const [seriesCache, setSeriesCacheState] = useState({});
@@ -34,7 +35,19 @@ export function useTaskSeries({ dateRange, refreshTick }) {
         : 0;
       const effectiveRange =
         startIndex === -1 ? [] : dateRange.slice(Math.max(0, startIndex));
-      if (!effectiveRange.length) return [];
+
+      const completedAt = task.completed ? toDateValue(task.completedAt) : null;
+      const completedKey =
+        task.completed && completedAt ? jstDateKey(completedAt) : null;
+      const clippedRange = (() => {
+        if (!completedKey) return effectiveRange;
+        const endIndex = effectiveRange.findIndex((date) => date > completedKey);
+        if (endIndex === -1) return effectiveRange;
+        const sliced = effectiveRange.slice(0, endIndex);
+        return sliced.length ? sliced : effectiveRange.slice(0, 1);
+      })();
+
+      if (!clippedRange.length) return [];
       let cumulative = 0;
       const estimated = Number(task.estimatedMinutes) || 0;
       let deadline = null;
@@ -55,7 +68,7 @@ export function useTaskSeries({ dateRange, refreshTick }) {
         let sum = 0;
         let daysWorked = 0;
         for (let i = startIdx; i <= index; i += 1) {
-          const key = effectiveRange[i];
+          const key = clippedRange[i];
           const value = Number(logs[key]) || 0;
           sum += value;
           if (value > 0) {
@@ -71,7 +84,7 @@ export function useTaskSeries({ dateRange, refreshTick }) {
         };
       };
 
-      return effectiveRange.map((date, index) => {
+      return clippedRange.map((date, index) => {
         const minutes = Number(logs[date]) || 0;
         const adjustedMinutes = minutes + tickMarker * 0;
         cumulative += adjustedMinutes;
