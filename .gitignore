@@ -41,3 +41,6 @@ serviceAccountKey.json
 *.fdb_latexmk
 *.synctex.gz
 *.dvi
+
+# Analysis / export data
+*.csv
